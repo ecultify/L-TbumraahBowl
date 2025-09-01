@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 
 export type SpeedClass = 'Slow' | 'Fast' | 'Zooooom';
-export type AnalyzerMode = 'mock' | 'pose' | 'benchmark';
+export type AnalyzerMode = 'pose' | 'benchmark';
 
 export interface FrameIntensity {
   timestamp: number;
@@ -37,7 +37,7 @@ const initialState: AnalysisState = {
   finalIntensity: 0,
   speedClass: null,
   confidence: 0,
-  analyzerMode: 'mock',
+  analyzerMode: 'benchmark',
   progress: 0,
 };
 

@@ -4,14 +4,32 @@ import { Camera, Upload, Activity } from 'lucide-react';
 export default function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+      {/* Header */}
+      <header className="flex items-center justify-between max-w-6xl mx-auto px-4 py-6">
+        <div className="flex items-center gap-3">
+          <Activity className="w-8 h-8 text-blue-600" />
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+            Cricket Bowling Speed Meter
+          </h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-gray-600">Developed by</span>
+          <img 
+            src="https://ecultify.com/wp-content/uploads/2022/09/logo-ecultify.png.webp" 
+            alt="Ecultify" 
+            className="h-8 w-auto"
+          />
+        </div>
+      </header>
+
       {/* Hero Section */}
-      <div className="max-w-4xl mx-auto px-4 py-16">
+      <div className="max-w-4xl mx-auto px-4 py-8">
         <div className="text-center mb-16">
           <div className="flex items-center justify-center gap-3 mb-6">
             <Activity className="w-12 h-12 text-blue-600" />
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
-              Cricket Bowling Speed Meter
-            </h1>
+            <h2 className="text-5xl font-bold bg-gradient-to-r from-blue-600 to-green-600 bg-clip-text text-transparent">
+              AI-Powered Bowling Analysis
+            </h2>
           </div>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
             Analyze your bowling action with AI-powered motion detection. 

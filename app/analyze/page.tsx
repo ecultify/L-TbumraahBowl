@@ -11,7 +11,7 @@ import { Sparkline } from '@/components/Sparkline';
 import { AnalysisResults } from '@/components/AnalysisResults';
 import { useToast } from '@/components/Toast';
 import { FrameSampler } from '@/lib/video/frameSampler';
-import { MockMotionAnalyzer } from '@/lib/analyzers/mockMotion';
+
 import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
 import { normalizeIntensity, classifySpeed } from '@/lib/utils/normalize';
@@ -24,7 +24,7 @@ function AnalyzeContent() {
   const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
-  const mockAnalyzerRef = useRef<MockMotionAnalyzer>(new MockMotionAnalyzer());
+
   const poseAnalyzerRef = useRef<PoseBasedAnalyzer>(new PoseBasedAnalyzer());
   const benchmarkAnalyzerRef = useRef<BenchmarkComparisonAnalyzer>(new BenchmarkComparisonAnalyzer());
   // Get tab from URL params
@@ -54,19 +54,18 @@ function AnalyzeContent() {
       console.log(`Starting analysis with ${state.analyzerMode} mode`);
       
       // Initialize analyzer based on mode
-      let analyzer: MockMotionAnalyzer | PoseBasedAnalyzer | BenchmarkComparisonAnalyzer;
+      let analyzer: PoseBasedAnalyzer | BenchmarkComparisonAnalyzer;
       if (state.analyzerMode === 'benchmark') {
         console.log('Initializing benchmark analyzer...');
         const initialized = await benchmarkAnalyzerRef.current.loadBenchmarkPattern();
         if (!initialized) {
-          console.warn('Benchmark analyzer failed, falling back to mock');
+          console.warn('Benchmark analyzer failed');
           addToast({
             type: 'error',
             title: 'Benchmark comparison failed',
-            message: 'Falling back to mock analyzer'
+            message: 'Please try again or use pose detection'
           });
-          dispatch({ type: 'SET_ANALYZER_MODE', payload: 'mock' });
-          analyzer = mockAnalyzerRef.current;
+          return;
         } else {
           console.log('Benchmark analyzer initialized successfully');
           analyzer = benchmarkAnalyzerRef.current;
@@ -75,21 +74,40 @@ function AnalyzeContent() {
         console.log('Initializing pose analyzer...');
         const initialized = await poseAnalyzerRef.current.initialize();
         if (!initialized) {
-          console.warn('Pose analyzer failed, falling back to mock');
+          console.warn('Pose analyzer failed, falling back to benchmark');
           addToast({
             type: 'error',
             title: 'Pose detection failed',
-            message: 'Falling back to mock analyzer'
+            message: 'Falling back to benchmark analyzer'
           });
-          dispatch({ type: 'SET_ANALYZER_MODE', payload: 'mock' });
-          analyzer = mockAnalyzerRef.current;
+          dispatch({ type: 'SET_ANALYZER_MODE', payload: 'benchmark' });
+          const benchmarkInitialized = await benchmarkAnalyzerRef.current.loadBenchmarkPattern();
+          if (!benchmarkInitialized) {
+            addToast({
+              type: 'error',
+              title: 'All analyzers failed',
+              message: 'Please try again'
+            });
+            return;
+          }
+          analyzer = benchmarkAnalyzerRef.current;
         } else {
           console.log('Pose analyzer initialized successfully');
           analyzer = poseAnalyzerRef.current;
         }
       } else {
-        console.log('Using mock analyzer');
-        analyzer = mockAnalyzerRef.current;
+        // Default to benchmark analyzer
+        console.log('Defaulting to benchmark analyzer...');
+        const initialized = await benchmarkAnalyzerRef.current.loadBenchmarkPattern();
+        if (!initialized) {
+          addToast({
+            type: 'error',
+            title: 'Analyzer initialization failed',
+            message: 'Please try again'
+          });
+          return;
+        }
+        analyzer = benchmarkAnalyzerRef.current;
       }
 
       analyzer.reset();
@@ -111,10 +129,8 @@ function AnalyzeContent() {
           let intensity: number;
           if (state.analyzerMode === 'pose') {
             intensity = await (analyzer as PoseBasedAnalyzer).analyzeFrame(frame);
-          } else if (state.analyzerMode === 'benchmark') {
-            intensity = await (analyzer as BenchmarkComparisonAnalyzer).analyzeFrame(frame);
           } else {
-            intensity = (analyzer as MockMotionAnalyzer).analyzeFrame(frame);
+            intensity = await (analyzer as BenchmarkComparisonAnalyzer).analyzeFrame(frame);
           }
 
           const frameIntensity: FrameIntensity = {
@@ -197,20 +213,18 @@ function AnalyzeContent() {
   }, [dispatch]);
 
   const toggleAnalyzerMode = useCallback(() => {
-    const modes: AnalyzerMode[] = ['mock', 'benchmark', 'pose'];
+    const modes: AnalyzerMode[] = ['benchmark', 'pose'];
     const currentIndex = modes.indexOf(state.analyzerMode);
     const newMode = modes[(currentIndex + 1) % modes.length];
     
     dispatch({ type: 'SET_ANALYZER_MODE', payload: newMode });
     
     const modeNames = {
-      mock: 'Mock Motion',
       benchmark: 'Benchmark Comparison', 
       pose: 'Pose AI'
     };
     
     const modeDescriptions = {
-      mock: 'Using frame difference for analysis',
       benchmark: 'Comparing hand movements to benchmark video',
       pose: 'Using AI pose detection for analysis'
     };
@@ -258,15 +272,12 @@ function AnalyzeContent() {
               <button
                 onClick={toggleAnalyzerMode}
                 className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                  state.analyzerMode === 'mock' 
-                    ? 'bg-blue-100 text-blue-800'
-                    : state.analyzerMode === 'benchmark'
+                  state.analyzerMode === 'benchmark'
                     ? 'bg-green-100 text-green-800'
                     : 'bg-purple-100 text-purple-800'
                 }`}
               >
-                {state.analyzerMode === 'mock' ? 'Mock' : 
-                 state.analyzerMode === 'benchmark' ? 'Benchmark' : 'Pose AI'}
+                {state.analyzerMode === 'benchmark' ? 'Benchmark' : 'Pose AI'}
               </button>
             </div>
           </div>
