@@ -14,11 +14,18 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-600">Developed by</span>
-          <img 
-            src="https://ecultify.com/wp-content/uploads/2022/09/logo-ecultify.png.webp" 
-            alt="Ecultify" 
-            className="h-8 w-auto"
-          />
+          <a 
+            href="https://ecultify.com/" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <img 
+              src="https://ecultify.com/wp-content/uploads/2022/09/logo-ecultify.png.webp" 
+              alt="Ecultify" 
+              className="h-8 w-auto"
+            />
+          </a>
         </div>
       </header>
 
