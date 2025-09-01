@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Settings2, Play, RotateCcw, Download } from 'lucide-react';
-import { AnalysisProvider, useAnalysis, FrameIntensity } from '@/context/AnalysisContext';
+import { AnalysisProvider, useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
 import { VideoRecorder } from '@/components/VideoRecorder';
 import { VideoUploader } from '@/components/VideoUploader';
@@ -112,7 +112,7 @@ function AnalyzeContent() {
           if (state.analyzerMode === 'pose') {
             intensity = await (analyzer as PoseBasedAnalyzer).analyzeFrame(frame);
           } else if (state.analyzerMode === 'benchmark') {
-            intensity = (analyzer as BenchmarkComparisonAnalyzer).analyzeFrame(frame);
+            intensity = await (analyzer as BenchmarkComparisonAnalyzer).analyzeFrame(frame);
           } else {
             intensity = (analyzer as MockMotionAnalyzer).analyzeFrame(frame);
           }

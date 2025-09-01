@@ -115,7 +115,7 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
           <line x1="90" y1="100" x2="100" y2="90" />
           <line x1="140" y1="75" x2="150" y2="65" />
           <line x1="200" y1="90" x2="210" y2="100" />
-          <line x1="230" y1="130" x2="240" y1="140" />
+          <line x1="230" y1="130" x2="240" y2="140" />
         </g>
         
         {/* Speed labels */}

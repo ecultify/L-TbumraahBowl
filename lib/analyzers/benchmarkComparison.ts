@@ -187,7 +187,9 @@ export class BenchmarkComparisonAnalyzer {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
       const currentPoint = currentPose.keypoints.find(kp => kp.name === pointName);
 
-      if (prevPoint && currentPoint && prevPoint.score > 0.3 && currentPoint.score > 0.3) {
+      if (prevPoint && currentPoint && 
+          prevPoint.score && prevPoint.score > 0.3 && 
+          currentPoint.score && currentPoint.score > 0.3) {
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
@@ -213,7 +215,9 @@ export class BenchmarkComparisonAnalyzer {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
       const currentPoint = currentPose.keypoints.find(kp => kp.name === pointName);
 
-      if (prevPoint && currentPoint && prevPoint.score > 0.3 && currentPoint.score > 0.3) {
+      if (prevPoint && currentPoint && 
+          prevPoint.score && prevPoint.score > 0.3 && 
+          currentPoint.score && currentPoint.score > 0.3) {
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);

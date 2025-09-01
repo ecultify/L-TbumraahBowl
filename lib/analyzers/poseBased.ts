@@ -85,7 +85,8 @@ export class PoseBasedAnalyzer {
       const currentPoint = currentPose.keypoints.find(kp => kp.name === pointName);
 
       if (prevPoint && currentPoint && 
-          prevPoint.score > 0.3 && currentPoint.score > 0.3) {
+          prevPoint.score && prevPoint.score > 0.3 && 
+          currentPoint.score && currentPoint.score > 0.3) {
         
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
