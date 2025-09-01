@@ -1,0 +1,3 @@
+[33mcd98179[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Add link to Ecultify logo in header
+[33mdfd9cc1[m Update landing page header with Ecultify branding and remove mock analyzer mode
+[33m2f78143[m Fix TypeScript errors: add await for async analyzeFrame calls and handle optional score properties

@@ -92,7 +92,7 @@ export function VideoUploader({ onVideoReady }: VideoUploaderProps) {
   }, [uploadedVideoUrl, onVideoReady]);
 
   const useBenchmarkVideo = useCallback(() => {
-    const benchmarkUrl = '/benchmark-bowling.mp4';
+    const benchmarkUrl = 'https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742';
     onVideoReady(benchmarkUrl);
   }, [onVideoReady]);
   return (
@@ -114,7 +114,7 @@ export function VideoUploader({ onVideoReady }: VideoUploaderProps) {
           </p>
           <div className="flex flex-col lg:flex-row gap-4 items-start">
             <video
-              src="/benchmark-bowling.mp4"
+              src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
               controls
               className="w-full lg:w-64 rounded-xl shadow-md"
               poster="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIwIiBoZWlnaHQ9IjI0MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjNmNGY2Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzY2NzI4MCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkJlbmNobWFyayBWaWRlbzwvdGV4dD48L3N2Zz4="
