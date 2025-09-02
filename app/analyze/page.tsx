@@ -439,21 +439,7 @@ function AnalyzeContent() {
                       <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                       <span className="text-gray-700">Complete bowling motion captured</span>
                     </div>
-                    <button
-                      onClick={() => {
-                        const benchmarkUrl = 'https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742';
-                        handleVideoReady(benchmarkUrl);
-                        addToast({
-                          type: 'info',
-                          title: 'Benchmark video loaded',
-                          message: 'Real bowling footage ready for analysis'
-                        });
-                      }}
-                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm mt-4"
-                    >
-                      <Play className="w-4 h-4" />
-                      Use This Video
-                    </button>
+
                   </div>
                 </div>
               </div>
