@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useState } from 'react';
-import { Upload, X, AlertCircle, Play } from 'lucide-react';
+import { Upload, X, AlertCircle } from 'lucide-react';
 
 interface VideoUploaderProps {
   onVideoReady: (videoUrl: string) => void;
@@ -11,7 +11,6 @@ export function VideoUploader({ onVideoReady }: VideoUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showBenchmark, setShowBenchmark] = useState(true);
 
   const validateFile = (file: File): string | null => {
     // Check file type
@@ -91,64 +90,8 @@ export function VideoUploader({ onVideoReady }: VideoUploaderProps) {
     }
   }, [uploadedVideoUrl, onVideoReady]);
 
-  const useBenchmarkVideo = useCallback(() => {
-    const benchmarkUrl = 'https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742';
-    onVideoReady(benchmarkUrl);
-  }, [onVideoReady]);
   return (
     <div className="space-y-6">
-      {/* Benchmark Video Reference */}
-      {showBenchmark && !uploadedVideoUrl && (
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-purple-800">Benchmark Video Reference</h3>
-            <button
-              onClick={() => setShowBenchmark(false)}
-              className="text-purple-400 hover:text-purple-600 transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-          <p className="text-purple-700 mb-4 text-sm">
-            This is an example of good bowling footage for analysis. Your video should have similar clarity and framing.
-          </p>
-          <div className="flex flex-col lg:flex-row gap-4 items-start">
-            <video
-              src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
-              controls
-              preload="metadata"
-              className="w-full lg:w-64 rounded-xl shadow-md"
-              poster="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4/ik-thumbnail.jpg"
-            />
-            <div className="flex-1 space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-gray-700">Clear view of bowler's full action</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-gray-700">Good lighting and contrast</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-gray-700">Stable camera position</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                <span className="text-gray-700">Complete bowling motion captured</span>
-              </div>
-              <button
-                onClick={useBenchmarkVideo}
-                className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm mt-4"
-              >
-                <Play className="w-4 h-4" />
-                Use This Video
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {!uploadedVideoUrl ? (
         <>
           {/* Upload Area */}
@@ -165,7 +108,7 @@ export function VideoUploader({ onVideoReady }: VideoUploaderProps) {
           >
             <Upload className={`w-16 h-16 mx-auto mb-4 ${dragActive ? 'text-blue-500' : 'text-gray-400'}`} />
             <h3 className="text-xl font-semibold mb-2 text-gray-800">
-              {showBenchmark ? 'Drop your bowling video here' : 'Upload your bowling video'}
+              Upload your bowling video
             </h3>
             <p className="text-gray-600 mb-6">
               Or click to browse files (MP4, WebM, MOV • Max 20 seconds • Under 50MB)

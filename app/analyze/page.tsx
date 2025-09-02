@@ -405,28 +405,57 @@ function AnalyzeContent() {
               />
             )}
 
-            {/* Sample Video Option */}
+            {/* Benchmark Video Reference */}
             {!state.currentVideo && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg text-center">
-                <h3 className="text-lg font-semibold mb-3 text-gray-800">Try a Sample</h3>
-                <p className="text-gray-600 mb-4">
-                  Test the analyzer with a sample bowling video
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-2xl p-6">
+                <div className="mb-4">
+                  <h3 className="text-lg font-semibold text-purple-800">Benchmark Video Reference</h3>
+                </div>
+                <p className="text-purple-700 mb-4 text-sm">
+                  This is an example of good bowling footage for analysis. Your video should have similar clarity and framing.
                 </p>
-                <button
-                  onClick={() => {
-                    const sampleUrl = 'https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742';
-                    handleVideoReady(sampleUrl);
-                    addToast({
-                      type: 'info',
-                      title: 'Benchmark video loaded',
-                      message: 'Real bowling footage ready for analysis'
-                    });
-                  }}
-                  className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 mx-auto"
-                >
-                  <Download className="w-5 h-5" />
-                  Try Benchmark Video
-                </button>
+                <div className="flex flex-col lg:flex-row gap-4 items-start">
+                  <video
+                    src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
+                    controls
+                    preload="metadata"
+                    className="w-full lg:w-64 rounded-xl shadow-md"
+                    poster="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4/ik-thumbnail.jpg"
+                  />
+                  <div className="flex-1 space-y-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-700">Clear view of bowler's full action</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-700">Good lighting and contrast</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-700">Stable camera position</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                      <span className="text-gray-700">Complete bowling motion captured</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const benchmarkUrl = 'https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742';
+                        handleVideoReady(benchmarkUrl);
+                        addToast({
+                          type: 'info',
+                          title: 'Benchmark video loaded',
+                          message: 'Real bowling footage ready for analysis'
+                        });
+                      }}
+                      className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 transform hover:scale-105 text-sm mt-4"
+                    >
+                      <Play className="w-4 h-4" />
+                      Use This Video
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
