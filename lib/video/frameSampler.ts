@@ -11,6 +11,8 @@ export class FrameSampler {
   private onFrame: (frame: FrameData) => void;
   private isRunning: boolean = false;
   private animationId: number | null = null;
+  private rVFCHandle: number | null = null;
+  private useRVFC: boolean = false;
 
   constructor(
     video: HTMLVideoElement, 
@@ -32,21 +34,34 @@ export class FrameSampler {
     if (this.isRunning) return;
     this.isRunning = true;
     
-    const targetInterval = 1000 / this.targetFPS;
-    let lastFrameTime = 0;
+    const targetIntervalMs = 1000 / this.targetFPS;
+    let lastTsMs = 0;
 
-    const processFrame = (currentTime: number) => {
-      if (!this.isRunning) return;
+    const hasRVFC = typeof (this.video as any).requestVideoFrameCallback === 'function';
+    this.useRVFC = hasRVFC;
 
-      if (currentTime - lastFrameTime >= targetInterval) {
-        this.captureFrame();
-        lastFrameTime = currentTime;
-      }
-
+    if (hasRVFC) {
+      const cb = (_now: number, metadata: any) => {
+        if (!this.isRunning) return;
+        const mediaTimeMs = (metadata?.mediaTime ?? this.video.currentTime) * 1000;
+        if (mediaTimeMs - lastTsMs >= targetIntervalMs) {
+          this.captureFrame();
+          lastTsMs = mediaTimeMs;
+        }
+        this.rVFCHandle = (this.video as any).requestVideoFrameCallback(cb);
+      };
+      this.rVFCHandle = (this.video as any).requestVideoFrameCallback(cb);
+    } else {
+      const processFrame = (currentTime: number) => {
+        if (!this.isRunning) return;
+        if (currentTime - lastTsMs >= targetIntervalMs) {
+          this.captureFrame();
+          lastTsMs = currentTime;
+        }
+        this.animationId = requestAnimationFrame(processFrame);
+      };
       this.animationId = requestAnimationFrame(processFrame);
-    };
-
-    this.animationId = requestAnimationFrame(processFrame);
+    }
   }
 
   stop(): void {
@@ -54,6 +69,10 @@ export class FrameSampler {
     if (this.animationId) {
       cancelAnimationFrame(this.animationId);
       this.animationId = null;
+    }
+    if (this.rVFCHandle && this.useRVFC) {
+      try { ((this.video as any).cancelVideoFrameCallback)(this.rVFCHandle); } catch {}
+      this.rVFCHandle = null;
     }
   }
 

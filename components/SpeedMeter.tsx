@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { SpeedClass } from '@/context/AnalysisContext';
+import { intensityToKmh } from '@/lib/utils/normalize';
 
 interface SpeedMeterProps {
   intensity: number;
@@ -81,6 +82,7 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
   };
 
   const colors = getColors();
+  const kmh = intensityToKmh(animatedIntensity);
 
   return (
     <div className="relative w-80 h-60 mx-auto mb-8">
@@ -109,14 +111,7 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
           className="transition-all duration-300"
         />
         
-        {/* Speed markers */}
-        <g stroke="#9CA3AF" strokeWidth="2">
-          <line x1="60" y1="140" x2="70" y2="130" />
-          <line x1="90" y1="100" x2="100" y2="90" />
-          <line x1="140" y1="75" x2="150" y2="65" />
-          <line x1="200" y1="90" x2="210" y2="100" />
-          <line x1="230" y1="130" x2="240" y2="140" />
-        </g>
+        
         
         {/* Speed labels */}
         <text x="80" y="175" textAnchor="middle" className="text-sm font-medium fill-gray-600">
@@ -147,24 +142,26 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
       </svg>
 
       {/* Speed Class Display */}
-      <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
-        <div 
-          className="px-6 py-3 rounded-2xl font-bold text-2xl transition-all duration-500"
-          style={{ 
-            backgroundColor: colors.secondary, 
-            color: colors.text,
-            transform: displayClass ? 'scale(1)' : 'scale(0.8)',
-            opacity: displayClass ? 1 : 0.5
-          }}
-        >
-          {displayClass || '---'}
+      {displayClass && (
+        <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2">
+          <div 
+            className="px-6 py-3 rounded-2xl font-bold text-2xl transition-all duration-500"
+            style={{ 
+              backgroundColor: colors.secondary, 
+              color: colors.text,
+              transform: 'scale(1)',
+              opacity: 1
+            }}
+          >
+            {displayClass}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Intensity Value */}
+      {/* Intensity and Speed Value */}
       <div className="absolute top-4 right-4 bg-white rounded-lg px-3 py-1 shadow-md">
         <span className="text-sm font-medium text-gray-600">
-          {Math.round(animatedIntensity)}%
+          {Math.round(animatedIntensity)}% · {kmh.toFixed(2)} km/h
         </span>
       </div>
     </div>

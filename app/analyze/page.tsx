@@ -1,8 +1,8 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Settings2, Play, RotateCcw, Download } from 'lucide-react';
+import { ArrowLeft, Settings2, Play, RotateCcw } from 'lucide-react';
 import { AnalysisProvider, useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
 import { VideoRecorder } from '@/components/VideoRecorder';
@@ -14,7 +14,10 @@ import { FrameSampler } from '@/lib/video/frameSampler';
 
 import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
-import { normalizeIntensity, classifySpeed } from '@/lib/utils/normalize';
+import { normalizeIntensity, classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
+import { supabase } from '@/lib/supabase/client';
+import LeaderboardModal from '@/components/LeaderboardModal';
+import ReportPreview from '@/components/ReportPreview';
 
 function AnalyzeContent() {
   const { state, dispatch } = useAnalysis();
@@ -22,6 +25,9 @@ function AnalyzeContent() {
   const [activeTab, setActiveTab] = useState<'record' | 'upload'>('record');
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [lastInsertId, setLastInsertId] = useState<string | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
 
@@ -35,6 +41,130 @@ function AnalyzeContent() {
       setActiveTab('upload');
     }
   }, []);
+
+  const downloadReportPdf = useCallback(async () => {
+    try {
+      setGeneratingPdf(true);
+      const [{ jsPDF }, html2canvas] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas').then((m: any) => m.default || m)
+      ]);
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      const title = 'Bowling Analysis Report';
+      const now = new Date();
+      const dt = now.toLocaleString();
+
+      // Try to draw logo at top center
+      try {
+        const logoUrl = 'https://ecultify.com/wp-content/uploads/2022/09/logo-ecultify.png.webp';
+        const dataUrl = await (async function toPngDataUrl(url: string) {
+          return await new Promise<string>((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('no ctx');
+                ctx.drawImage(img, 0, 0);
+                const d = canvas.toDataURL('image/png');
+                resolve(d);
+              } catch (e) { reject(e); }
+            };
+            img.onerror = () => resolve('');
+            img.src = url;
+          });
+        })(logoUrl);
+        if (dataUrl) {
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const imgW = 50; // mm
+          const imgH = 16; // approx
+          doc.addImage(dataUrl, 'PNG', (pageWidth - imgW) / 2, 15, imgW, imgH);
+        }
+      } catch {}
+
+      // Page 1: company logo only + generated timestamp
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(11);
+      doc.text(`Generated: ${dt}`, pageWidth - 10, 10, { align: 'right' });
+
+      // Page 2: Styled report (captured from UI)
+      doc.addPage();
+      const target = document.getElementById('pdf-report-capture');
+      if (target) {
+        const canvas = await html2canvas(target as HTMLElement, { backgroundColor: null, scale: 2 } as any);
+        const imgData = canvas.toDataURL('image/png');
+        const w = doc.internal.pageSize.getWidth();
+        const h = (canvas.height * w) / canvas.width;
+        doc.addImage(imgData, 'PNG', 0, 0, w, h);
+      }
+      const ts2 = new Date().toISOString().replace(/[:.]/g, '-');
+      doc.save(`bowling_report_${ts2}.pdf`);
+      return;
+
+      // Page 2: Details
+      doc.addPage();
+      doc.setFontSize(16);
+      doc.text('Technical Details', 20, 20);
+      doc.setFontSize(12);
+
+      let y = 32;
+      const line = (label: string, value: string) => {
+        doc.text(`${label}: ${value}`, 20, y);
+        y += 7;
+      };
+
+      line('Overall Similarity', `${similarity.toFixed(1)}%`);
+      line('Predicted Speed', `${kmh.toFixed(2)} km/h`);
+      if (state.speedClass) line('Speed Class', state.speedClass);
+      line('Confidence', `${Math.round(state.confidence * 100)}%`);
+
+      if (detailedAnalysis) {
+        y += 5;
+        doc.setFontSize(14);
+        doc.text('Phase Comparison', 20, y);
+        doc.setFontSize(12);
+        y += 8;
+        line('Run-up', `${Math.round(detailedAnalysis.phaseComparison.runUp * 100)}%`);
+        line('Delivery', `${Math.round(detailedAnalysis.phaseComparison.delivery * 100)}%`);
+        line('Follow-through', `${Math.round(detailedAnalysis.phaseComparison.followThrough * 100)}%`);
+
+        y += 5;
+        doc.setFontSize(14);
+        doc.text('Technical Metrics', 20, y);
+        doc.setFontSize(12);
+        y += 8;
+        line('Arm Swing Similarity', `${Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)}%`);
+        line('Body Movement Similarity', `${Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)}%`);
+        line('Rhythm Similarity', `${Math.round(detailedAnalysis.technicalMetrics.rhythmSimilarity * 100)}%`);
+        line('Release Point Accuracy', `${Math.round(detailedAnalysis.technicalMetrics.releasePointAccuracy * 100)}%`);
+
+        if (Array.isArray(detailedAnalysis.recommendations) && detailedAnalysis.recommendations.length) {
+          y += 5;
+          doc.setFontSize(14);
+          doc.text('Recommendations', 20, y);
+          doc.setFontSize(12);
+          y += 8;
+          detailedAnalysis.recommendations.forEach((rec: string) => {
+            const split = doc.splitTextToSize(`â€¢ ${rec}`, 170);
+            doc.text(split, 20, y);
+            y += (split as string[]).length * 6;
+          });
+        }
+      }
+
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      doc.save(`bowling_report_${ts}.pdf`);
+    } catch (e) {
+      console.warn('Failed to generate PDF', e);
+      addToast({ type: 'error', title: 'PDF failed', message: 'Could not create report' });
+    } finally {
+      setGeneratingPdf(false);
+    }
+  }, [state.finalIntensity, state.speedClass, state.confidence, state.analyzerMode, detailedAnalysis, addToast]);
 
   const handleVideoReady = useCallback((videoUrl: string) => {
     dispatch({ type: 'SET_VIDEO', payload: videoUrl });
@@ -180,7 +310,7 @@ function AnalyzeContent() {
         payload: { 
           finalIntensity, 
           speedClass, 
-          confidence 
+          confidence
         } 
       });
 
@@ -189,6 +319,34 @@ function AnalyzeContent() {
         const detailed = (analyzer as BenchmarkComparisonAnalyzer).getDetailedAnalysis();
         setDetailedAnalysis(detailed);
       }
+
+      // Save to Supabase leaderboard
+      try {
+        const predictedKmh = intensityToKmh(finalIntensity);
+        const payload: any = {
+          display_name: 'Anonymous',
+          predicted_kmh: Number(predictedKmh.toFixed(2)),
+          similarity_percent: Number(finalIntensity.toFixed(2)),
+          intensity_percent: Number(finalIntensity.toFixed(2)),
+          speed_class: speedClass,
+          meta: {
+            analyzer_mode: state.analyzerMode,
+            app: 'bowling-analyzer',
+          },
+        };
+        const { data, error } = await supabase.from('bowling_attempts').insert(payload).select('id').single();
+        if (error) {
+          console.warn('Supabase insert failed', error);
+        } else {
+          setLastInsertId(data?.id ?? null);
+          addToast({ type: 'success', title: 'Saved to leaderboard', message: 'Your result is on the board!' });
+        }
+      } catch (e) {
+        console.warn('Skipping leaderboard save', e);
+      }
+
+      // Show leaderboard modal
+      setShowLeaderboard(true);
 
       addToast({
         type: 'success',
@@ -211,6 +369,7 @@ function AnalyzeContent() {
     frameSamplerRef.current?.stop();
     setCurrentVideoTime(0);
   }, [dispatch]);
+
 
   const toggleAnalyzerMode = useCallback(() => {
     const modes: AnalyzerMode[] = ['benchmark', 'pose'];
@@ -252,6 +411,17 @@ function AnalyzeContent() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
       <ToastContainer />
+      {/* Hidden capture area for PDF page 2 */}
+      <div id="pdf-report-capture" style={{ position: 'absolute', left: -10000, top: -10000 }}>
+        <ReportPreview
+          kmh={Number(intensityToKmh(state.finalIntensity).toFixed(2))}
+          similarityPercent={state.finalIntensity}
+          speedClass={state.speedClass}
+          confidencePercent={Math.round(state.confidence * 100)}
+          details={detailedAnalysis}
+        />
+      </div>
+      <LeaderboardModal open={showLeaderboard} onOpenChange={setShowLeaderboard} highlightId={lastInsertId} />
       
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
@@ -387,6 +557,8 @@ function AnalyzeContent() {
                   </div>
                 </div>
               )}
+
+              {/* Export tools removed */}
             </div>
 
             {/* Sparkline */}
@@ -403,6 +575,24 @@ function AnalyzeContent() {
                 analysis={detailedAnalysis}
                 speedClass={state.speedClass}
               />
+            )}
+
+            {/* Improvement PDF for similarity < 85%  */}
+            {state.speedClass && state.finalIntensity < 85 && (
+              <div className="bg-white rounded-2xl p-6 shadow-lg">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-sm text-gray-700">
+                    Want personalized tips? Download your improvement report.
+                  </div>
+                  <button
+                    onClick={downloadReportPdf}
+                    disabled={generatingPdf}
+                    className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold"
+                  >
+                    {generatingPdf ? 'Preparing PDF...' : 'Download 2-page PDF'}
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Benchmark Video Reference */}
@@ -458,3 +648,4 @@ export default function AnalyzePage() {
     </AnalysisProvider>
   );
 }
+

@@ -3,6 +3,14 @@ export function normalizeIntensity(intensity: number, min: number, max: number):
   return Math.max(0, Math.min(100, ((intensity - min) / (max - min)) * 100));
 }
 
+// Linear mapping from 0–100% intensity to km/h.
+// By default, 100% corresponds to 153.26 km/h.
+export const MAX_KMH = 153.26;
+export function intensityToKmh(percent: number, maxKmh: number = MAX_KMH): number {
+  const p = Math.max(0, Math.min(100, percent || 0));
+  return (p / 100) * maxKmh;
+}
+
 export function classifySpeed(similarity: number): { 
   speedClass: 'Slow' | 'Fast' | 'Zooooom'; 
   confidence: number;

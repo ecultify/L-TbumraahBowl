@@ -1,4 +1,4 @@
-import * as tf from '@tensorflow/tfjs';
+import * as tfjs from '@tensorflow/tfjs';
 import * as poseDetection from '@tensorflow-models/pose-detection';
 import { FrameData } from '../video/frameSampler';
 
@@ -17,6 +17,19 @@ export interface BowlingActionPattern {
     followThrough: { start: number; end: number };
   };
 }
+
+// Lightweight cache/public JSON representation (omits raw keypoints)
+type SerializedPattern = {
+  armSwingVelocities: number[];
+  bodyMovementVelocities: number[];
+  overallIntensities: number[];
+  releasePointFrame: number;
+  actionPhases: {
+    runUp: { start: number; end: number };
+    delivery: { start: number; end: number };
+    followThrough: { start: number; end: number };
+  };
+};
 
 export interface DetailedAnalysisResult {
   overallSimilarity: number;
@@ -37,8 +50,17 @@ export interface DetailedAnalysisResult {
 export class BenchmarkComparisonAnalyzer {
   private detector: poseDetection.PoseDetector | null = null;
   private benchmarkPattern: BowlingActionPattern | null = null;
+  private benchmarkPatterns: BowlingActionPattern[] = [];
   private inputPattern: BowlingActionPattern = this.createEmptyPattern();
   private isInitialized = false;
+  private weights: {
+    armSwing: number;
+    releasePoint: number;
+    rhythm: number;
+    followThrough: number;
+    runUp: number;
+    delivery: number;
+  } | null = null;
 
   private createEmptyPattern(): BowlingActionPattern {
     return {
@@ -60,14 +82,106 @@ export class BenchmarkComparisonAnalyzer {
       console.log('Loading benchmark pattern...');
       
       // Initialize TensorFlow and pose detector
-      await tf.ready();
+      try {
+        // Prefer WebGL for speed and stability
+        await tfjs.setBackend('webgl');
+      } catch (e) {
+        console.warn('Failed to set WebGL backend, falling back to default', e);
+      }
+      await tfjs.ready();
       console.log('TensorFlow ready');
       
       const model = poseDetection.SupportedModels.MoveNet;
       this.detector = await poseDetection.createDetector(model, {
-        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
-      });
+        // Use higher-capacity model for more stable keypoints
+        modelType: 'SinglePose.Thunder',
+        // Smooth keypoints across frames to reduce jitter
+        enableSmoothing: true
+      } as any);
       console.log('Pose detector created');
+
+      // Optional: load custom weights for similarity components
+      try {
+        const wr = await fetch('/weights.json', { cache: 'force-cache' });
+        if (wr.ok) {
+          const jw = await wr.json();
+          const w = {
+            armSwing: Number(jw.armSwing ?? 0.4),
+            releasePoint: Number(jw.releasePoint ?? 0.25),
+            rhythm: Number(jw.rhythm ?? 0.15),
+            followThrough: Number(jw.followThrough ?? 0.15),
+            runUp: Number(jw.runUp ?? 0.10),
+            delivery: Number(jw.delivery ?? 0.05)
+          };
+          // Normalize to sum 1
+          const sum = Object.values(w).reduce((a, b) => a + b, 0) || 1;
+          this.weights = {
+            armSwing: w.armSwing / sum,
+            releasePoint: w.releasePoint / sum,
+            rhythm: w.rhythm / sum,
+            followThrough: w.followThrough / sum,
+            runUp: w.runUp / sum,
+            delivery: w.delivery / sum,
+          };
+          console.log('Loaded custom weights for similarity');
+        }
+      } catch {}
+
+      // Prefer multi-reference benchmarks first
+      try {
+        const idxRes = await fetch('/benchmarks/index.json', { cache: 'force-cache' });
+        if (idxRes.ok) {
+          const list: string[] = await idxRes.json();
+          const loaded: BowlingActionPattern[] = [];
+          for (const name of list) {
+            try {
+              const pr = await fetch(`/benchmarks/${name}`, { cache: 'force-cache' });
+              if (pr.ok) {
+                const pd = await pr.json() as SerializedPattern;
+                loaded.push(this.deserializePattern(pd));
+              }
+            } catch {}
+          }
+          if (loaded.length > 0) {
+            this.benchmarkPatterns = loaded;
+            this.benchmarkPattern = loaded[0];
+            this.isInitialized = true;
+            console.log(`Loaded ${loaded.length} benchmark patterns from /benchmarks`);
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn('No multi-reference benchmarks found', e);
+      }
+
+      // Then try a single public JSON
+      try {
+        const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
+        if (res.ok) {
+          const data = await res.json() as SerializedPattern;
+          this.benchmarkPattern = this.deserializePattern(data);
+          this.isInitialized = true;
+          console.log('Loaded benchmark pattern from /benchmarkPattern.json');
+          return true;
+        }
+      } catch (e) {
+        console.warn('No public benchmarkPattern.json found or failed to load', e);
+      }
+
+      // Finally, try cached pattern in localStorage
+      const LOCAL_KEY = 'benchmarkPattern.v2';
+      try {
+        const cached = typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_KEY) : null;
+        if (cached) {
+          const parsed = JSON.parse(cached) as SerializedPattern;
+          this.benchmarkPattern = this.deserializePattern(parsed);
+          this.isInitialized = true;
+          console.log('Loaded benchmark pattern from localStorage');
+          return true;
+        }
+      } catch (e) {
+        console.warn('No valid cached pattern in localStorage', e);
+      }
 
       // Load and analyze benchmark video
       const video = document.createElement('video');
@@ -81,6 +195,17 @@ export class BenchmarkComparisonAnalyzer {
             this.benchmarkPattern = await this.extractPatternFromVideo(video);
             this.isInitialized = this.benchmarkPattern !== null;
             console.log('Benchmark pattern extracted:', this.isInitialized);
+            // Cache a lightweight version for future runs
+            try {
+              if (this.benchmarkPattern) {
+                const serialized = this.serializePattern(this.benchmarkPattern);
+                if (typeof window !== 'undefined') {
+                  window.localStorage.setItem(LOCAL_KEY, JSON.stringify(serialized));
+                }
+              }
+            } catch (e) {
+              console.warn('Failed to cache benchmark pattern', e);
+            }
             resolve(this.isInitialized);
           } catch (error) {
             console.error('Failed to extract benchmark pattern:', error);
@@ -108,11 +233,12 @@ export class BenchmarkComparisonAnalyzer {
     const pattern = this.createEmptyPattern();
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d')!;
-    canvas.width = 640;
-    canvas.height = 480;
+    // Match the frame sampler resolution to keep scale consistent
+    canvas.width = 320;
+    canvas.height = 240;
 
     const duration = Math.min(video.duration, 15); // Analyze first 15 seconds
-    const frameInterval = 1 / 10; // 10 FPS for benchmark analysis
+    const frameInterval = 1 / 12; // 12 FPS to match live analysis
     let previousPoses: poseDetection.Pose[] = [];
 
     console.log(`Analyzing benchmark video: ${duration}s at ${1/frameInterval} FPS`);
@@ -178,10 +304,13 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private calculateArmSwingVelocity(prevPose: poseDetection.Pose, currentPose: poseDetection.Pose, timeDelta: number): number {
+    if (timeDelta <= 0) return 0;
     // Get key arm points (shoulders, elbows, wrists)
     const armPoints = ['right_shoulder', 'right_elbow', 'right_wrist', 'left_shoulder', 'left_elbow', 'left_wrist'];
     let totalVelocity = 0;
     let validPoints = 0;
+
+    const scale = this.getNormalizationScale(currentPose);
 
     for (const pointName of armPoints) {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
@@ -193,10 +322,14 @@ export class BenchmarkComparisonAnalyzer {
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const velocity = distance / timeDelta;
+        // Normalize by body scale to make distances comparable across videos
+        const velocity = (distance / timeDelta) / (scale || 1);
         
         // Weight wrists more heavily as they move fastest during bowling
-        const weight = pointName.includes('wrist') ? 3.0 : pointName.includes('elbow') ? 2.0 : 1.0;
+        const baseWeight = pointName.includes('wrist') ? 3.0 : pointName.includes('elbow') ? 2.0 : 1.0;
+        // Confidence-based weighting further reduces noise impact
+        const confidenceWeight = Math.min(prevPoint.score || 0, currentPoint.score || 0);
+        const weight = baseWeight * confidenceWeight;
         totalVelocity += velocity * weight;
         validPoints += weight;
       }
@@ -206,10 +339,13 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private calculateBodyMovementVelocity(prevPose: poseDetection.Pose, currentPose: poseDetection.Pose, timeDelta: number): number {
+    if (timeDelta <= 0) return 0;
     // Get body center points (hips, shoulders)
     const bodyPoints = ['left_hip', 'right_hip', 'left_shoulder', 'right_shoulder'];
     let totalVelocity = 0;
     let validPoints = 0;
+
+    const scale = this.getNormalizationScale(currentPose);
 
     for (const pointName of bodyPoints) {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
@@ -221,14 +357,42 @@ export class BenchmarkComparisonAnalyzer {
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const velocity = distance / timeDelta;
+        const velocity = (distance / timeDelta) / (scale || 1);
         
-        totalVelocity += velocity;
-        validPoints++;
+        const confidenceWeight = Math.min(prevPoint.score || 0, currentPoint.score || 0);
+        totalVelocity += velocity * confidenceWeight;
+        validPoints += confidenceWeight;
       }
     }
 
     return validPoints > 0 ? totalVelocity / validPoints : 0;
+  }
+
+  // Estimate a body-size scale to normalize pixel distances
+  private getNormalizationScale(pose: poseDetection.Pose): number {
+    const kp = (name: string) => pose.keypoints.find(k => k.name === name && (k.score || 0) > 0.3);
+    const dist = (a?: poseDetection.Keypoint, b?: poseDetection.Keypoint) => {
+      if (!a || !b) return 0;
+      const dx = (a.x - b.x);
+      const dy = (a.y - b.y);
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const shoulder = dist(kp('left_shoulder'), kp('right_shoulder'));
+    const hip = dist(kp('left_hip'), kp('right_hip'));
+    const torso = (shoulder && hip) ? (shoulder + hip) / 2 : (shoulder || hip);
+
+    if (torso && torso > 0) return torso;
+
+    // Fallback: bounding box diagonal over confident keypoints
+    const points = pose.keypoints.filter(p => (p.score || 0) > 0.3);
+    if (points.length < 2) return 1;
+    const xs = points.map(p => p.x);
+    const ys = points.map(p => p.y);
+    const width = Math.max(...xs) - Math.min(...xs);
+    const height = Math.max(...ys) - Math.min(...ys);
+    const diag = Math.sqrt(width * width + height * height);
+    return diag || 1;
   }
 
   private analyzeActionPhases(pattern: BowlingActionPattern): void {
@@ -342,34 +506,56 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private calculateOverallSimilarity(): number {
+    // If multiple benchmarks loaded, take the best match
+    if (this.benchmarkPatterns.length > 0) {
+      let best = 0;
+      for (const p of this.benchmarkPatterns) {
+        best = Math.max(best, this.calculateOverallSimilarityAgainst(p));
+      }
+      return best;
+    }
     if (!this.benchmarkPattern) return 0;
+    return this.calculateOverallSimilarityAgainst(this.benchmarkPattern);
+  }
 
+  private getWeights() {
+    return this.weights ?? {
+      armSwing: 0.40,
+      releasePoint: 0.25,
+      rhythm: 0.15,
+      followThrough: 0.15,
+      runUp: 0.10,
+      delivery: 0.05,
+    };
+  }
+
+  private calculateOverallSimilarityAgainst(benchmark: BowlingActionPattern): number {
     // Calculate individual similarity metrics
-    const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, this.benchmarkPattern.armSwingVelocities);
-    const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, this.benchmarkPattern.bodyMovementVelocities);
-    const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, this.benchmarkPattern.overallIntensities);
-    
+    const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, benchmark.armSwingVelocities);
+    const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, benchmark.bodyMovementVelocities);
+    const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, benchmark.overallIntensities);
+
     // Release point timing similarity
     let releasePointSim = 0;
-    if (this.inputPattern.overallIntensities.length > 0 && this.benchmarkPattern.overallIntensities.length > 0) {
+    if (this.inputPattern.overallIntensities.length > 0 && benchmark.overallIntensities.length > 0) {
       const inputRelativeRelease = this.inputPattern.releasePointFrame / this.inputPattern.overallIntensities.length;
-      const benchmarkRelativeRelease = this.benchmarkPattern.releasePointFrame / this.benchmarkPattern.overallIntensities.length;
+      const benchmarkRelativeRelease = benchmark.releasePointFrame / benchmark.overallIntensities.length;
       releasePointSim = 1 - Math.abs(inputRelativeRelease - benchmarkRelativeRelease);
     }
 
     // Phase similarities
-    const runUpSim = this.comparePhases('runUp');
-    const deliverySim = this.comparePhases('delivery');
-    const followThroughSim = this.comparePhases('followThrough');
+    const runUpSim = this.comparePhasesAgainst(benchmark, 'runUp');
+    const deliverySim = this.comparePhasesAgainst(benchmark, 'delivery');
+    const followThroughSim = this.comparePhasesAgainst(benchmark, 'followThrough');
 
-    // Weighted combination (as specified)
+    const w = this.getWeights();
     const overallSimilarity = (
-      armSwingSim * 0.40 +           // Arm swing: 40%
-      releasePointSim * 0.25 +       // Release point: 25%
-      rhythmSim * 0.15 +             // Overall rhythm: 15%
-      followThroughSim * 0.15 +      // Follow-through: 15%
-      runUpSim * 0.10 +              // Run-up: 10%
-      deliverySim * 0.05             // Delivery phase: 5%
+      armSwingSim * w.armSwing +
+      releasePointSim * w.releasePoint +
+      rhythmSim * w.rhythm +
+      followThroughSim * w.followThrough +
+      runUpSim * w.runUp +
+      deliverySim * w.delivery
     );
 
     console.log('Similarity breakdown:', {
@@ -390,8 +576,11 @@ export class BenchmarkComparisonAnalyzer {
     
     // Normalize arrays to same length
     const targetLength = Math.min(arr1.length, arr2.length, 30);
-    const resampled1 = this.resampleArray(arr1, targetLength);
-    const resampled2 = this.resampleArray(arr2, targetLength);
+    // Smooth to reduce jitter, then linearly resample
+    const sm1 = this.smoothArray(arr1, 5);
+    const sm2 = this.smoothArray(arr2, 5);
+    const resampled1 = this.resampleArray(sm1, targetLength);
+    const resampled2 = this.resampleArray(sm2, targetLength);
     
     // Calculate Pearson correlation coefficient
     const mean1 = resampled1.reduce((a, b) => a + b, 0) / resampled1.length;
@@ -410,59 +599,136 @@ export class BenchmarkComparisonAnalyzer {
     }
     
     const denominator = Math.sqrt(sum1Sq * sum2Sq);
-    if (denominator === 0) return 0;
-    
-    const correlation = numerator / denominator;
-    
+    const correlation = denominator === 0 ? 0 : (numerator / denominator);
     // Convert correlation (-1 to 1) to similarity (0 to 1)
-    return Math.max(0, (correlation + 1) / 2);
+    const corrSim = Math.max(0, (correlation + 1) / 2);
+
+    // DTW similarity with a Sakoe–Chiba band for elastic alignment
+    const dtwSim = this.dtwSimilarity(resampled1, resampled2, 0.1);
+
+    // Blend: DTW (robust to timing shifts) + correlation (shape agreement)
+    return Math.max(0, Math.min(1, 0.6 * dtwSim + 0.4 * corrSim));
   }
 
   private resampleArray(arr: number[], targetLength: number): number[] {
-    if (arr.length <= targetLength) return [...arr];
-    
+    if (arr.length === targetLength) return [...arr];
+    if (arr.length < 2) return new Array(targetLength).fill(arr[0] ?? 0);
+
     const result: number[] = [];
-    const step = arr.length / targetLength;
-    
+    const scale = (arr.length - 1) / (targetLength - 1);
     for (let i = 0; i < targetLength; i++) {
-      const index = Math.floor(i * step);
-      result.push(arr[index]);
+      const t = i * scale;
+      const i0 = Math.floor(t);
+      const i1 = Math.min(arr.length - 1, i0 + 1);
+      const frac = t - i0;
+      const v = arr[i0] * (1 - frac) + arr[i1] * frac;
+      result.push(v);
     }
-    
     return result;
+  }
+
+  // Dynamic Time Warping similarity with Sakoe–Chiba band; returns [0,1]
+  private dtwSimilarity(a: number[], b: number[], bandRatio: number = 0.1): number {
+    const n = a.length, m = b.length;
+    if (n === 0 || m === 0) return 0;
+
+    // Min-max normalize across both sequences to bound per-step cost in [0,1]
+    const minVal = Math.min(...a, ...b);
+    const maxVal = Math.max(...a, ...b);
+    if (maxVal === minVal) return 1; // constant sequences
+    const na = a.map(v => (v - minVal) / (maxVal - minVal));
+    const nb = b.map(v => (v - minVal) / (maxVal - minVal));
+
+    const w = Math.max(Math.abs(n - m), Math.floor(Math.max(n, m) * bandRatio));
+    const INF = Number.POSITIVE_INFINITY;
+    const dp: number[][] = new Array(n + 1).fill(0).map(() => new Array(m + 1).fill(INF));
+    dp[0][0] = 0;
+
+    for (let i = 1; i <= n; i++) {
+      const jStart = Math.max(1, i - w);
+      const jEnd = Math.min(m, i + w);
+      for (let j = jStart; j <= jEnd; j++) {
+        const cost = Math.abs(na[i - 1] - nb[j - 1]);
+        const prev = Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        dp[i][j] = cost + prev;
+      }
+    }
+
+    const pathLen = n + m; // upper bound; good enough for normalization
+    const avgCost = dp[n][m] / pathLen; // in [0,1]
+    return Math.max(0, Math.min(1, 1 - avgCost));
+  }
+
+  private serializePattern(p: BowlingActionPattern): SerializedPattern {
+    return {
+      armSwingVelocities: p.armSwingVelocities,
+      bodyMovementVelocities: p.bodyMovementVelocities,
+      overallIntensities: p.overallIntensities,
+      releasePointFrame: p.releasePointFrame,
+      actionPhases: p.actionPhases
+    };
+  }
+
+  private deserializePattern(s: SerializedPattern): BowlingActionPattern {
+    return {
+      keypoints: [],
+      armSwingVelocities: s.armSwingVelocities || [],
+      bodyMovementVelocities: s.bodyMovementVelocities || [],
+      overallIntensities: s.overallIntensities || [],
+      releasePointFrame: s.releasePointFrame || 0,
+      actionPhases: s.actionPhases || {
+        runUp: { start: 0, end: 0 },
+        delivery: { start: 0, end: 0 },
+        followThrough: { start: 0, end: 0 }
+      }
+    };
   }
 
   private comparePhases(phase: 'runUp' | 'delivery' | 'followThrough'): number {
     if (!this.benchmarkPattern) return 0;
-    
+    return this.comparePhasesAgainst(this.benchmarkPattern, phase);
+  }
+
+  private comparePhasesAgainst(
+    benchmark: BowlingActionPattern,
+    phase: 'runUp' | 'delivery' | 'followThrough'
+  ): number {
     const inputPhase = this.inputPattern.actionPhases[phase];
-    const benchmarkPhase = this.benchmarkPattern.actionPhases[phase];
-    
+    const benchmarkPhase = benchmark.actionPhases[phase];
     const inputData = this.inputPattern.overallIntensities.slice(inputPhase.start, inputPhase.end + 1);
-    const benchmarkData = this.benchmarkPattern.overallIntensities.slice(benchmarkPhase.start, benchmarkPhase.end + 1);
-    
+    const benchmarkData = benchmark.overallIntensities.slice(benchmarkPhase.start, benchmarkPhase.end + 1);
     return this.compareArrays(inputData, benchmarkData);
   }
 
   getDetailedAnalysis(): DetailedAnalysisResult | null {
-    if (!this.benchmarkPattern) return null;
+    const candidates = this.benchmarkPatterns.length > 0 ? this.benchmarkPatterns : (this.benchmarkPattern ? [this.benchmarkPattern] : []);
+    if (candidates.length === 0) return null;
 
-    const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, this.benchmarkPattern.armSwingVelocities);
-    const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, this.benchmarkPattern.bodyMovementVelocities);
-    const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, this.benchmarkPattern.overallIntensities);
+    // Pick best benchmark for detailed comparison
+    let bestIdx = 0;
+    let bestScore = -1;
+    for (let i = 0; i < candidates.length; i++) {
+      const s = this.calculateOverallSimilarityAgainst(candidates[i]);
+      if (s > bestScore) { bestScore = s; bestIdx = i; }
+    }
+    const bench = candidates[bestIdx];
+
+    const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, bench.armSwingVelocities);
+    const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, bench.bodyMovementVelocities);
+    const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, bench.overallIntensities);
     
     let releasePointAccuracy = 0;
-    if (this.inputPattern.overallIntensities.length > 0 && this.benchmarkPattern.overallIntensities.length > 0) {
+    if (this.inputPattern.overallIntensities.length > 0 && bench.overallIntensities.length > 0) {
       const inputRelativeRelease = this.inputPattern.releasePointFrame / this.inputPattern.overallIntensities.length;
-      const benchmarkRelativeRelease = this.benchmarkPattern.releasePointFrame / this.benchmarkPattern.overallIntensities.length;
+      const benchmarkRelativeRelease = bench.releasePointFrame / bench.overallIntensities.length;
       releasePointAccuracy = 1 - Math.abs(inputRelativeRelease - benchmarkRelativeRelease);
     }
 
-    const runUpSim = this.comparePhases('runUp');
-    const deliverySim = this.comparePhases('delivery');
-    const followThroughSim = this.comparePhases('followThrough');
+    const runUpSim = this.comparePhasesAgainst(bench, 'runUp');
+    const deliverySim = this.comparePhasesAgainst(bench, 'delivery');
+    const followThroughSim = this.comparePhasesAgainst(bench, 'followThrough');
 
-    const overallSimilarity = this.calculateOverallSimilarity();
+    const overallSimilarity = bestScore;
 
     // Generate recommendations
     const recommendations: string[] = [];
@@ -491,6 +757,27 @@ export class BenchmarkComparisonAnalyzer {
       },
       recommendations
     };
+  }
+
+  // Export derived features and current benchmark for offline analysis
+  getExportData(): any {
+    const benchmark = this.benchmarkPatterns.length > 0 ? this.benchmarkPatterns[0] : this.benchmarkPattern;
+    return {
+      input: this.serializePattern({
+        ...this.createEmptyPattern(),
+        armSwingVelocities: this.inputPattern.armSwingVelocities,
+        bodyMovementVelocities: this.inputPattern.bodyMovementVelocities,
+        overallIntensities: this.inputPattern.overallIntensities,
+        releasePointFrame: this.inputPattern.releasePointFrame,
+        actionPhases: this.inputPattern.actionPhases
+      } as BowlingActionPattern),
+      benchmark: benchmark ? this.serializePattern(benchmark) : null,
+    };
+  }
+
+  getBenchmarkForExport(): SerializedPattern | null {
+    const bench = this.benchmarkPatterns.length > 0 ? this.benchmarkPatterns[0] : this.benchmarkPattern;
+    return bench ? this.serializePattern(bench) : null;
   }
 
   reset(): void {

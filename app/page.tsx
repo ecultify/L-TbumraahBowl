@@ -1,5 +1,9 @@
 import Link from 'next/link';
 import { Camera, Upload, Activity } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Leaderboard table needs client-side fetching; load dynamically to avoid SSR issues
+const LeaderboardTable = dynamic(() => import('@/components/LeaderboardTable'), { ssr: false });
 
 export default function Home() {
   return (
@@ -112,6 +116,8 @@ export default function Home() {
             </Link>
           </div>
         </div>
+        {/* Leaderboard Section */}
+        <LeaderboardTable limit={10} />
       </div>
     </div>
   );
