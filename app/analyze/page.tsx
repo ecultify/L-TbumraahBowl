@@ -105,59 +105,6 @@ function AnalyzeContent() {
       doc.save(`bowling_report_${ts2}.pdf`);
       return;
 
-      // Page 2: Details
-      doc.addPage();
-      doc.setFontSize(16);
-      doc.text('Technical Details', 20, 20);
-      doc.setFontSize(12);
-
-      let y = 32;
-      const line = (label: string, value: string) => {
-        doc.text(`${label}: ${value}`, 20, y);
-        y += 7;
-      };
-
-      line('Overall Similarity', `${similarity.toFixed(1)}%`);
-      line('Predicted Speed', `${kmh.toFixed(2)} km/h`);
-      if (state.speedClass) line('Speed Class', state.speedClass);
-      line('Confidence', `${Math.round(state.confidence * 100)}%`);
-
-      if (detailedAnalysis) {
-        y += 5;
-        doc.setFontSize(14);
-        doc.text('Phase Comparison', 20, y);
-        doc.setFontSize(12);
-        y += 8;
-        line('Run-up', `${Math.round(detailedAnalysis.phaseComparison.runUp * 100)}%`);
-        line('Delivery', `${Math.round(detailedAnalysis.phaseComparison.delivery * 100)}%`);
-        line('Follow-through', `${Math.round(detailedAnalysis.phaseComparison.followThrough * 100)}%`);
-
-        y += 5;
-        doc.setFontSize(14);
-        doc.text('Technical Metrics', 20, y);
-        doc.setFontSize(12);
-        y += 8;
-        line('Arm Swing Similarity', `${Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)}%`);
-        line('Body Movement Similarity', `${Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)}%`);
-        line('Rhythm Similarity', `${Math.round(detailedAnalysis.technicalMetrics.rhythmSimilarity * 100)}%`);
-        line('Release Point Accuracy', `${Math.round(detailedAnalysis.technicalMetrics.releasePointAccuracy * 100)}%`);
-
-        if (Array.isArray(detailedAnalysis.recommendations) && detailedAnalysis.recommendations.length) {
-          y += 5;
-          doc.setFontSize(14);
-          doc.text('Recommendations', 20, y);
-          doc.setFontSize(12);
-          y += 8;
-          detailedAnalysis.recommendations.forEach((rec: string) => {
-            const split = doc.splitTextToSize(`â€¢ ${rec}`, 170);
-            doc.text(split, 20, y);
-            y += (split as string[]).length * 6;
-          });
-        }
-      }
-
-      const ts = new Date().toISOString().replace(/[:.]/g, '-');
-      doc.save(`bowling_report_${ts}.pdf`);
     } catch (e) {
       console.warn('Failed to generate PDF', e);
       addToast({ type: 'error', title: 'PDF failed', message: 'Could not create report' });
