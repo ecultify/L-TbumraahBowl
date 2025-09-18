@@ -559,8 +559,8 @@ function AnalyzeContent() {
           {/* Right Column - Results */}
           <div className="space-y-6">
             {/* Speed Meter */}
-            <div className="bg-white rounded-2xl p-8 shadow-lg">
-              <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">Speed Meter</h2>
+            <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg">
+              <h2 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 text-gray-800">Speed Meter</h2>
               <SpeedMeter
                 intensity={state.finalIntensity}
                 speedClass={state.speedClass}
@@ -568,7 +568,7 @@ function AnalyzeContent() {
               />
               
               {state.speedClass && (
-                <div className="text-center">
+                <div className="text-center mt-6">
                   <div className="inline-flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full text-sm">
                     <span className="font-medium">Confidence:</span>
                     <span className="font-bold">{Math.round(state.confidence * 100)}%</span>
