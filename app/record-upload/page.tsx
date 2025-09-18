@@ -770,7 +770,7 @@ export default function RecordUploadPage() {
       </div>
 
       {/* Desktop View */}
-      <div className="hidden md:block min-h-screen" style={{ backgroundColor: '#032743' }}>
+      <div className="hidden md:flex md:flex-col md:min-h-screen" style={{ backgroundColor: '#032743' }}>
         {/* Desktop Header */}
         <header 
           className="relative overflow-hidden"
@@ -810,7 +810,7 @@ export default function RecordUploadPage() {
         </header>
 
         {/* Desktop Main Content */}
-        <div className="max-w-7xl mx-auto px-8 py-16">
+        <div className="flex-1 max-w-7xl mx-auto px-8 py-16">
           {activeMode === 'none' && (
             <div className="text-center mb-16">
               <h1 
