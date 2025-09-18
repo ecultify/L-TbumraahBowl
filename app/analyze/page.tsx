@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Settings2, Play, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Settings2, Play, RotateCcw, Target, Timer } from 'lucide-react';
 import { AnalysisProvider, useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
 import { VideoRecorder } from '@/components/VideoRecorder';
@@ -426,10 +426,50 @@ function AnalyzeContent() {
     return () => video.removeEventListener('timeupdate', handleTimeUpdate);
   }, [state.currentVideo]);
 
+  const hasResults = state.finalIntensity > 0 && !!state.speedClass;
+  const kmhValue = hasResults ? Math.round(intensityToKmh(state.finalIntensity)) : 142;
+  const mphValue = hasResults ? Number((kmhValue * 0.621371).toFixed(1)) : 88.2;
+  const mphValueDisplay = Number.isNaN(mphValue)
+    ? '0 mph'
+    : `${Number.isInteger(mphValue) ? mphValue.toFixed(0) : mphValue.toFixed(1)} mph`;
+  const classificationResult = classifySpeed(state.finalIntensity || 0);
+  const speedLabel = hasResults ? (state.speedClass ?? classificationResult.speedClass) : 'Fast';
+  const summaryMessage = hasResults
+    ? classificationResult.message
+    : 'Excellent bowling speed! Your technique shows good consistency with room for minor improvements.';
+  const accuracyScore = hasResults
+    ? (detailedAnalysis?.overallSimilarity
+      ? Math.round(detailedAnalysis.overallSimilarity * 100)
+      : Math.max(0, Math.round(state.finalIntensity)))
+    : 85;
+  const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
+  const releaseTimeValue = detailedAnalysis?.timing?.releaseTime
+    ? `${detailedAnalysis.timing.releaseTime.toFixed(2)}s`
+    : '0.18s';
+  const metrics = [
+    {
+      label: 'Speed Consistency',
+      value: hasResults && detailedAnalysis?.phaseComparison?.delivery
+        ? Math.round(detailedAnalysis.phaseComparison.delivery * 100)
+        : 92,
+    },
+    {
+      label: 'Action Quality',
+      value: hasResults && detailedAnalysis?.technicalMetrics?.bodyMovementSimilarity
+        ? Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)
+        : 78,
+    },
+    {
+      label: 'Technique',
+      value: hasResults && detailedAnalysis?.technicalMetrics?.armSwingSimilarity
+        ? Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)
+        : 85,
+    },
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+    <div className="min-h-screen relative">
       <ToastContainer />
-      {/* Hidden capture area for PDF page 2 */}
       <div id="pdf-report-capture" style={{ position: 'absolute', left: -10000, top: -10000 }}>
         <ReportPreview
           kmh={Number(intensityToKmh(state.finalIntensity).toFixed(2))}
@@ -440,254 +480,416 @@ function AnalyzeContent() {
         />
       </div>
       <LeaderboardModal open={showLeaderboard} onOpenChange={setShowLeaderboard} highlightId={lastInsertId} />
-      
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <Link 
-            href="/"
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+
+      {/* Mobile Analysis Report */}
+      <div 
+        className="md:hidden relative flex flex-col min-h-screen"
+        style={{
+          backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            background: 'linear-gradient(180deg, rgba(0, 132, 183, 0.85) 0%, rgba(0, 78, 135, 0.65) 100%)'
+          }}
+        />
+
+        <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
+          <Link
+            href="/quick-analysis"
+            className="inline-flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
-            Back to Home
+            <span className="text-sm font-medium">Back</span>
           </Link>
-          
-          <div className="flex items-center gap-4">
-            {/* Analyzer Mode Toggle */}
-            <div className="flex items-center gap-3 bg-white rounded-xl p-2 shadow-md">
-              <Settings2 className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-medium text-gray-700">Analyzer:</span>
-              <button
-                onClick={toggleAnalyzerMode}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                  state.analyzerMode === 'benchmark'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-purple-100 text-purple-800'
-                }`}
-              >
-                {state.analyzerMode === 'benchmark' ? 'Benchmark' : 'Pose AI'}
-              </button>
+        </div>
+
+        <div className="relative flex-1 px-4 pt-20 pb-12 space-y-8">
+          <div className="text-center">
+            <h1 className="mb-1 text-2xl font-extrabold uppercase italic tracking-tight text-[#FDC217]">
+              Analysis Report
+            </h1>
+            <p className="text-xs font-medium tracking-tight text-white">
+              Your bowling performance breakdown
+            </p>
+          </div>
+
+          <div className="relative">
+            <img
+              src="/frontend-images/homepage/ball.png"
+              alt=""
+              className="pointer-events-none absolute -top-6 -left-6 h-16 w-16 object-contain"
+            />
+            <img
+              src="/frontend-images/homepage/ball.png"
+              alt=""
+              className="pointer-events-none absolute -bottom-8 -right-6 h-20 w-20 object-contain"
+            />
+            <div className="relative rounded-[20px] border border-white/15 bg-white/10 px-6 py-6 text-left shadow-[0_8px_32px_rgba(31,38,135,0.37)] backdrop-blur-xl">
+              <h2 className="text-base font-semibold uppercase tracking-wide text-[#FDC217]">Bowling Speed</h2>
+              <div className="mt-5 flex flex-col items-center">
+                <div
+                  className="flex h-[110px] w-[110px] flex-col items-center justify-center rounded-full shadow-lg"
+                  style={{ background: 'linear-gradient(180deg, #40A5EF 0%, #0A526E 100%)' }}
+                >
+                  <span className="text-[40px] font-extrabold leading-none text-white">{kmhValue}</span>
+                  <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-white/90">km/h</span>
+                </div>
+                <span className="mt-2 text-xs font-semibold uppercase tracking-wide text-white/80">
+                  /100 kmph
+                </span>
+              </div>
+              <div className="mt-6 flex items-start justify-between text-white">
+                <div>
+                  <p className="text-[13px] uppercase tracking-wide text-white/70">Speed (Imperial)</p>
+                  <p className="text-xl font-bold leading-tight">{mphValueDisplay}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[13px] uppercase tracking-wide text-white/70">Bowling Type</p>
+                  <p className="text-xl font-bold leading-tight">{speedLabel}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+                <Target className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/70">Accuracy Score</p>
+                <p className="text-xl font-semibold">{accuracyDisplay}%</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
+                <Timer className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-white/70">Release Time</p>
+                <p className="text-xl font-semibold">{releaseTimeValue}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <div className="relative rounded-[20px] bg-[#FFC315] px-6 py-6 text-left text-black shadow-[0_8px_32px_rgba(31,38,135,0.25)]">
+              <h3 className="mb-4 text-lg font-bold uppercase tracking-tight">Performance Summary</h3>
+              {metrics.map((metric) => (
+                <div key={metric.label} className="mb-4 last:mb-0">
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>{metric.label}</span>
+                    <span>{Math.min(metric.value, 100)}%</span>
+                  </div>
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10">
+                    <div
+                      className="h-full rounded-full bg-black"
+                      style={{ width: `${Math.min(metric.value, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+              <p className="mt-5 text-sm font-medium leading-relaxed">{summaryMessage}</p>
             </div>
           </div>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left Column - Video Input/Analysis */}
-          <div className="space-y-6">
-            {/* Tabs */}
-            <div className="flex bg-white rounded-2xl p-2 shadow-md">
-              <button
-                onClick={() => setActiveTab('record')}
-                className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-                  activeTab === 'record'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
+        <footer className="relative bg-black px-4 py-6">
+          <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="text-left">
+              <p
+                className="text-xs text-white"
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: '400',
+                  fontSize: '10px',
+                  lineHeight: '1.4'
+                }}
               >
-                Record
-              </button>
-              <button
-                onClick={() => setActiveTab('upload')}
-                className={`flex-1 py-3 px-4 rounded-xl font-semibold transition-all duration-200 ${
-                  activeTab === 'upload'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-600 hover:bg-gray-50'
-                }`}
-              >
-                Upload
-              </button>
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
+              </p>
             </div>
 
-            {/* Tab Content */}
-            <div className="bg-white rounded-2xl p-6 shadow-lg">
-              {activeTab === 'record' ? (
-                <VideoRecorder onVideoReady={handleVideoReady} />
-              ) : (
-                <VideoUploader onVideoReady={handleVideoReady} />
-              )}
-            </div>
+            <div className="flex items-center gap-3">
+              <span
+                className="mr-2 text-xs text-white"
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: '400',
+                  fontSize: '10px'
+                }}
+              >
+                Connect with us
+              </span>
 
-            {/* Analysis Controls */}
-            {state.currentVideo && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-800">Analysis</h3>
-                  {state.progress > 0 && state.progress < 100 && (
-                    <div className="flex items-center gap-2">
-                      <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-blue-500 transition-all duration-300"
-                          style={{ width: `${state.progress}%` }}
-                        />
-                      </div>
-                      <span className="text-sm text-gray-600">{Math.round(state.progress)}%</span>
-                    </div>
-                  )}
+              <div className="flex gap-3">
+                <div className="flex h-8 w-8 items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                  </svg>
                 </div>
 
-                <video
-                  ref={videoRef}
-                  src={state.currentVideo}
-                  controls
-                  className="w-full rounded-xl mb-4"
-                />
+                <div className="flex h-8 w-8 items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                  </svg>
+                </div>
 
-                <div className="flex gap-3">
-                  <button
-                    onClick={startAnalysis}
-                    disabled={state.isAnalyzing}
-                    className="flex items-center gap-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 disabled:transform-none"
-                  >
-                    <Play className="w-5 h-5" />
-                    {state.isAnalyzing ? 'Analyzing...' : 'Analyze'}
-                  </button>
-                  
-                  {state.speedClass && (
-                    <button
-                      onClick={resetAnalysis}
-                      className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200"
-                    >
-                      <RotateCcw className="w-5 h-5" />
-                      Try Another Video
-                    </button>
-                  )}
+                <div className="flex h-8 w-8 items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
+                  </svg>
+                </div>
+
+                <div className="flex h-8 w-8 items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+                  </svg>
                 </div>
               </div>
-            )}
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      {/* Desktop Experience */}
+      <div className="hidden md:block min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+        <div className="max-w-6xl mx-auto px-4 py-8">
+          <div className="flex items-center justify-between mb-8">
+            <Link
+              href="/"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              Back to Home
+            </Link>
+
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 rounded-xl bg-white p-2 shadow-md">
+                <Settings2 className="w-4 h-4 text-gray-500" />
+                <span className="text-sm font-medium text-gray-700">Analyzer:</span>
+                <button
+                  onClick={toggleAnalyzerMode}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
+                    state.analyzerMode === 'benchmark'
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-purple-100 text-purple-800'
+                  }`}
+                >
+                  {state.analyzerMode === 'benchmark' ? 'Benchmark' : 'Pose AI'}
+                </button>
+              </div>
+            </div>
           </div>
 
-          {/* Right Column - Results */}
-          <div className="space-y-6">
-            {/* Speed Meter */}
-            <div className="bg-white rounded-2xl p-4 sm:p-8 shadow-lg">
-              <h2 className="text-xl sm:text-2xl font-bold text-center mb-6 sm:mb-8 text-gray-800">Speed Meter</h2>
-              <SpeedMeter
-                intensity={state.finalIntensity}
-                speedClass={state.speedClass}
-                isAnimating={state.progress === 100}
-              />
-              
-              {state.speedClass && (
-                <div className="text-center mt-6">
-                  <div className="inline-flex items-center gap-2 bg-gray-100 px-4 py-2 rounded-full text-sm">
-                    <span className="font-medium">Confidence:</span>
-                    <span className="font-bold">{Math.round(state.confidence * 100)}%</span>
+          <div className="grid lg:grid-cols-2 gap-8">
+            <div className="space-y-6">
+              <div className="flex rounded-2xl bg-white p-2 shadow-md">
+                <button
+                  onClick={() => setActiveTab('record')}
+                  className={`flex-1 rounded-xl py-3 px-4 font-semibold transition-all duration-200 ${
+                    activeTab === 'record'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Record
+                </button>
+                <button
+                  onClick={() => setActiveTab('upload')}
+                  className={`flex-1 rounded-xl py-3 px-4 font-semibold transition-all duration-200 ${
+                    activeTab === 'upload'
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  Upload
+                </button>
+              </div>
+
+              <div className="rounded-2xl bg-white p-6 shadow-lg">
+                {activeTab === 'record' ? (
+                  <VideoRecorder onVideoReady={handleVideoReady} />
+                ) : (
+                  <VideoUploader onVideoReady={handleVideoReady} />
+                )}
+              </div>
+
+              {state.currentVideo && (
+                <div className="rounded-2xl bg-white p-6 shadow-lg">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-800">Analysis</h3>
+                    {state.progress > 0 && state.progress < 100 && (
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-200">
+                          <div
+                            className="h-full bg-blue-500 transition-all duration-300"
+                            style={{ width: `${state.progress}%` }}
+                          />
+                        </div>
+                        <span className="text-sm text-gray-600">{Math.round(state.progress)}%</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <video
+                    ref={videoRef}
+                    src={state.currentVideo}
+                    controls
+                    className="mb-4 w-full rounded-xl"
+                  />
+
+                  <div className="flex gap-3">
+                    <button
+                      onClick={startAnalysis}
+                      disabled={state.isAnalyzing}
+                      className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-green-700 disabled:scale-100 disabled:bg-gray-400"
+                    >
+                      <Play className="w-5 h-5" />
+                      {state.isAnalyzing ? 'Analyzing...' : 'Analyze'}
+                    </button>
+
+                    {state.speedClass && (
+                      <button
+                        onClick={resetAnalysis}
+                        className="flex items-center gap-2 rounded-xl bg-gray-600 px-6 py-3 font-semibold text-white transition-all duration-200 hover:bg-gray-700"
+                      >
+                        <RotateCcw className="w-5 h-5" />
+                        Try Another Video
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
-
-              {/* Export tools removed */}
             </div>
 
-            {/* Sparkline */}
-            {state.frameIntensities.length > 0 && (
-              <Sparkline
-                frameIntensities={state.frameIntensities}
-                currentTime={currentVideoTime}
-              />
-            )}
+            <div className="space-y-6">
+              <div className="rounded-2xl bg-white p-4 shadow-lg sm:p-8">
+                <h2 className="mb-6 text-center text-xl font-bold text-gray-800 sm:mb-8 sm:text-2xl">Speed Meter</h2>
+                <SpeedMeter
+                  intensity={state.finalIntensity}
+                  speedClass={state.speedClass}
+                  isAnimating={state.progress === 100}
+                />
 
-            {/* Detailed Analysis Results */}
-            {detailedAnalysis && state.speedClass && (
-              <AnalysisResults
-                analysis={detailedAnalysis}
-                speedClass={state.speedClass}
-              />
-            )}
-
-            {/* Improvement PDF for similarity < 85%  */}
-            {state.speedClass && state.finalIntensity < 85 && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="text-sm text-gray-700">
-                    Want personalized tips? Download your improvement report.
-                  </div>
-                  <button
-                    onClick={downloadReportPdf}
-                    disabled={generatingPdf}
-                    className="px-5 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:bg-gray-400 text-white font-semibold"
-                  >
-                    {generatingPdf ? 'Preparing PDF...' : 'Download 2-page PDF'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Video Generation */}
-            {state.speedClass && (
-              <div className="bg-white rounded-2xl p-6 shadow-lg">
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                  <div className="text-sm text-gray-700">
-                    Create a personalized analysis video with your results!
-                  </div>
-                  <button
-                    onClick={generateAnalysisVideo}
-                    disabled={generatingVideo}
-                    className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold"
-                  >
-                    {generatingVideo ? 'Generating Video...' : 'Generate Analysis Video'}
-                  </button>
-                </div>
-                
-                {/* Generated Video Download */}
-                {generatedVideoUrl && (
-                  <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-xl">
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-                      <div className="text-sm text-green-700">
-                        🎉 Your analysis video is ready!
-                      </div>
-                      <a
-                        href={generatedVideoUrl}
-                        download="bowling-analysis-video.mp4"
-                        className="px-5 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white font-semibold"
-                      >
-                        Download Video
-                      </a>
+                {state.speedClass && (
+                  <div className="mt-6 text-center">
+                    <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm">
+                      <span className="font-medium">Confidence:</span>
+                      <span className="font-bold">{Math.round(state.confidence * 100)}%</span>
                     </div>
                   </div>
                 )}
               </div>
-            )}
 
-            {/* Benchmark Video Reference */}
-            {!state.currentVideo && (
-              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-2xl p-6">
-                <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-purple-800">Benchmark Video Reference</h3>
-                </div>
-                <p className="text-purple-700 mb-4 text-sm">
-                  This is an example of good bowling footage for analysis. Your video should have similar clarity and framing.
-                </p>
-                <div className="flex flex-col lg:flex-row gap-4 items-start">
-                  <video
-                    src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
-                    controls
-                    preload="metadata"
-                    className="w-full lg:w-64 rounded-xl shadow-md"
-                    poster="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4/ik-thumbnail.jpg"
-                  />
-                  <div className="flex-1 space-y-3">
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-700">Clear view of bowler's full action</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-700">Good lighting and contrast</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-700">Stable camera position</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-gray-700">Complete bowling motion captured</span>
-                    </div>
+              {state.frameIntensities.length > 0 && (
+                <Sparkline
+                  frameIntensities={state.frameIntensities}
+                  currentTime={currentVideoTime}
+                />
+              )}
 
+              {detailedAnalysis && state.speedClass && (
+                <AnalysisResults
+                  analysis={detailedAnalysis}
+                  speedClass={state.speedClass}
+                />
+              )}
+
+              {state.speedClass && state.finalIntensity < 85 && (
+                <div className="rounded-2xl bg-white p-6 shadow-lg">
+                  <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+                    <div className="text-sm text-gray-700">
+                      Want personalized tips? Download your improvement report.
+                    </div>
+                    <button
+                      onClick={downloadReportPdf}
+                      disabled={generatingPdf}
+                      className="rounded-lg bg-purple-600 px-5 py-2 font-semibold text-white hover:bg-purple-700 disabled:bg-gray-400"
+                    >
+                      {generatingPdf ? 'Preparing PDF...' : 'Download 2-page PDF'}
+                    </button>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+
+              {state.speedClass && (
+                <div className="rounded-2xl bg-white p-6 shadow-lg">
+                  <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+                    <div className="text-sm text-gray-700">
+                      Create a personalized analysis video with your results!
+                    </div>
+                    <button
+                      onClick={generateAnalysisVideo}
+                      disabled={generatingVideo}
+                      className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      {generatingVideo ? 'Generating Video...' : 'Generate Analysis Video'}
+                    </button>
+                  </div>
+
+                  {generatedVideoUrl && (
+                    <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4">
+                      <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+                        <div className="text-sm text-green-700">
+                          🎉 Your analysis video is ready!
+                        </div>
+                        <a
+                          href={generatedVideoUrl}
+                          download="bowling-analysis-video.mp4"
+                          className="rounded-lg bg-green-600 px-5 py-2 font-semibold text-white hover:bg-green-700"
+                        >
+                          Download Video
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!state.currentVideo && (
+                <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 p-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold text-purple-800">Benchmark Video Reference</h3>
+                  </div>
+                  <p className="mb-4 text-sm text-purple-700">
+                    This is an example of good bowling footage for analysis. Your video should have similar clarity and framing.
+                  </p>
+                  <div className="flex flex-col items-start gap-4 lg:flex-row">
+                    <video
+                      src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
+                      controls
+                      preload="metadata"
+                      className="w-full rounded-xl shadow-md lg:w-64"
+                      poster="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4/ik-thumbnail.jpg"
+                    />
+                    <div className="flex-1 space-y-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                        <span className="text-gray-700">Clear view of bowler's full action</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                        <span className="text-gray-700">Good lighting and contrast</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                        <span className="text-gray-700">Stable camera position</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                        <span className="text-gray-700">Complete bowling motion captured</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

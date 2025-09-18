@@ -136,27 +136,25 @@ function AnalyzingContent() {
             />
           </div>
 
-          {/* Continue Button - Only show when analysis is complete */}
-          {state.progress === 100 && state.speedClass && (
-            <div className="flex justify-center">
-              <Link 
-                href="/quick-analysis"
-                className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 animate-bounceIn animate-delay-500 ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
-                style={{
-                  backgroundColor: '#FFC315',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '16px',
-                  color: 'black',
-                  width: '261px',
-                  height: '41px'
-                }}
-              >
-                Continue
-              </Link>
-            </div>
-          )}
+          {/* Continue Button */}
+          <div className="flex justify-center">
+            <Link
+              href="/quick-analysis"
+              className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 animate-bounceIn animate-delay-500 ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
+              style={{
+                backgroundColor: '#FFC315',
+                borderRadius: '25.62px',
+                fontFamily: 'Frutiger, Inter, sans-serif',
+                fontWeight: '700',
+                fontSize: '16px',
+                color: 'black',
+                width: '261px',
+                height: '41px'
+              }}
+            >
+              Continue
+            </Link>
+          </div>
         </div>
       </div>
 
