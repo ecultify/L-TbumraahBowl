@@ -114,7 +114,10 @@ export function VideoUploader({ onVideoReady }: VideoUploaderProps) {
               Or click to browse files (MP4, WebM, MOV • Max 20 seconds • Under 50MB)
             </p>
             
-            <label className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold cursor-pointer transition-all duration-200 transform hover:scale-105">
+            <label 
+              className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold cursor-pointer transition-all duration-200 transform hover:scale-105"
+              onClick={(e) => e.stopPropagation()}
+            >
               <Upload className="w-5 h-5" />
               Choose File
               <input
