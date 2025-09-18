@@ -131,14 +131,14 @@ function VideoPreviewContent() {
       const minIntensity = Math.min(...intensityValues, 0);
       const maxIntensity = Math.max(...intensityValues, 100);
       const finalIntensity = normalizeIntensity(averageIntensity, minIntensity, maxIntensity);
-      const speedClass = classifySpeed(finalIntensity);
+      const speedResult = classifySpeed(finalIntensity);
       const confidence = Math.min(95 + Math.random() * 5, 100);
 
       dispatch({
         type: 'COMPLETE_ANALYSIS',
         payload: {
           finalIntensity,
-          speedClass,
+          speedClass: speedResult.speedClass,
           confidence
         }
       });
