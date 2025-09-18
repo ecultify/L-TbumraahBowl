@@ -609,12 +609,12 @@ export default function Home() {
             }}
           />
           
-          <div className="relative z-10 flex items-center justify-center max-w-7xl mx-auto px-8 py-6">
+          <div className="relative z-10 flex items-center justify-start max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center">
               <img 
                 src="/frontend-images/homepage/justzoom logo.png" 
                 alt="JustZoom Logo" 
-                className="h-16 w-auto"
+                className="h-24 w-auto"
               />
             </div>
           </div>
