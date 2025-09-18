@@ -75,53 +75,41 @@ export default function InstructionsPage() {
               boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
             }}
           >
-            {/* Instruction Points */}
+            {/* Instruction Points - Updated to match desktop version */}
             <div className="space-y-4">
               {/* Point 1 */}
               <div 
                 className={`flex items-start gap-3 animate-fadeInLeft animate-delay-200 ${instructionsSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               >
                 <div 
-                  className="flex-shrink-0 mt-2 relative"
-                  style={{
-                    width: '16px',
-                    height: '16px'
-                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                  style={{ backgroundColor: '#FFC315' }}
                 >
-                  {/* Outer white circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      backgroundColor: 'white',
-                      top: '0',
-                      left: '0'
-                    }}
-                  />
-                  {/* Inner black circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      backgroundColor: 'black',
-                      top: '5px',
-                      left: '5px'
-                    }}
-                  />
+                  <span className="text-black font-bold text-sm">1</span>
                 </div>
-                <p 
-                  className="text-white"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '400',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                  }}
-                >
-                  Position camera at bowling crease level.
-                </p>
+                <div>
+                  <h4 
+                    className="text-white font-bold mb-1"
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontSize: '15px',
+                      lineHeight: '1.3'
+                    }}
+                  >
+                    Position Your Camera
+                  </h4>
+                  <p 
+                    className="text-white/80"
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '13px',
+                      lineHeight: '1.4'
+                    }}
+                  >
+                    Set camera at side angle, 10-15 feet from bowling crease.
+                  </p>
+                </div>
               </div>
 
               {/* Point 2 */}
@@ -129,46 +117,34 @@ export default function InstructionsPage() {
                 className={`flex items-start gap-3 animate-fadeInLeft animate-delay-300 ${instructionsSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               >
                 <div 
-                  className="flex-shrink-0 mt-2 relative"
-                  style={{
-                    width: '16px',
-                    height: '16px'
-                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                  style={{ backgroundColor: '#FFC315' }}
                 >
-                  {/* Outer white circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      backgroundColor: 'white',
-                      top: '0',
-                      left: '0'
-                    }}
-                  />
-                  {/* Inner black circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      backgroundColor: 'black',
-                      top: '5px',
-                      left: '5px'
-                    }}
-                  />
+                  <span className="text-black font-bold text-sm">2</span>
                 </div>
-                <p 
-                  className="text-white"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '400',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                  }}
-                >
-                  Ensure clear view of bowler's release point.
-                </p>
+                <div>
+                  <h4 
+                    className="text-white font-bold mb-1"
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontSize: '15px',
+                      lineHeight: '1.3'
+                    }}
+                  >
+                    Stable Recording
+                  </h4>
+                  <p 
+                    className="text-white/80"
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '13px',
+                      lineHeight: '1.4'
+                    }}
+                  >
+                    Keep phone steady. Use tripod if available for best results.
+                  </p>
+                </div>
               </div>
 
               {/* Point 3 */}
@@ -176,46 +152,34 @@ export default function InstructionsPage() {
                 className={`flex items-start gap-3 animate-fadeInLeft animate-delay-400 ${instructionsSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               >
                 <div 
-                  className="flex-shrink-0 mt-2 relative"
-                  style={{
-                    width: '16px',
-                    height: '16px'
-                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                  style={{ backgroundColor: '#FFC315' }}
                 >
-                  {/* Outer white circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      backgroundColor: 'white',
-                      top: '0',
-                      left: '0'
-                    }}
-                  />
-                  {/* Inner black circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      backgroundColor: 'black',
-                      top: '5px',
-                      left: '5px'
-                    }}
-                  />
+                  <span className="text-black font-bold text-sm">3</span>
                 </div>
-                <p 
-                  className="text-white"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '400',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                  }}
-                >
-                  Record in landscape mode for best results.
-                </p>
+                <div>
+                  <h4 
+                    className="text-white font-bold mb-1"
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontSize: '15px',
+                      lineHeight: '1.3'
+                    }}
+                  >
+                    Full Action Capture
+                  </h4>
+                  <p 
+                    className="text-white/80"
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '13px',
+                      lineHeight: '1.4'
+                    }}
+                  >
+                    Record complete action from run-up to follow-through.
+                  </p>
+                </div>
               </div>
 
               {/* Point 4 */}
@@ -223,93 +187,34 @@ export default function InstructionsPage() {
                 className={`flex items-start gap-3 animate-fadeInLeft animate-delay-500 ${instructionsSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               >
                 <div 
-                  className="flex-shrink-0 mt-2 relative"
-                  style={{
-                    width: '16px',
-                    height: '16px'
-                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-1"
+                  style={{ backgroundColor: '#FFC315' }}
                 >
-                  {/* Outer white circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      backgroundColor: 'white',
-                      top: '0',
-                      left: '0'
-                    }}
-                  />
-                  {/* Inner black circle */}
-                  <div 
-                    className="absolute rounded-full"
-                    style={{
-                      width: '6px',
-                      height: '6px',
-                      backgroundColor: 'black',
-                      top: '5px',
-                      left: '5px'
-                    }}
-                  />
+                  <span className="text-black font-bold text-sm">4</span>
                 </div>
-                <p 
-                  className="text-white"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '400',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                  }}
-                >
-                  Keep camera steady during bowling action.
-                </p>
-              </div>
-
-              {/* Point 5 */}
-              <div 
-                className={`flex items-start gap-3 animate-fadeInLeft animate-delay-600 ${instructionsSection.isIntersecting ? 'animate-on-scroll' : ''}`}
-              >
-                <div 
-                  className="flex-shrink-0 mt-2 relative"
-                  style={{
-                    width: '16px',
-                    height: '16px'
-                  }}
-                >
-                  {/* Outer white circle */}
-                  <div 
-                    className="absolute rounded-full"
+                <div>
+                  <h4 
+                    className="text-white font-bold mb-1"
                     style={{
-                      width: '16px',
-                      height: '16px',
-                      backgroundColor: 'white',
-                      top: '0',
-                      left: '0'
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontSize: '15px',
+                      lineHeight: '1.3'
                     }}
-                  />
-                  {/* Inner black circle */}
-                  <div 
-                    className="absolute rounded-full"
+                  >
+                    Good Lighting
+                  </h4>
+                  <p 
+                    className="text-white/80"
                     style={{
-                      width: '6px',
-                      height: '6px',
-                      backgroundColor: 'black',
-                      top: '5px',
-                      left: '5px'
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '13px',
+                      lineHeight: '1.4'
                     }}
-                  />
+                  >
+                    Ensure adequate lighting for clear visibility.
+                  </p>
                 </div>
-                <p 
-                  className="text-white"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '400',
-                    fontSize: '14px',
-                    lineHeight: '1.5'
-                  }}
-                >
-                  Include full bowling action from run-up to follow-through.
-                </p>
               </div>
             </div>
           </div>
