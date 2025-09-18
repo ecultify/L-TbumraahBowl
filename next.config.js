@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
+  transpilePackages: ["@remotion/player", "remotion"],
   eslint: {
     ignoreDuringBuilds: true,
   },

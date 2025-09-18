@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Gauge, Award, Zap, TrendingUp, Clock, Target } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 
@@ -22,6 +22,23 @@ interface ReportPreviewProps {
 }
 
 export default function ReportPreview({ kmh, similarityPercent, speedClass, confidencePercent, details }: ReportPreviewProps) {
+  const [currentDate, setCurrentDate] = useState<string>('');
+
+  useEffect(() => {
+    // Use a consistent format to avoid hydration issues
+    const now = new Date();
+    const formatted = now.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
+    setCurrentDate(formatted);
+  }, []);
+
   const runUp = Math.round((details?.phaseComparison?.runUp ?? 0) * 100);
   const delivery = Math.round((details?.phaseComparison?.delivery ?? 0) * 100);
   const followThrough = Math.round((details?.phaseComparison?.followThrough ?? 0) * 100);
@@ -39,7 +56,7 @@ export default function ReportPreview({ kmh, similarityPercent, speedClass, conf
       <div className="w-full px-8 py-6" style={{ background: `linear-gradient(90deg, ${appBlue}, ${appGreen})` }}>
         <div className="flex items-center justify-between">
           <h1 className="text-white text-2xl font-bold">Bowling Analysis Report</h1>
-          <div className="text-white/90 text-sm">{new Date().toLocaleString()}</div>
+          <div className="text-white/90 text-sm">{currentDate || 'Loading...'}</div>
         </div>
       </div>
 

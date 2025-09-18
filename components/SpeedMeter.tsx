@@ -5,12 +5,23 @@ import { SpeedClass } from '@/context/AnalysisContext';
 import { intensityToKmh } from '@/lib/utils/normalize';
 
 interface SpeedMeterProps {
-  intensity: number;
-  speedClass: SpeedClass | null;
+  value?: number;
+  intensity?: number;
+  classification?: SpeedClass | string;
+  speedClass?: SpeedClass | null;
   isAnimating?: boolean;
 }
 
-export function SpeedMeter({ intensity, speedClass, isAnimating = false }: SpeedMeterProps) {
+export function SpeedMeter({ 
+  value, 
+  intensity, 
+  classification, 
+  speedClass, 
+  isAnimating = false 
+}: SpeedMeterProps) {
+  // Use value or intensity (backward compatibility)
+  const finalIntensity = value !== undefined ? value : (intensity || 0);
+  const finalSpeedClass = classification as SpeedClass || speedClass;
   const [animatedIntensity, setAnimatedIntensity] = useState(0);
   const [displayClass, setDisplayClass] = useState<SpeedClass | null>(null);
 
@@ -19,7 +30,7 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
       // Animate needle to final position
       const startTime = Date.now();
       const startIntensity = animatedIntensity;
-      const targetIntensity = intensity;
+      const targetIntensity = finalIntensity;
       const duration = 2000; // 2 seconds
 
       const animate = () => {
@@ -44,16 +55,16 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
         if (progress < 1) {
           requestAnimationFrame(animate);
         } else {
-          setDisplayClass(speedClass);
+          setDisplayClass(finalSpeedClass);
         }
       };
 
       animate();
     } else {
-      setAnimatedIntensity(intensity);
-      setDisplayClass(speedClass);
+      setAnimatedIntensity(finalIntensity);
+      setDisplayClass(finalSpeedClass);
     }
-  }, [intensity, speedClass, isAnimating]);
+  }, [finalIntensity, finalSpeedClass, isAnimating]);
 
   // Calculate needle rotation (-90 to +90 degrees)
   const needleRotation = (animatedIntensity / 100) * 180 - 90;
@@ -62,21 +73,21 @@ export function SpeedMeter({ intensity, speedClass, isAnimating = false }: Speed
   const getColors = () => {
     if (animatedIntensity <= 35) {
       return {
-        primary: '#3B82F6', // blue
-        secondary: '#DBEAFE',
-        text: '#1E40AF'
+        primary: '#032743', // Dark blue from app theme
+        secondary: '#FFC315', // Yellow from app theme
+        text: '#032743'
       };
     } else if (animatedIntensity <= 70) {
       return {
-        primary: '#F97316', // orange
-        secondary: '#FED7AA',
-        text: '#EA580C'
+        primary: '#FFC315', // Yellow from app theme
+        secondary: '#FFD42D', // Lighter yellow
+        text: '#032743'
       };
     } else {
       return {
-        primary: '#EF4444', // red
-        secondary: '#FECACA',
-        text: '#DC2626'
+        primary: '#FFB800', // Darker yellow/orange
+        secondary: '#FFC315', // Yellow from app theme
+        text: '#032743'
       };
     }
   };

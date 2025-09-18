@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "render:first": "npx -y @remotion/cli render remotion/index.ts first-frame public/sample-first-frame.mp4"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -74,7 +75,10 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@remotion/bundler": "^4.0.346",
+    "@remotion/cli": "^4.0.346",
     "@remotion/player": "^4.0.345",
+    "@remotion/renderer": "^4.0.346",
     "remotion": "^4.0.345"
   }
 }

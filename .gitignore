@@ -33,6 +33,10 @@ dist/
 **/.remotion/
 **/chrome-headless-shell*/
 
+# generated videos
+public/generated-videos/*.mp4
+temp-props-*.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*

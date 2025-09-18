@@ -1,0 +1,108 @@
+﻿'use client';
+
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import Link from 'next/link';
+import { ArrowLeft, Settings2, Play, RotateCcw } from 'lucide-react';
+import { AnalysisProvider, useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
+import { SpeedMeter } from '@/components/SpeedMeter';
+import { VideoRecorder } from '@/components/VideoRecorder';
+import { VideoUploader } from '@/components/VideoUploader';
+import { Sparkline } from '@/components/Sparkline';
+import { AnalysisResults } from '@/components/AnalysisResults';
+import { useToast } from '@/components/Toast';
+import { FrameSampler } from '@/lib/video/frameSampler';
+
+import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
+import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
+import { normalizeIntensity, classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
+import { supabase } from '@/lib/supabase/client';
+import LeaderboardModal from '@/components/LeaderboardModal';
+import ReportPreview from '@/components/ReportPreview';
+
+function AnalyzeContent() {
+  const { state, dispatch } = useAnalysis();
+  const { addToast, ToastContainer } = useToast();
+  const [activeTab, setActiveTab] = useState<'record' | 'upload'>('record');
+  const [currentVideoTime, setCurrentVideoTime] = useState(0);
+  const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [lastInsertId, setLastInsertId] = useState<string | null>(null);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const frameSamplerRef = useRef<FrameSampler | null>(null);
+
+  const poseAnalyzerRef = useRef<PoseBasedAnalyzer>(new PoseBasedAnalyzer());
+  const benchmarkAnalyzerRef = useRef<BenchmarkComparisonAnalyzer>(new BenchmarkComparisonAnalyzer());
+  // Get tab from URL params
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab === 'upload') {
+      setActiveTab('upload');
+    }
+  }, []);
+
+  const downloadReportPdf = useCallback(async () => {
+    try {
+      setGeneratingPdf(true);
+      const [{ jsPDF }, html2canvas] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas').then((m: any) => m.default || m)
+      ]);
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+      const title = 'Bowling Analysis Report';
+      const now = new Date();
+      const dt = now.toLocaleString();
+
+      // Try to draw logo at top center
+      try {
+        const logoUrl = 'https://ecultify.com/wp-content/uploads/2022/09/logo-ecultify.png.webp';
+        const dataUrl = await (async function toPngDataUrl(url: string) {
+          return await new Promise<string>((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+              try {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) throw new Error('no ctx');
+                ctx.drawImage(img, 0, 0);
+                const d = canvas.toDataURL('image/png');
+                resolve(d);
+              } catch (e) { reject(e); }
+            };
+            img.onerror = () => resolve('');
+            img.src = url;
+          });
+        })(logoUrl);
+        if (dataUrl) {
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const imgW = 50; // mm
+          const imgH = 16; // approx
+          doc.addImage(dataUrl, 'PNG', (pageWidth - imgW) / 2, 15, imgW, imgH);
+        }
+      } catch {}
+
+      // Page 1: company logo only + generated timestamp
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setFontSize(11);
+      doc.text(`Generated: ${dt}`, pageWidth - 10, 10, { align: 'right' });
+
+      // Page 2: Styled report (captured from UI)
+      doc.addPage();
+      const target = document.getElementById('pdf-report-capture');
+      if (target) {
+        const canvas = await html2canvas(target as HTMLElement, { backgroundColor: null, scale: 2 } as any);
+        const imgData = canvas.toDataURL('image/png');
+        const w = doc.internal.pageSize.getWidth();
+        const h = (canvas.height * w) / canvas.width;
+        doc.addImage(imgData, 'PNG', 0, 0, w, h);
+      }
+      const ts2 = new Date().toISOString().replace(/[:.]/g, '-');
+      doc.save(`bowling_report_${ts2}.pdf`);
+      return;
+
+
