@@ -609,28 +609,13 @@ export default function Home() {
             }}
           />
           
-          <div className="relative z-10 flex items-center justify-between max-w-7xl mx-auto px-8 py-6">
+          <div className="relative z-10 flex items-center justify-center max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center">
               <img 
                 src="/frontend-images/homepage/justzoom logo.png" 
                 alt="JustZoom Logo" 
                 className="h-16 w-auto"
               />
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-lg text-white/70">Powered by</span>
-              <a 
-                href="https://ecultify.com/" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="hover:opacity-80 transition-opacity"
-              >
-                <img 
-                  src="https://ecultify.com/wp-content/uploads/2022/09/logo-ecultify.png.webp" 
-                  alt="Ecultify" 
-                  className="h-12 w-auto"
-                />
-              </a>
             </div>
           </div>
         </header>
@@ -716,19 +701,6 @@ export default function Home() {
                     Get Started
                   </Link>
                   
-                  <Link 
-                    href="/participate" 
-                    className="inline-flex items-center justify-center text-white font-bold border-2 border-white/30 transition-all duration-300 transform hover:scale-105 hover:bg-white/10"
-                    style={{
-                      borderRadius: '25px',
-                      fontFamily: 'Frutiger, Inter, sans-serif',
-                      fontWeight: '700',
-                      fontSize: '18px',
-                      padding: '16px 32px'
-                    }}
-                  >
-                    Learn More
-                  </Link>
                 </div>
               </div>
 

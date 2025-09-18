@@ -516,7 +516,7 @@ export default function InstructionsPage() {
             }}
           />
           
-          <div className="relative z-10 flex items-center justify-between max-w-7xl mx-auto px-8 py-6">
+          <div className="relative z-10 flex items-center justify-center max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center">
               <img 
                 src="/frontend-images/homepage/justzoom logo.png" 
@@ -524,7 +524,7 @@ export default function InstructionsPage() {
                 className="h-16 w-auto"
               />
             </div>
-            <div className="flex items-center gap-4">
+            <div className="absolute left-8 flex items-center gap-4">
               <Link 
                 href="/participate"
                 className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
@@ -632,36 +632,6 @@ export default function InstructionsPage() {
                 </div>
               </div>
 
-              {/* Pro Tip */}
-              <div 
-                className="p-6 rounded-2xl border-2 border-yellow-400/30"
-                style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
-              >
-                <h4 className="text-yellow-400 font-bold text-lg mb-3">💡 Pro Tip</h4>
-                <p className="text-white/90 leading-relaxed">
-                  For best results, record in landscape mode and make sure the bowler is the main focus 
-                  of the video. Avoid zooming in too much - we need to see the complete action!
-                </p>
-              </div>
-
-              {/* CTA Button */}
-              <div className="pt-8">
-                <Link 
-                  href="/record-upload"
-                  className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
-                  style={{
-                    backgroundColor: '#FFC315',
-                    borderRadius: '25px',
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '18px',
-                    color: 'black',
-                    padding: '16px 48px'
-                  }}
-                >
-                  I'm ready, proceed
-                </Link>
-              </div>
             </div>
 
             {/* Right Column - Visual Guide */}
@@ -670,7 +640,7 @@ export default function InstructionsPage() {
                 className="relative"
                 style={{
                   width: '100%',
-                  height: '500px',
+                  height: '300px',
                   borderRadius: '24px',
                   background: 'linear-gradient(180deg, #1E75B3 0%, #014F87 100%)',
                   overflow: 'hidden'
@@ -697,6 +667,39 @@ export default function InstructionsPage() {
                 </div>
               </div>
             </div>
+          </div>
+          
+          {/* Pro Tip Section - Moved below visual guide */}
+          <div className="mt-12 max-w-4xl mx-auto">
+            <div 
+              className="p-6 rounded-2xl border-2 border-yellow-400/30"
+              style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
+            >
+              <h4 className="text-yellow-400 font-bold text-lg mb-3">💡 Pro Tip</h4>
+              <p className="text-white/90 leading-relaxed">
+                For best results, record in landscape mode and make sure the bowler is the main focus 
+                of the video. Avoid zooming in too much - we need to see the complete action!
+              </p>
+            </div>
+          </div>
+
+          {/* CTA Button - Moved up */}
+          <div className="mt-8 text-center">
+            <Link 
+              href="/record-upload"
+              className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+              style={{
+                backgroundColor: '#FFC315',
+                borderRadius: '25px',
+                fontFamily: 'Frutiger, Inter, sans-serif',
+                fontWeight: '700',
+                fontSize: '18px',
+                color: 'black',
+                padding: '16px 48px'
+              }}
+            >
+              I'm ready, proceed
+            </Link>
           </div>
         </div>
 
