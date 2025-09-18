@@ -635,7 +635,7 @@ export default function InstructionsPage() {
             </div>
 
             {/* Right Column - Visual Guide */}
-            <div className="relative">
+            <div className="relative space-y-6">
               <div 
                 className="relative"
                 style={{
@@ -666,20 +666,18 @@ export default function InstructionsPage() {
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-          
-          {/* Pro Tip Section - Moved below visual guide */}
-          <div className="mt-12 max-w-4xl mx-auto">
-            <div 
-              className="p-6 rounded-2xl border-2 border-yellow-400/30"
-              style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
-            >
-              <h4 className="text-yellow-400 font-bold text-lg mb-3">💡 Pro Tip</h4>
-              <p className="text-white/90 leading-relaxed">
-                For best results, record in landscape mode and make sure the bowler is the main focus 
-                of the video. Avoid zooming in too much - we need to see the complete action!
-              </p>
+              
+              {/* Pro Tip - Directly below video box in right column */}
+              <div 
+                className="p-6 rounded-2xl border-2 border-yellow-400/30"
+                style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
+              >
+                <h4 className="text-yellow-400 font-bold text-lg mb-3">💡 Pro Tip</h4>
+                <p className="text-white/90 leading-relaxed">
+                  For best results, record in landscape mode and make sure the bowler is the main focus 
+                  of the video. Avoid zooming in too much - we need to see the complete action!
+                </p>
+              </div>
             </div>
           </div>
 
