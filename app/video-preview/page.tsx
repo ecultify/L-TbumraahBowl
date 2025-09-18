@@ -124,7 +124,12 @@ function VideoPreviewContent() {
       }
 
       // Calculate final results
-      const finalIntensity = normalizeIntensity(intensities);
+      const averageIntensity = intensities.length > 0 
+        ? intensities.reduce((sum, val) => sum + val, 0) / intensities.length 
+        : 0;
+      const minIntensity = Math.min(...intensities, 0);
+      const maxIntensity = Math.max(...intensities, 100);
+      const finalIntensity = normalizeIntensity(averageIntensity, minIntensity, maxIntensity);
       const speedClass = classifySpeed(finalIntensity);
       const confidence = Math.min(95 + Math.random() * 5, 100);
 

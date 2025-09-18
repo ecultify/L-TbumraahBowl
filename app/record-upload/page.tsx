@@ -16,7 +16,7 @@ export default function RecordUploadPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  // Check URL parameters on component mount
+  // Check URL parameters and device type on component mount
   useEffect(() => {
     const mode = searchParams.get('mode');
     if (mode === 'record') {
@@ -24,6 +24,8 @@ export default function RecordUploadPage() {
     } else if (mode === 'upload') {
       setActiveMode('upload');
     }
+    // Note: For desktop, we keep 'none' as default to show the choice screen
+    // The desktop layout handles the 'none' state by showing record/upload options
   }, [searchParams]);
 
   const handleVideoReady = useCallback((videoUrl: string) => {
