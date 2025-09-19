@@ -52,10 +52,13 @@ export default function RecordUploadPage() {
   }, [activeMode]);
 
   const handleVideoReady = useCallback((videoUrl: string) => {
-    // Navigate to analyze page with the video
-    // For now, we'll redirect to the existing analyze page
-    // You can later pass the video URL as a parameter if needed
-    router.push('/analyze');
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('uploadedVideoUrl', videoUrl);
+      sessionStorage.setItem('uploadedFileName', 'recorded-video.webm');
+      sessionStorage.setItem('uploadedSource', 'record');
+    }
+
+    router.push('/video-preview');
   }, [router]);
 
   const handleRecorderReady = useCallback((videoUrl: string) => {
@@ -145,6 +148,7 @@ export default function RecordUploadPage() {
       // Store video data in sessionStorage for the preview page
       sessionStorage.setItem('uploadedVideoUrl', uploadedVideoUrl);
       sessionStorage.setItem('uploadedFileName', uploadedFile.name);
+      sessionStorage.setItem('uploadedSource', 'upload');
       
       // Navigate to video preview page
       router.push('/video-preview');
@@ -742,7 +746,11 @@ export default function RecordUploadPage() {
               </button>
             </div>
             <div className="bg-black rounded-3xl p-4 border border-white/20">
-              <VideoRecorder onVideoReady={handleRecorderReady} />
+              <VideoRecorder
+                orientation="portrait"
+                autoSubmitOnStop
+                onVideoReady={handleRecorderReady}
+              />
             </div>
           </div>
         </div>
@@ -970,7 +978,7 @@ export default function RecordUploadPage() {
 
               <div className="bg-white/5 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
                 {isClient && !isMobileView ? (
-                  <VideoRecorder onVideoReady={handleVideoReady} />
+                  <VideoRecorder autoSubmitOnStop onVideoReady={handleVideoReady} />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-white/80 py-20">
                     <p

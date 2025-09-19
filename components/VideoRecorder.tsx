@@ -6,9 +6,16 @@ import { Camera, Square, Play, Loader2 } from 'lucide-react';
 interface VideoRecorderProps {
   onVideoReady: (videoUrl: string) => void;
   autoStart?: boolean;
+  orientation?: 'landscape' | 'portrait';
+  autoSubmitOnStop?: boolean;
 }
 
-export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderProps) {
+export function VideoRecorder({
+  onVideoReady,
+  autoStart = true,
+  orientation = 'landscape',
+  autoSubmitOnStop = false,
+}: VideoRecorderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -18,6 +25,7 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const isPortrait = orientation === 'portrait';
 
   const initializeCamera = useCallback(async () => {
     setIsInitializing(true);
@@ -31,8 +39,8 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
       let stream: MediaStream | null = null;
       const constraints: MediaStreamConstraints = {
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
+          width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
+          height: isPortrait ? { ideal: 1280 } : { ideal: 720 },
           facingMode: { ideal: 'environment' },
         },
         audio: false,
@@ -43,7 +51,12 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
       } catch (err) {
         // Fallback for devices that do not support environment camera selection
         console.warn('Environment camera unavailable, falling back to default camera', err);
-        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: isPortrait
+            ? { facingMode: { ideal: 'environment' }, width: 720, height: 1280 }
+            : true,
+          audio: false,
+        });
       }
 
       if (videoRef.current) {
@@ -64,7 +77,14 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
     } finally {
       setIsInitializing(false);
     }
-  }, []);
+  }, [isPortrait]);
+
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  }, [isRecording]);
 
   const startRecording = useCallback(() => {
     if (!videoRef.current?.srcObject) {
@@ -90,6 +110,10 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
       const blob = new Blob(chunksRef.current, { type: 'video/webm' });
       const url = URL.createObjectURL(blob);
       setRecordedVideoUrl(url);
+
+      if (autoSubmitOnStop) {
+        onVideoReady(url);
+      }
     };
 
     mediaRecorder.start();
@@ -101,20 +125,17 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
         stopRecording();
       }
     }, 20000);
-  }, []);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  }, [isRecording]);
+  }, [autoSubmitOnStop, initializeCamera, onVideoReady, stopRecording]);
 
   const useRecording = useCallback(() => {
+    if (autoSubmitOnStop) {
+      return;
+    }
+
     if (recordedVideoUrl) {
       onVideoReady(recordedVideoUrl);
     }
-  }, [recordedVideoUrl, onVideoReady]);
+  }, [autoSubmitOnStop, recordedVideoUrl, onVideoReady]);
 
   const retakeVideo = useCallback(() => {
     if (recordedVideoUrl) {
@@ -139,10 +160,18 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
     }
   }, [autoStart, hasPermission, isInitializing, initializeCamera]);
 
+  const containerStyle = {
+    aspectRatio: isPortrait ? '9 / 16' : '16 / 9',
+  } as React.CSSProperties;
+
+  const containerClasses = isPortrait
+    ? 'relative bg-black rounded-2xl overflow-hidden mx-auto max-w-sm w-full'
+    : 'relative bg-black rounded-2xl overflow-hidden mx-auto max-w-2xl w-full';
+
   return (
     <div className="space-y-6">
       {/* Camera Preview */}
-      <div className="relative bg-black rounded-2xl overflow-hidden aspect-video max-w-2xl mx-auto">
+      <div className={containerClasses} style={containerStyle}>
         {!hasPermission && !isInitializing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
             <Camera className="w-16 h-16 mb-4 opacity-50" />
@@ -186,7 +215,11 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
             <button
               onClick={startRecording}
               disabled={!hasPermission || isRecording}
-              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
+              className="flex items-center gap-2 px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105 disabled:opacity-60 disabled:hover:scale-100"
+              style={{
+                backgroundColor: '#FDC217',
+                color: 'black',
+              }}
             >
               <Camera className="w-5 h-5" />
               {isRecording ? 'Recording...' : 'Start Recording'}
@@ -204,13 +237,15 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
           </>
         ) : (
           <div className="flex gap-4">
-            <button
-              onClick={useRecording}
-              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
-            >
-              <Play className="w-5 h-5" />
-              Analyze This Recording
-            </button>
+            {!autoSubmitOnStop && (
+              <button
+                onClick={useRecording}
+                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200 transform hover:scale-105"
+              >
+                <Play className="w-5 h-5" />
+                Analyze This Recording
+              </button>
+            )}
             <button
               onClick={retakeVideo}
               className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200"
@@ -229,7 +264,8 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
           <video
             src={recordedVideoUrl}
             controls
-            className="w-full max-w-md mx-auto rounded-xl"
+            className="w-full mx-auto rounded-xl"
+            style={isPortrait ? { aspectRatio: '9 / 16', maxWidth: '360px' } : {}}
           />
         </div>
       )}
