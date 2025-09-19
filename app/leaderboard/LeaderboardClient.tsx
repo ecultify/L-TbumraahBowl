@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import styles from './index.module.css';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
+import { LeaderboardDetailsDialog } from '@/components/LeaderboardDetailsDialog';
 
 type LeaderboardEntry = {
   id: string;
@@ -17,6 +18,7 @@ type LeaderboardEntry = {
   similarity_percent: number | null;
   intensity_percent: number | null;
   speed_class: SpeedClass | null;
+  meta?: any;
 };
 
 type RankedEntry = LeaderboardEntry & { rank: number };
@@ -31,59 +33,77 @@ export default function LeaderboardClient() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
-  useEffect(() => {
-    let isCancelled = false;
+  const loadLeaderboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
 
-    const load = async () => {
-      setLoading(true);
-      setError(null);
+    try {
+      let query = supabase
+        .from('leaderboard_all_time')
+        .select('*')
+        .order('predicted_kmh', { ascending: false })
+        .order('similarity_percent', { ascending: false })
+        .limit(5);
 
-      try {
-        let query = supabase
-          .from('leaderboard_all_time')
+      let { data, error: queryError } = await query;
+
+      if (queryError) {
+        const fallback = await supabase
+          .from('bowling_attempts')
           .select('*')
           .order('predicted_kmh', { ascending: false })
           .order('similarity_percent', { ascending: false })
           .limit(5);
 
-        let { data, error: queryError } = await query;
-
-        if (queryError) {
-          const fallback = await supabase
-            .from('bowling_attempts')
-            .select('*')
-            .order('predicted_kmh', { ascending: false })
-            .order('similarity_percent', { ascending: false })
-            .limit(5);
-
-          if (fallback.error) throw fallback.error;
-          data = fallback.data as LeaderboardEntry[];
-        }
-
-        if (!isCancelled) {
-          setEntries((data || []) as LeaderboardEntry[]);
-        }
-      } catch (err: any) {
-        if (!isCancelled) {
-          setError(err?.message || 'Unable to load leaderboard right now.');
-        }
-      } finally {
-        if (!isCancelled) setLoading(false);
+        if (fallback.error) throw fallback.error;
+        data = fallback.data as LeaderboardEntry[];
       }
-    };
 
-    load();
+      setEntries((data || []) as LeaderboardEntry[]);
+    } catch (err: any) {
+      setError(err?.message || 'Unable to load leaderboard right now.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-    return () => {
-      isCancelled = true;
-    };
+  useEffect(() => {
+    loadLeaderboard();
+  }, [loadLeaderboard]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const stored = window.sessionStorage.getItem('lastLeaderboardEntryId');
+    if (stored) {
+      setPendingEntryId(stored);
+    }
   }, []);
 
   const ranked = useMemo<RankedEntry[]>(
     () => entries.map((entry, index) => ({ ...entry, rank: index + 1 })),
     [entries]
   );
+
+  const pendingEntry = useMemo(() => (
+    pendingEntryId ? ranked.find((entry) => entry.id === pendingEntryId) : undefined
+  ), [pendingEntryId, ranked]);
+
+  useEffect(() => {
+    if (!pendingEntryId) return;
+    const entry = pendingEntry;
+    if (!entry) return;
+
+    const hasName = !!(entry.display_name && entry.display_name !== 'Anonymous');
+    if (!hasName) {
+      setDetailsOpen(true);
+    } else if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('lastLeaderboardEntryId');
+      setPendingEntryId(null);
+    }
+  }, [pendingEntryId, pendingEntry]);
 
   const backgroundStyle = {
     backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
@@ -167,6 +187,15 @@ export default function LeaderboardClient() {
             />
             Retry Analysis
           </Link>
+          {pendingEntryId && (
+            <button
+              type="button"
+              className={styles.ctaSecondary}
+              onClick={() => setDetailsOpen(true)}
+            >
+              Verify &amp; Submit Details
+            </button>
+          )}
         </section>
       </main>
 
@@ -186,6 +215,20 @@ export default function LeaderboardClient() {
           </div>
         </div>
       </footer>
+
+      <LeaderboardDetailsDialog
+        open={detailsOpen}
+        onOpenChange={(open) => setDetailsOpen(open)}
+        attemptId={pendingEntryId}
+        currentEntry={pendingEntry}
+        onSubmitted={async () => {
+          await loadLeaderboard();
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.removeItem('lastLeaderboardEntryId');
+          }
+          setPendingEntryId(null);
+        }}
+      />
     </div>
   );
 }

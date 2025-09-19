@@ -366,6 +366,9 @@ function AnalyzeContent() {
           console.warn('Supabase insert failed', error);
         } else {
           setLastInsertId(data?.id ?? null);
+          if (typeof window !== 'undefined' && data?.id) {
+            sessionStorage.setItem('lastLeaderboardEntryId', data.id);
+          }
           addToast({ type: 'success', title: 'Saved to leaderboard', message: 'Your result is on the board!' });
         }
       } catch (e) {
@@ -646,18 +649,32 @@ function AnalyzeContent() {
                 </div>
               </div>
 
-              {hasResults && detailedAnalysis?.recommendations?.length ? (
-                <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/70 mb-2">Recommendations</p>
-                  <ul className="space-y-1 text-sm text-white/90 list-disc list-inside">
-                    {detailedAnalysis.recommendations.map((rec, index) => (
-                      <li key={index}>{rec}</li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
             </div>
           </div>
+
+          {hasResults && detailedAnalysis?.recommendations?.length ? (
+            <div className="mt-6 flex justify-center">
+              <div
+                className="w-[353px] rounded-[20px] bg-[#FFC315] px-6 py-5 text-black shadow-[0_8px_24px_rgba(31,38,135,0.25)]"
+                style={{ fontFamily: "'Frutiger','Inter',sans-serif" }}
+              >
+                <h4
+                  className="mb-3 text-left text-lg font-bold uppercase tracking-tight"
+                  style={{ fontFamily: "'Frutiger Bold','Frutiger','Inter',sans-serif" }}
+                >
+                  Recommendations
+                </h4>
+                <ul className="space-y-2 text-sm leading-relaxed">
+                  {detailedAnalysis.recommendations.map((rec: string, index: number) => (
+                    <li key={index} className="flex items-start gap-2">
+                      <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-black/70" />
+                      <span>{rec}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ) : null}
 
           <div className="mt-6 space-y-3">
             <div className="flex justify-center">
@@ -929,7 +946,7 @@ function AnalyzeContent() {
                 </div>
               )}
 
-              {state.speedClass && (
+              {state.speedClass && state.finalIntensity >= 85 && (
                 <div className="rounded-2xl bg-white p-6 shadow-lg">
                   <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
                     <div className="text-sm text-gray-700">
