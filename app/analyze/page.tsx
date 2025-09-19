@@ -616,46 +616,47 @@ function AnalyzeContent() {
             </div>
           </div>
 
-          <div className="mt-8">
-            <h3
-              className="mb-3 text-white"
-              style={{
-                fontFamily: "'Frutiger Bold','Frutiger','Inter',sans-serif",
-                fontSize: '24px',
-                fontWeight: 700
-              }}
-            >
-              Detailed Report
-            </h3>
+          <div className="mt-8 flex justify-center">
+            <div className="w-full max-w-md text-center">
+              <h3
+                className="mb-3 text-white"
+                style={{
+                  fontFamily: "'Frutiger Bold','Frutiger','Inter',sans-serif",
+                  fontSize: '24px',
+                  fontWeight: 700
+                }}
+              >
+                Detailed Report
+              </h3>
 
-            <div
-              className="rounded-2xl bg-white/10 p-5 text-white backdrop-blur-xl shadow-[0_12px_32px_rgba(31,38,135,0.25)] space-y-5"
-            >
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-white/70 mb-3">Technical Breakdown</p>
-                <div className="space-y-3">
-                  {[
-                    { label: 'Arm Swing', value: armSwingScore },
-                    { label: 'Body Movement', value: bodyMovementScore },
-                    { label: 'Rhythm', value: rhythmScore },
-                    { label: 'Release Point', value: releasePointScore },
-                  ].map((metric) => (
-                    <div key={metric.label} className="flex items-center justify-between gap-3">
-                      <span className="text-sm text-white/80">{metric.label}</span>
-                      <div className="flex items-center gap-2">
-                        <div className="w-24 h-2 rounded-full bg-white/15 border border-black/40 overflow-hidden">
-                          <div
-                            className="h-full bg-[#FFC315]"
-                            style={{ width: `${Math.min(100, metric.value)}%` }}
-                          />
+              <div
+                className="rounded-2xl bg-white/10 p-5 text-white backdrop-blur-xl shadow-[0_12px_32px_rgba(31,38,135,0.25)] space-y-5 text-left"
+              >
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/70 mb-3">Technical Breakdown</p>
+                  <div className="space-y-3">
+                    {[
+                      { label: 'Arm Swing', value: armSwingScore },
+                      { label: 'Body Movement', value: bodyMovementScore },
+                      { label: 'Rhythm', value: rhythmScore },
+                      { label: 'Release Point', value: releasePointScore },
+                    ].map((metric) => (
+                      <div key={metric.label} className="flex items-center justify-between gap-3">
+                        <span className="text-sm text-white/80">{metric.label}</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 h-2 rounded-full bg-white/15 border border-black/40 overflow-hidden">
+                            <div
+                              className="h-full bg-[#FFC315]"
+                              style={{ width: `${Math.min(100, metric.value)}%` }}
+                            />
+                          </div>
+                          <span className="w-10 text-right text-sm font-semibold">{metric.value}%</span>
                         </div>
-                        <span className="w-10 text-right text-sm font-semibold">{metric.value}%</span>
                       </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
               </div>
-
             </div>
           </div>
 

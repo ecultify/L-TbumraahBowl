@@ -72,7 +72,7 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
         {/* Progress Bar Container */}
         <div className="w-full max-w-xs">
           <div 
-            className="relative overflow-hidden mb-2"
+            className="relative overflow-hidden"
             style={{
               width: '297px',
               height: '11px',
@@ -89,22 +89,32 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
                 borderRadius: '6px'
               }}
             />
-          </div>
-          
-          {/* Percentage Text */}
-          <div className="text-left">
-            <span 
-              className="text-black"
+
+            {/* Moving Percentage */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-xs font-bold"
               style={{
+                left: `calc(${Math.min(Math.max(progressPercentage, 4), 96)}%)`,
                 fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '700',
-                fontSize: '14px'
+                color: '#FFC315'
               }}
             >
               {progressPercentage}%
-            </span>
+            </div>
           </div>
         </div>
+
+        <p
+          className="mt-4 text-sm text-black/80"
+          style={{
+            fontFamily: 'Inter, sans-serif',
+            fontWeight: 500,
+            lineHeight: 1.4,
+            maxWidth: '260px'
+          }}
+        >
+          Please keep this page open while we analyze your video. This can take up to a minute.
+        </p>
       </div>
     </div>
   );

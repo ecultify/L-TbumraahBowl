@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { Camera, Square, Play, Loader2 } from 'lucide-react';
 
 interface VideoRecorderProps {
   onVideoReady: (videoUrl: string) => void;
+  autoStart?: boolean;
 }
 
-export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
+export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -123,7 +124,7 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
   }, [recordedVideoUrl]);
 
   // Clean up stream on unmount
-  React.useEffect(() => {
+  useEffect(() => {
     return () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
@@ -132,11 +133,17 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (autoStart && hasPermission === null && !isInitializing) {
+      initializeCamera();
+    }
+  }, [autoStart, hasPermission, isInitializing, initializeCamera]);
+
   return (
     <div className="space-y-6">
       {/* Camera Preview */}
       <div className="relative bg-black rounded-2xl overflow-hidden aspect-video max-w-2xl mx-auto">
-        {!hasPermission && !isInitializing && (
+        {hasPermission === false && !isInitializing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
             <Camera className="w-16 h-16 mb-4 opacity-50" />
             <p className="text-lg mb-4">Camera access needed for recording</p>
@@ -152,16 +159,6 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
         {isInitializing && (
           <div className="absolute inset-0 flex items-center justify-center text-white">
             <Loader2 className="w-8 h-8 animate-spin" />
-          </div>
-        )}
-
-        {hasPermission === false && !isInitializing && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
-            <div className="text-red-400 mb-4">❌</div>
-            <p className="text-lg mb-2">Camera permission denied</p>
-            <p className="text-sm opacity-75 mb-4">
-              Please enable camera access in your browser settings and refresh the page
-            </p>
           </div>
         )}
 
