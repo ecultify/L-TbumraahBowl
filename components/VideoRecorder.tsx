@@ -143,7 +143,7 @@ export function VideoRecorder({ onVideoReady, autoStart = true }: VideoRecorderP
     <div className="space-y-6">
       {/* Camera Preview */}
       <div className="relative bg-black rounded-2xl overflow-hidden aspect-video max-w-2xl mx-auto">
-        {hasPermission === false && !isInitializing && (
+        {!hasPermission && !isInitializing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
             <Camera className="w-16 h-16 mb-4 opacity-50" />
             <p className="text-lg mb-4">Camera access needed for recording</p>

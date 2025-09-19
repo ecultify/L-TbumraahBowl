@@ -89,32 +89,26 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
                 borderRadius: '6px'
               }}
             />
-
-            {/* Moving Percentage */}
-            <div
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 text-xs font-bold"
+          </div>
+          
+          {/* Percentage Text */}
+          <div
+            className="relative mt-2"
+            style={{ width: '297px', height: '16px' }}
+          >
+            <span 
+              className="absolute -translate-x-1/2 text-black"
               style={{
-                left: `calc(${Math.min(Math.max(progressPercentage, 4), 96)}%)`,
+                left: `calc(${Math.min(Math.max(progressPercentage, 0), 100)}%)`,
                 fontFamily: 'Frutiger, Inter, sans-serif',
-                color: '#FFC315'
+                fontWeight: '700',
+                fontSize: '14px'
               }}
             >
               {progressPercentage}%
-            </div>
+            </span>
           </div>
         </div>
-
-        <p
-          className="mt-4 text-sm text-black/80"
-          style={{
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: 500,
-            lineHeight: 1.4,
-            maxWidth: '260px'
-          }}
-        >
-          Please keep this page open while we analyze your video. This can take up to a minute.
-        </p>
       </div>
     </div>
   );

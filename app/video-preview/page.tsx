@@ -10,7 +10,8 @@ import { AnalysisLoader } from '@/components/AnalysisLoader';
 import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
 import { FrameSampler } from '@/lib/video/frameSampler';
-import { classifySpeed } from '@/lib/utils/normalize';
+import { classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
+import { supabase } from '@/lib/supabase/client';
 
 function VideoPreviewContent() {
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -137,6 +138,35 @@ function VideoPreviewContent() {
         }
       });
 
+      try {
+        const predictedKmh = intensityToKmh(finalIntensity);
+        const payload: Record<string, any> = {
+          display_name: 'Anonymous',
+          predicted_kmh: Number(predictedKmh.toFixed(2)),
+          similarity_percent: Number(finalIntensity.toFixed(2)),
+          intensity_percent: Number(finalIntensity.toFixed(2)),
+          speed_class: speedResult.speedClass,
+          meta: {
+            analyzer_mode: state.analyzerMode,
+            app: 'bowling-analyzer',
+          },
+        };
+
+        const { data, error } = await supabase
+          .from('bowling_attempts')
+          .insert(payload)
+          .select('id')
+          .single();
+
+        if (error) {
+          console.warn('Supabase insert failed', error);
+        } else if (typeof window !== 'undefined' && data?.id) {
+          window.sessionStorage.setItem('lastLeaderboardEntryId', data.id);
+        }
+      } catch (dbError) {
+        console.warn('Skipping leaderboard save from video preview', dbError);
+      }
+
       // Navigate to analyzing page with results
       setTimeout(() => {
         router.push('/analyzing');
@@ -146,7 +176,7 @@ function VideoPreviewContent() {
       console.error('Analysis failed:', error);
       dispatch({ type: 'RESET_ANALYSIS' });
     }
-  }, [videoUrl, dispatch, router]);
+  }, [videoUrl, dispatch, router, state.analyzerMode]);
 
   return (
     <div 
