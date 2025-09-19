@@ -669,6 +669,27 @@ function AnalyzeContent() {
             </div>
           ) : null}
 
+          {hasResults && state.finalIntensity >= 85 ? (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={generateAnalysisVideo}
+                disabled={generatingVideo}
+                className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-60"
+                style={{
+                  backgroundColor: '#FFC315',
+                  borderRadius: '25.62px',
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontSize: '16px',
+                  color: 'black',
+                  width: '261px',
+                  height: '41px'
+                }}
+              >
+                {generatingVideo ? 'Generating Video...' : 'Generate Analysis Video'}
+              </button>
+            </div>
+          ) : null}
+
           <div className="mt-6 space-y-3">
             <div className="flex justify-center">
               <Link
