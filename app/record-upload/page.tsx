@@ -16,6 +16,7 @@ export default function RecordUploadPage() {
   const searchParams = useSearchParams();
   const [isClient, setIsClient] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
+  const [isRecorderOpen, setIsRecorderOpen] = useState(false);
 
   // Check URL parameters and device type on component mount
   useEffect(() => {
@@ -44,12 +45,23 @@ export default function RecordUploadPage() {
     return () => window.removeEventListener('resize', updateView);
   }, []);
 
+  useEffect(() => {
+    if (activeMode !== 'record') {
+      setIsRecorderOpen(false);
+    }
+  }, [activeMode]);
+
   const handleVideoReady = useCallback((videoUrl: string) => {
     // Navigate to analyze page with the video
     // For now, we'll redirect to the existing analyze page
     // You can later pass the video URL as a parameter if needed
     router.push('/analyze');
   }, [router]);
+
+  const handleRecorderReady = useCallback((videoUrl: string) => {
+    setIsRecorderOpen(false);
+    handleVideoReady(videoUrl);
+  }, [handleVideoReady]);
 
   const handleRecordClick = () => {
     setActiveMode('record');
@@ -60,8 +72,9 @@ export default function RecordUploadPage() {
   };
 
   const handleStartCamera = () => {
-    // Switch to record mode so the recorder component can mount and request permission
+    // Switch to record mode and open the recorder overlay
     setActiveMode('record');
+    setIsRecorderOpen(true);
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -530,57 +543,68 @@ export default function RecordUploadPage() {
 
         {/* Active Recording Interface */}
         {activeMode === 'record' && (
-          <div className="max-w-sm mx-auto mb-8 space-y-4">
+          <div className="max-w-sm mx-auto mb-8">
             <div 
-              className="backdrop-blur-md border border-white/20 p-4"
+              className="backdrop-blur-md border border-white/20 p-6 text-center"
               style={{
                 borderRadius: '20px',
                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
                 boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
               }}
             >
-              {isClient && isMobileView ? (
-                <VideoRecorder onVideoReady={handleVideoReady} />
-              ) : (
-                <div className="flex flex-col items-center justify-center text-white/80 py-10">
-                  <p
-                    style={{
-                      fontFamily: 'Frutiger, Inter, sans-serif',
-                      fontWeight: '700',
-                      fontSize: '14px',
-                      lineHeight: '1.4'
-                    }}
-                  >
-                    Preparing camera...
-                  </p>
-                  <p
-                    style={{
-                      fontFamily: 'Inter, sans-serif',
-                      fontWeight: '400',
-                      fontSize: '12px',
-                      lineHeight: '1.4',
-                      marginTop: '8px',
-                      textAlign: 'center'
-                    }}
-                  >
-                    If you do not see the permission prompt, refresh the page and allow camera access.
-                  </p>
-                </div>
-              )}
-            </div>
+              {/* Camera Icon */}
+              <div className="flex justify-center mb-4">
+                <img 
+                  src="/frontend-images/homepage/icons/fluent_video-recording-20-filled.svg" 
+                  alt="Camera"
+                  className="w-12 h-12"
+                />
+              </div>
 
-            <button
-              onClick={() => setActiveMode('none')}
-              className="w-full text-white border border-white/30 rounded-xl py-3 transition-all duration-300 hover:bg-white/10"
-              style={{
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '700',
-                fontSize: '14px',
-                backgroundColor: 'transparent'
-              }}
-            >
-              ← Back to options
-            </button>
+              {/* Text */}
+              <p 
+                className="mb-2"
+                style={{
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  color: 'white',
+                  lineHeight: '1.4'
+                }}
+              >
+                Start Recording
+              </p>
+              <p 
+                className="mb-6"
+                style={{
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  fontSize: '12px',
+                  color: 'white',
+                  lineHeight: '1.4'
+                }}
+              >
+                Use your device camera to record bowling action
+              </p>
+
+              {/* Start Camera Button */}
+              <button
+                onClick={handleStartCamera}
+                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                style={{
+                  backgroundColor: '#FDC217',
+                  borderRadius: '25.62px',
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  color: 'black',
+                  padding: '10px 24px',
+                  border: 'none'
+                }}
+              >
+                Start Camera
+              </button>
+            </div>
           </div>
         )}
 
@@ -700,6 +724,29 @@ export default function RecordUploadPage() {
           </div>
         )}
       </div>
+
+      {isClient && isMobileView && isRecorderOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4">
+          <div className="w-full max-w-md">
+            <div className="mb-4 flex justify-end">
+              <button
+                onClick={() => setIsRecorderOpen(false)}
+                className="text-white text-sm uppercase tracking-wide"
+                style={{
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  letterSpacing: '0.08em'
+                }}
+              >
+                Close
+              </button>
+            </div>
+            <div className="bg-black rounded-3xl p-4 border border-white/20">
+              <VideoRecorder onVideoReady={handleRecorderReady} />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="w-full bg-black px-4 py-6">
