@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
-import { AnalysisProvider, useAnalysis } from '@/context/AnalysisContext';
+import { useAnalysis } from '@/context/AnalysisContext';
 import { intensityToKmh } from '@/lib/utils/normalize';
 
 function QuickAnalysisContent() {
@@ -28,12 +28,14 @@ function QuickAnalysisContent() {
     }
   }, []);
 
-  // Convert intensity to speed values
-  const speedKmh = Math.round(intensityToKmh(state.finalIntensity));
-  const speedMph = Math.round(speedKmh * 0.621371);
+  // Use exact same logic as desktop analyze page
+  const hasResults = state.finalIntensity > 0 && !!state.speedClass;
+  const speedKmh = hasResults ? Math.round(intensityToKmh(state.finalIntensity)) : 142;
+  const speedMph = hasResults ? Math.round(speedKmh * 0.621371) : 88;
 
-  // Get classification text and accuracy
+  // Get classification text and accuracy - use same logic as desktop analyze page
   const getClassificationText = () => {
+    if (!hasResults) return 'Medium pace bowling detected';
     switch (state.speedClass) {
       case 'Fast':
         return 'Fast bowling detected';
@@ -166,7 +168,7 @@ function QuickAnalysisContent() {
             </h2>
 
             {/* Speed Values */}
-            <div className="flex gap-8 mb-4">
+            <div className="grid grid-cols-2 gap-6 mb-4 w-full">
               <div className="text-center">
                 <div 
                   className="text-black"
@@ -341,9 +343,5 @@ function QuickAnalysisContent() {
 
 // Main component wrapped with AnalysisProvider
 export default function QuickAnalysisPage() {
-  return (
-    <AnalysisProvider>
-      <QuickAnalysisContent />
-    </AnalysisProvider>
-  );
+  return <QuickAnalysisContent />;
 }

@@ -5,12 +5,12 @@ import { ArrowLeft } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { AnalysisProvider, useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
+import { useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { AnalysisLoader } from '@/components/AnalysisLoader';
 import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
 import { FrameSampler } from '@/lib/video/frameSampler';
-import { normalizeIntensity, classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
+import { classifySpeed } from '@/lib/utils/normalize';
 
 function VideoPreviewContent() {
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -124,22 +124,16 @@ function VideoPreviewContent() {
       }
 
       // Calculate final results
-      const intensityValues = intensities.map(frame => frame.intensity);
-      const averageIntensity = intensityValues.length > 0 
-        ? intensityValues.reduce((sum, val) => sum + val, 0) / intensityValues.length 
-        : 0;
-      const minIntensity = Math.min(...intensityValues, 0);
-      const maxIntensity = Math.max(...intensityValues, 100);
-      const finalIntensity = normalizeIntensity(averageIntensity, minIntensity, maxIntensity);
+      const rawFinalIntensity = analyzer.getFinalIntensity();
+      const finalIntensity = Math.max(0, Math.min(100, rawFinalIntensity));
       const speedResult = classifySpeed(finalIntensity);
-      const confidence = Math.min(95 + Math.random() * 5, 100);
 
       dispatch({
         type: 'COMPLETE_ANALYSIS',
         payload: {
           finalIntensity,
           speedClass: speedResult.speedClass,
-          confidence
+          confidence: speedResult.confidence,
         }
       });
 
@@ -425,9 +419,5 @@ function VideoPreviewContent() {
 
 // Main component wrapped with AnalysisProvider
 export default function VideoPreviewPage() {
-  return (
-    <AnalysisProvider>
-      <VideoPreviewContent />
-    </AnalysisProvider>
-  );
+  return <VideoPreviewContent />;
 }

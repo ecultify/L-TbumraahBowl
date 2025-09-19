@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
 import { useRouter } from 'next/navigation';
-import { AnalysisProvider, useAnalysis } from '@/context/AnalysisContext';
+import { useAnalysis } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
+import { intensityToKmh } from '@/lib/utils/normalize';
 
 function AnalyzingContent() {
   const { state } = useAnalysis();
@@ -16,16 +17,14 @@ function AnalyzingContent() {
   const titleSection = useIntersectionObserver({ threshold: 0.1, freezeOnceVisible: true });
   const contentSection = useIntersectionObserver({ threshold: 0.1, freezeOnceVisible: true });
 
-  // Auto-redirect when analysis is complete
-  useEffect(() => {
-    if (!state.isAnalyzing && state.progress === 100 && state.speedClass) {
-      // Wait a moment to show completion, then redirect
-      const timer = setTimeout(() => {
-        router.push('/quick-analysis');
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [state.isAnalyzing, state.progress, state.speedClass, router]);
+  const hasCompleted = state.progress === 100 && !!state.speedClass;
+  const hasResults = state.finalIntensity > 0 && !!state.speedClass;
+  // Use exact same logic as desktop analyze page
+  const effectiveIntensity = state.finalIntensity;
+  const similarityPercent = Math.round(effectiveIntensity || 0);
+  const predictedKmh = hasResults ? intensityToKmh(state.finalIntensity) : null;
+
+  const canContinue = hasCompleted;
 
   return (
     <div 
@@ -82,57 +81,50 @@ function AnalyzingContent() {
         <div className="max-w-md mx-auto" ref={contentSection.ref}>
           {/* Glass Box with Percentage */}
           <div 
-            className={`p-6 backdrop-blur-md border border-white/20 mb-8 animate-fadeInUp ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
+            className={`p-3 sm:p-4 backdrop-blur-xl mb-5 animate-fadeInUp ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             style={{
-              borderRadius: '20px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
+              borderRadius: '16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.14)',
+              boxShadow: '0 6px 20px rgba(253, 194, 23, 0.18)',
+              maxWidth: '260px',
+              margin: '0 auto'
             }}
           >
             {/* Percentage Display */}
-            <div className="text-center">
-              <div 
-                className="mx-auto mb-4 flex items-center justify-center"
-                style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  background: 'linear-gradient(180deg, #FDC217 0%, #FFB800 100%)',
-                  border: '3px solid rgba(255, 255, 255, 0.3)'
-                }}
-              >
-                <span 
-                  className="text-black"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '32px',
-                    lineHeight: '1'
-                  }}
-                >
-                  {Math.round(state.progress)}%
-                </span>
-              </div>
-              
-              <p 
-                className="text-white"
+            <div className="text-center space-y-2">
+              <p
+                className="uppercase tracking-[0.2em] text-xs text-white/70"
                 style={{
                   fontFamily: 'Inter, sans-serif',
-                  fontWeight: '400',
-                  fontSize: '14px',
-                  lineHeight: '1.4'
+                  fontWeight: '500',
+                  letterSpacing: '0.2em'
                 }}
               >
-                {state.progress === 100 ? 'Analysis Complete!' : 'Processing your video...'}
+                Similarity
+              </p>
+              <p
+                className="text-white"
+                style={{
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  fontSize: '48px',
+                  lineHeight: '1'
+                }}
+              >
+                {similarityPercent}%
               </p>
             </div>
           </div>
 
           {/* SpeedMeter */}
-          <div className={`mb-8 animate-scaleIn animate-delay-300 ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
+          <div className={`mb-6 animate-scaleIn animate-delay-300 ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <SpeedMeter 
-              value={state.finalIntensity}
-              classification={state.speedClass || 'Slow'}
+              intensity={state.finalIntensity}
+              speedClass={state.speedClass}
+              isAnimating={!state.isAnalyzing && state.finalIntensity > 0}
+              displayValue={hasResults && predictedKmh !== null ? `${Math.round(predictedKmh)} km/h` : 'Analyzing…'}
+              displayLabel={hasResults ? 'Predicted speed' : undefined}
+              displayTextColor="#FDFDFD"
             />
           </div>
 
@@ -140,7 +132,8 @@ function AnalyzingContent() {
           <div className="flex justify-center">
             <Link
               href="/quick-analysis"
-              className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 animate-bounceIn animate-delay-500 ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
+              aria-disabled={!canContinue}
+              className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform ${canContinue ? 'hover:scale-105 animate-bounceIn animate-delay-500' : 'pointer-events-none opacity-60'} ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               style={{
                 backgroundColor: '#FFC315',
                 borderRadius: '25.62px',
@@ -152,7 +145,7 @@ function AnalyzingContent() {
                 height: '41px'
               }}
             >
-              Continue
+              {canContinue ? 'Continue' : 'Analyzing...'}
             </Link>
           </div>
         </div>
@@ -228,9 +221,5 @@ function AnalyzingContent() {
 
 // Main component wrapped with AnalysisProvider
 export default function AnalyzingPage() {
-  return (
-    <AnalysisProvider>
-      <AnalyzingContent />
-    </AnalysisProvider>
-  );
+  return <AnalyzingContent />;
 }

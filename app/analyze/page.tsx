@@ -2,8 +2,8 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Settings2, Play, RotateCcw, Target, Timer } from 'lucide-react';
-import { AnalysisProvider, useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
+import { ArrowLeft, Settings2, Play, RotateCcw } from 'lucide-react';
+import { useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
 import { VideoRecorder } from '@/components/VideoRecorder';
 import { VideoUploader } from '@/components/VideoUploader';
@@ -32,6 +32,15 @@ function AnalyzeContent() {
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
+
+  const buttonFontFamily = "'Frutiger Bold','Frutiger','Inter',sans-serif";
+  const buttonFontStyle = { fontFamily: buttonFontFamily };
+  const ctaTextStyle = {
+    fontFamily: buttonFontFamily,
+    fontWeight: 700,
+    fontSize: '16px',
+    lineHeight: '1'
+  };
 
   const poseAnalyzerRef = useRef<PoseBasedAnalyzer>(new PoseBasedAnalyzer());
   const benchmarkAnalyzerRef = useRef<BenchmarkComparisonAnalyzer>(new BenchmarkComparisonAnalyzer());
@@ -446,29 +455,44 @@ function AnalyzeContent() {
   const releaseTimeValue = detailedAnalysis?.timing?.releaseTime
     ? `${detailedAnalysis.timing.releaseTime.toFixed(2)}s`
     : '0.18s';
+  const runUpScore = hasResults && detailedAnalysis?.phaseComparison?.runUp
+    ? Math.round(detailedAnalysis.phaseComparison.runUp * 100)
+    : 78;
+  const deliveryScore = hasResults && detailedAnalysis?.phaseComparison?.delivery
+    ? Math.round(detailedAnalysis.phaseComparison.delivery * 100)
+    : 82;
+  const followThroughScore = hasResults && detailedAnalysis?.phaseComparison?.followThrough
+    ? Math.round(detailedAnalysis.phaseComparison.followThrough * 100)
+    : 80;
+  const armSwingScore = hasResults && detailedAnalysis?.technicalMetrics?.armSwingSimilarity
+    ? Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)
+    : 74;
+  const bodyMovementScore = hasResults && detailedAnalysis?.technicalMetrics?.bodyMovementSimilarity
+    ? Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)
+    : 79;
+  const rhythmScore = hasResults && detailedAnalysis?.technicalMetrics?.rhythmSimilarity
+    ? Math.round(detailedAnalysis.technicalMetrics.rhythmSimilarity * 100)
+    : 72;
+  const releasePointScore = hasResults && detailedAnalysis?.technicalMetrics?.releasePointAccuracy
+    ? Math.round(detailedAnalysis.technicalMetrics.releasePointAccuracy * 100)
+    : 76;
+
   const metrics = [
-    {
-      label: 'Speed Consistency',
-      value: hasResults && detailedAnalysis?.phaseComparison?.delivery
-        ? Math.round(detailedAnalysis.phaseComparison.delivery * 100)
-        : 92,
-    },
-    {
-      label: 'Action Quality',
-      value: hasResults && detailedAnalysis?.technicalMetrics?.bodyMovementSimilarity
-        ? Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)
-        : 78,
-    },
-    {
-      label: 'Technique',
-      value: hasResults && detailedAnalysis?.technicalMetrics?.armSwingSimilarity
-        ? Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)
-        : 85,
-    },
+    { label: 'Run-up', value: runUpScore },
+    { label: 'Delivery', value: deliveryScore },
+    { label: 'Follow-through', value: followThroughScore },
   ];
 
   return (
-    <div className="min-h-screen relative">
+    <div
+      className="min-h-screen relative"
+      style={{
+        backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat'
+      }}
+    >
       <ToastContainer />
       <div id="pdf-report-capture" style={{ position: 'absolute', left: -10000, top: -10000 }}>
         <ReportPreview
@@ -491,12 +515,6 @@ function AnalyzeContent() {
           backgroundRepeat: 'no-repeat'
         }}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            background: 'linear-gradient(180deg, rgba(0, 132, 183, 0.85) 0%, rgba(0, 78, 135, 0.65) 100%)'
-          }}
-        />
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
           <Link
@@ -510,7 +528,7 @@ function AnalyzeContent() {
 
         <div className="relative flex-1 px-4 pt-20 pb-12 space-y-8">
           <div className="text-center">
-            <h1 className="mb-1 text-2xl font-extrabold uppercase italic tracking-tight text-[#FDC217]">
+            <h1 className="mb-1 text-2xl font-extrabold   tracking-tight text-[#FDC217]">
               Analysis Report
             </h1>
             <p className="text-xs font-medium tracking-tight text-white">
@@ -529,8 +547,8 @@ function AnalyzeContent() {
               alt=""
               className="pointer-events-none absolute -bottom-8 -right-6 h-20 w-20 object-contain"
             />
-            <div className="relative rounded-[20px] border border-white/15 bg-white/10 px-6 py-6 text-left shadow-[0_8px_32px_rgba(31,38,135,0.37)] backdrop-blur-xl">
-              <h2 className="text-base font-semibold uppercase tracking-wide text-[#FDC217]">Bowling Speed</h2>
+            <div className="relative rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 text-left shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+              <h2 className="text-base font-semibold tracking-wide text-white text-center">Bowling Speed</h2>
               <div className="mt-5 flex flex-col items-center">
                 <div
                   className="flex h-[110px] w-[110px] flex-col items-center justify-center rounded-full shadow-lg"
@@ -539,9 +557,7 @@ function AnalyzeContent() {
                   <span className="text-[40px] font-extrabold leading-none text-white">{kmhValue}</span>
                   <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-white/90">km/h</span>
                 </div>
-                <span className="mt-2 text-xs font-semibold uppercase tracking-wide text-white/80">
-                  /100 kmph
-                </span>
+                
               </div>
               <div className="mt-6 flex items-start justify-between text-white">
                 <div>
@@ -557,23 +573,15 @@ function AnalyzeContent() {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
-                <Target className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-white/70">Accuracy Score</p>
-                <p className="text-xl font-semibold">{accuracyDisplay}%</p>
-              </div>
+            <div className="rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl flex flex-col items-center text-center">
+              <img src="/frontend-images/homepage/icons/carbon_growth.svg" alt="Accuracy" className="h-10 w-10" />
+              <p className="mt-3 text-xl font-semibold">{accuracyDisplay}%</p>
+              <p className="text-xs tracking-wide text-white/70">Accuracy score</p>
             </div>
-            <div className="flex items-center gap-3 rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15">
-                <Timer className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-wide text-white/70">Release Time</p>
-                <p className="text-xl font-semibold">{releaseTimeValue}</p>
-              </div>
+            <div className="rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl flex flex-col items-center text-center">
+              <img src="/frontend-images/homepage/icons/streamline-sharp_time-lapse.svg" alt="Release Time" className="h-10 w-10" />
+              <p className="mt-3 text-xl font-semibold">{releaseTimeValue}</p>
+              <p className="text-xs tracking-wide text-white/70">Release time</p>
             </div>
           </div>
 
@@ -586,15 +594,102 @@ function AnalyzeContent() {
                     <span>{metric.label}</span>
                     <span>{Math.min(metric.value, 100)}%</span>
                   </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10">
+                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-black/10 border border-black">
                     <div
-                      className="h-full rounded-full bg-black"
+                      className="h-full rounded-full bg-white"
                       style={{ width: `${Math.min(metric.value, 100)}%` }}
                     />
                   </div>
                 </div>
               ))}
               <p className="mt-5 text-sm font-medium leading-relaxed">{summaryMessage}</p>
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <h3
+              className="mb-3 text-white"
+              style={{
+                fontFamily: "'Frutiger Bold','Frutiger','Inter',sans-serif",
+                fontSize: '24px',
+                fontWeight: 700
+              }}
+            >
+              Detailed Report
+            </h3>
+
+            <div
+              className="rounded-2xl bg-white/10 p-5 text-white backdrop-blur-xl shadow-[0_12px_32px_rgba(31,38,135,0.25)] space-y-5"
+            >
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/70 mb-3">Technical Breakdown</p>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Arm Swing', value: armSwingScore },
+                    { label: 'Body Movement', value: bodyMovementScore },
+                    { label: 'Rhythm', value: rhythmScore },
+                    { label: 'Release Point', value: releasePointScore },
+                  ].map((metric) => (
+                    <div key={metric.label} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-white/80">{metric.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 rounded-full bg-white/15 border border-black/40 overflow-hidden">
+                          <div
+                            className="h-full bg-[#FFC315]"
+                            style={{ width: `${Math.min(100, metric.value)}%` }}
+                          />
+                        </div>
+                        <span className="w-10 text-right text-sm font-semibold">{metric.value}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {hasResults && detailedAnalysis?.recommendations?.length ? (
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/70 mb-2">Recommendations</p>
+                  <ul className="space-y-1 text-sm text-white/90 list-disc list-inside">
+                    {detailedAnalysis.recommendations.map((rec, index) => (
+                      <li key={index}>{rec}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-3">
+            <div className="flex justify-center">
+              <Link
+                href="/leaderboard"
+                className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
+                style={{
+                  ...ctaTextStyle,
+                  backgroundColor: '#FFC315',
+                  borderRadius: '25.62px',
+                  color: 'black',
+                  width: '261px',
+                  height: '41px'
+                }}
+              >
+                View Leaderboard
+              </Link>
+            </div>
+            <div className="flex justify-center">
+              <button
+                onClick={downloadReportPdf}
+                disabled={generatingPdf}
+                className="inline-flex items-center justify-center border border-white/20 bg-white/10 text-center text-sm font-bold tracking-wide text-white backdrop-blur-lg transition-all duration-300 hover:bg-white/20 disabled:opacity-60"
+                style={{
+                  ...ctaTextStyle,
+                  borderRadius: '25.62px',
+                  width: '261px',
+                  height: '41px'
+                }}
+              >
+                {generatingPdf ? 'Preparing Report...' : 'Download Report'}
+              </button>
             </div>
           </div>
         </div>
@@ -658,7 +753,15 @@ function AnalyzeContent() {
       </div>
 
       {/* Desktop Experience */}
-      <div className="hidden md:block min-h-screen bg-gradient-to-br from-blue-50 to-green-50">
+      <div
+        className="hidden md:block min-h-screen"
+        style={{
+          backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat'
+        }}
+      >
         <div className="max-w-6xl mx-auto px-4 py-8">
           <div className="flex items-center justify-between mb-8">
             <Link
@@ -680,6 +783,7 @@ function AnalyzeContent() {
                       ? 'bg-green-100 text-green-800'
                       : 'bg-purple-100 text-purple-800'
                   }`}
+                  style={buttonFontStyle}
                 >
                   {state.analyzerMode === 'benchmark' ? 'Benchmark' : 'Pose AI'}
                 </button>
@@ -697,6 +801,7 @@ function AnalyzeContent() {
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
+                  style={buttonFontStyle}
                 >
                   Record
                 </button>
@@ -707,6 +812,7 @@ function AnalyzeContent() {
                       ? 'bg-blue-600 text-white shadow-md'
                       : 'text-gray-600 hover:bg-gray-50'
                   }`}
+                  style={buttonFontStyle}
                 >
                   Upload
                 </button>
@@ -749,6 +855,7 @@ function AnalyzeContent() {
                       onClick={startAnalysis}
                       disabled={state.isAnalyzing}
                       className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-green-700 disabled:scale-100 disabled:bg-gray-400"
+                      style={buttonFontStyle}
                     >
                       <Play className="w-5 h-5" />
                       {state.isAnalyzing ? 'Analyzing...' : 'Analyze'}
@@ -758,6 +865,7 @@ function AnalyzeContent() {
                       <button
                         onClick={resetAnalysis}
                         className="flex items-center gap-2 rounded-xl bg-gray-600 px-6 py-3 font-semibold text-white transition-all duration-200 hover:bg-gray-700"
+                        style={buttonFontStyle}
                       >
                         <RotateCcw className="w-5 h-5" />
                         Try Another Video
@@ -774,7 +882,9 @@ function AnalyzeContent() {
                 <SpeedMeter
                   intensity={state.finalIntensity}
                   speedClass={state.speedClass}
-                  isAnimating={state.progress === 100}
+                  isAnimating={!state.isAnalyzing && state.finalIntensity > 0}
+                  displayValue={hasResults ? `${kmhValue} km/h` : undefined}
+                  displayLabel={hasResults ? 'Predicted speed' : undefined}
                 />
 
                 {state.speedClass && (
@@ -811,6 +921,7 @@ function AnalyzeContent() {
                       onClick={downloadReportPdf}
                       disabled={generatingPdf}
                       className="rounded-lg bg-purple-600 px-5 py-2 font-semibold text-white hover:bg-purple-700 disabled:bg-gray-400"
+                      style={buttonFontStyle}
                     >
                       {generatingPdf ? 'Preparing PDF...' : 'Download 2-page PDF'}
                     </button>
@@ -828,6 +939,7 @@ function AnalyzeContent() {
                       onClick={generateAnalysisVideo}
                       disabled={generatingVideo}
                       className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400"
+                      style={buttonFontStyle}
                     >
                       {generatingVideo ? 'Generating Video...' : 'Generate Analysis Video'}
                     </button>
@@ -843,6 +955,7 @@ function AnalyzeContent() {
                           href={generatedVideoUrl}
                           download="bowling-analysis-video.mp4"
                           className="rounded-lg bg-green-600 px-5 py-2 font-semibold text-white hover:bg-green-700"
+                          style={buttonFontStyle}
                         >
                           Download Video
                         </a>
@@ -898,11 +1011,5 @@ function AnalyzeContent() {
 }
 
 export default function AnalyzePage() {
-  return (
-    <AnalysisProvider>
-      <AnalyzeContent />
-    </AnalysisProvider>
-  );
+  return <AnalyzeContent />;
 }
-
-

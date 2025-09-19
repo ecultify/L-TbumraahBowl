@@ -10,6 +10,9 @@ interface SpeedMeterProps {
   classification?: SpeedClass | string;
   speedClass?: SpeedClass | null;
   isAnimating?: boolean;
+  displayValue?: string | number;
+  displayLabel?: string;
+  displayTextColor?: string;
 }
 
 export function SpeedMeter({ 
@@ -17,7 +20,10 @@ export function SpeedMeter({
   intensity, 
   classification, 
   speedClass, 
-  isAnimating = false 
+  isAnimating = false,
+  displayValue,
+  displayLabel,
+  displayTextColor
 }: SpeedMeterProps) {
   // Use value or intensity (backward compatibility)
   const finalIntensity = value !== undefined ? value : (intensity || 0);
@@ -75,19 +81,25 @@ export function SpeedMeter({
       return {
         primary: '#032743', // Dark blue from app theme
         secondary: '#FFC315', // Yellow from app theme
-        text: '#032743'
+        text: '#032743',
+        label: '#F9FAFB',
+        meterBase: 'rgba(255, 255, 255, 0.25)'
       };
     } else if (animatedIntensity <= 70) {
       return {
         primary: '#FFC315', // Yellow from app theme
         secondary: '#FFD42D', // Lighter yellow
-        text: '#032743'
+        text: '#032743',
+        label: '#F9FAFB',
+        meterBase: 'rgba(255, 255, 255, 0.25)'
       };
     } else {
       return {
         primary: '#FFB800', // Darker yellow/orange
         secondary: '#FFC315', // Yellow from app theme
-        text: '#032743'
+        text: '#032743',
+        label: '#F9FAFB',
+        meterBase: 'rgba(255, 255, 255, 0.3)'
       };
     }
   };
@@ -108,7 +120,7 @@ export function SpeedMeter({
           <path
             d="M 50 150 A 100 100 0 0 1 250 150"
             fill="none"
-            stroke="#E5E7EB"
+            stroke={colors.meterBase}
             strokeWidth="20"
             strokeLinecap="round"
           />
@@ -125,13 +137,13 @@ export function SpeedMeter({
           />
           
           {/* Speed labels - Adjusted for mobile */}
-          <text x="80" y="175" textAnchor="middle" className="text-xs sm:text-sm font-medium fill-gray-600">
+          <text x="78" y="182" textAnchor="middle" className="text-xs sm:text-sm font-medium" fill={colors.label}>
             Slow
           </text>
-          <text x="150" y="45" textAnchor="middle" className="text-xs sm:text-sm font-medium fill-gray-600">
+          <text x="150" y="38" textAnchor="middle" className="text-xs sm:text-sm font-medium" fill={colors.label}>
             Fast
           </text>
-          <text x="220" y="175" textAnchor="middle" className="text-xs sm:text-sm font-medium fill-gray-600">
+          <text x="222" y="182" textAnchor="middle" className="text-xs sm:text-sm font-medium" fill={colors.label}>
             Zooooom
           </text>
           
@@ -152,13 +164,26 @@ export function SpeedMeter({
           />
         </svg>
 
-        {/* Intensity and Speed Value - Repositioned for mobile */}
-        <div className="absolute top-2 right-2 bg-white rounded-lg px-2 py-1 shadow-md">
-          <span className="text-xs sm:text-sm font-medium text-gray-600">
-            {Math.round(animatedIntensity)}% · {kmh.toFixed(2)} km/h
-          </span>
-        </div>
       </div>
+
+      {(displayValue !== undefined && displayValue !== null) && (
+        <div className="mt-4 text-center">
+          <div
+            className="text-2xl sm:text-3xl font-extrabold"
+            style={{ color: displayTextColor || colors.text }}
+          >
+            {displayValue}
+          </div>
+          {displayLabel && (
+            <div
+              className="text-sm sm:text-base font-medium mt-1"
+              style={{ color: displayTextColor ? `${displayTextColor}CC` : '#4B5563' }}
+            >
+              {displayLabel}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Speed Class Display - Moved outside absolute positioning */}
       {displayClass && (
