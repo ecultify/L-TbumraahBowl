@@ -518,6 +518,13 @@ function AnalyzeContent() {
           backgroundRepeat: 'no-repeat'
         }}
       >
+        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
+          <img
+            src="/frontend-images/homepage/justzoom logo.png"
+            alt="JustZoom logo"
+            className="h-12 w-auto"
+          />
+        </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
           <Link

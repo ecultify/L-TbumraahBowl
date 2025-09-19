@@ -12,6 +12,7 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   
+  const streamRef = useRef<MediaStream | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
@@ -20,19 +21,42 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
   const initializeCamera = useCallback(async () => {
     setIsInitializing(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
+      // Stop previous stream if any
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+
+      let stream: MediaStream | null = null;
+      const constraints: MediaStreamConstraints = {
+        video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'environment' // Prefer back camera on mobile
+          facingMode: { ideal: 'environment' },
         },
-        audio: false
-      });
+        audio: false,
+      };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err) {
+        // Fallback for devices that do not support environment camera selection
+        console.warn('Environment camera unavailable, falling back to default camera', err);
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        setHasPermission(true);
+        videoRef.current.muted = true;
+        try {
+          await videoRef.current.play();
+        } catch (playError) {
+          console.warn('Autoplay failed, awaiting user interaction', playError);
+        }
       }
+
+      streamRef.current = stream;
+      setHasPermission(true);
     } catch (error) {
       console.error('Camera access denied:', error);
       setHasPermission(false);
@@ -42,7 +66,10 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
   }, []);
 
   const startRecording = useCallback(() => {
-    if (!videoRef.current?.srcObject) return;
+    if (!videoRef.current?.srcObject) {
+      initializeCamera();
+      return;
+    }
 
     const stream = videoRef.current.srcObject as MediaStream;
     const mediaRecorder = new MediaRecorder(stream, {
@@ -94,6 +121,16 @@ export function VideoRecorder({ onVideoReady }: VideoRecorderProps) {
       setRecordedVideoUrl(null);
     }
   }, [recordedVideoUrl]);
+
+  // Clean up stream on unmount
+  React.useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+    };
+  }, []);
 
   return (
     <div className="space-y-6">
