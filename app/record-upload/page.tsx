@@ -4,7 +4,6 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { VideoRecorder } from '@/components/VideoRecorder';
-import { VideoUploader } from '@/components/VideoUploader';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function RecordUploadPage() {
@@ -15,6 +14,8 @@ export default function RecordUploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
+  const [isClient, setIsClient] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
 
   // Check URL parameters and device type on component mount
   useEffect(() => {
@@ -27,6 +28,21 @@ export default function RecordUploadPage() {
     // Note: For desktop, we keep 'none' as default to show the choice screen
     // The desktop layout handles the 'none' state by showing record/upload options
   }, [searchParams]);
+
+  useEffect(() => {
+    setIsClient(true);
+
+    const updateView = () => {
+      if (typeof window === 'undefined') {
+        return;
+      }
+      setIsMobileView(window.innerWidth < 768);
+    };
+
+    updateView();
+    window.addEventListener('resize', updateView);
+    return () => window.removeEventListener('resize', updateView);
+  }, []);
 
   const handleVideoReady = useCallback((videoUrl: string) => {
     // Navigate to analyze page with the video
@@ -43,23 +59,9 @@ export default function RecordUploadPage() {
     setActiveMode('upload');
   };
 
-  const handleStartCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment' // This requests the rear camera
-        },
-        audio: false
-      });
-      
-      // For now, just set recording mode which will handle camera initialization
-      setActiveMode('record');
-      
-      // The VideoRecorder component will handle the actual camera functionality
-    } catch (error) {
-      console.error('Camera access failed:', error);
-      alert('Camera access denied. Please enable camera permissions and try again.');
-    }
+  const handleStartCamera = () => {
+    // Switch to record mode so the recorder component can mount and request permission
+    setActiveMode('record');
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -528,68 +530,57 @@ export default function RecordUploadPage() {
 
         {/* Active Recording Interface */}
         {activeMode === 'record' && (
-          <div className="max-w-sm mx-auto mb-8">
+          <div className="max-w-sm mx-auto mb-8 space-y-4">
             <div 
-              className="backdrop-blur-md border border-white/20 p-6 text-center"
+              className="backdrop-blur-md border border-white/20 p-4"
               style={{
                 borderRadius: '20px',
                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
                 boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
               }}
             >
-              {/* Camera Icon */}
-              <div className="flex justify-center mb-4">
-                <img 
-                  src="/frontend-images/homepage/icons/fluent_video-recording-20-filled.svg" 
-                  alt="Camera"
-                  className="w-12 h-12"
-                />
-              </div>
-
-              {/* Text */}
-              <p 
-                className="mb-2"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                Start Recording
-              </p>
-              <p 
-                className="mb-6"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '12px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                Use your device camera to record bowling action
-              </p>
-
-              {/* Start Camera Button */}
-              <button
-                onClick={handleStartCamera}
-                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                style={{
-                  backgroundColor: '#FDC217',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'black',
-                  padding: '10px 24px',
-                  border: 'none'
-                }}
-              >
-                Start Camera
-              </button>
+              {isClient && isMobileView ? (
+                <VideoRecorder onVideoReady={handleVideoReady} />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-white/80 py-10">
+                  <p
+                    style={{
+                      fontFamily: 'Frutiger, Inter, sans-serif',
+                      fontWeight: '700',
+                      fontSize: '14px',
+                      lineHeight: '1.4'
+                    }}
+                  >
+                    Preparing camera...
+                  </p>
+                  <p
+                    style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '12px',
+                      lineHeight: '1.4',
+                      marginTop: '8px',
+                      textAlign: 'center'
+                    }}
+                  >
+                    If you do not see the permission prompt, refresh the page and allow camera access.
+                  </p>
+                </div>
+              )}
             </div>
+
+            <button
+              onClick={() => setActiveMode('none')}
+              className="w-full text-white border border-white/30 rounded-xl py-3 transition-all duration-300 hover:bg-white/10"
+              style={{
+                fontFamily: 'Frutiger, Inter, sans-serif',
+                fontWeight: '700',
+                fontSize: '14px',
+                backgroundColor: 'transparent'
+              }}
+            >
+              ← Back to options
+            </button>
           </div>
         )}
 
@@ -931,7 +922,35 @@ export default function RecordUploadPage() {
               </div>
 
               <div className="bg-white/5 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
-                <VideoRecorder onVideoReady={handleVideoReady} />
+                {isClient && !isMobileView ? (
+                  <VideoRecorder onVideoReady={handleVideoReady} />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-white/80 py-20">
+                    <p
+                      style={{
+                        fontFamily: 'Frutiger, Inter, sans-serif',
+                        fontWeight: '700',
+                        fontSize: '20px',
+                        lineHeight: '1.4'
+                      }}
+                    >
+                      Preparing camera...
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: 'Inter, sans-serif',
+                        fontWeight: '400',
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        maxWidth: '420px',
+                        textAlign: 'center',
+                        marginTop: '12px'
+                      }}
+                    >
+                      Please allow camera permissions when prompted. If the camera does not start, refresh the page and try again.
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-center mt-8">
