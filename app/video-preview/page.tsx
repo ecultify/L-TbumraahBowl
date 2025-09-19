@@ -11,7 +11,6 @@ import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
 import { FrameSampler } from '@/lib/video/frameSampler';
 import { classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
-import { supabase } from '@/lib/supabase/client';
 
 function VideoPreviewContent() {
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -138,11 +137,9 @@ function VideoPreviewContent() {
         }
       });
 
-      try {
-        const predictedKmh = intensityToKmh(finalIntensity);
-        const payload: Record<string, any> = {
-          display_name: 'Anonymous',
-          predicted_kmh: Number(predictedKmh.toFixed(2)),
+      if (typeof window !== 'undefined') {
+        const pendingEntry = {
+          predicted_kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
           similarity_percent: Number(finalIntensity.toFixed(2)),
           intensity_percent: Number(finalIntensity.toFixed(2)),
           speed_class: speedResult.speedClass,
@@ -150,21 +147,9 @@ function VideoPreviewContent() {
             analyzer_mode: state.analyzerMode,
             app: 'bowling-analyzer',
           },
+          created_at: new Date().toISOString(),
         };
-
-        const { data, error } = await supabase
-          .from('bowling_attempts')
-          .insert(payload)
-          .select('id')
-          .single();
-
-        if (error) {
-          console.warn('Supabase insert failed', error);
-        } else if (typeof window !== 'undefined' && data?.id) {
-          window.sessionStorage.setItem('lastLeaderboardEntryId', data.id);
-        }
-      } catch (dbError) {
-        console.warn('Skipping leaderboard save from video preview', dbError);
+        window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
       }
 
       // Navigate to analyzing page with results

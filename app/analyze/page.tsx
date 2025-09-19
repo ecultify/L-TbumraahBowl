@@ -15,7 +15,6 @@ import { FrameSampler } from '@/lib/video/frameSampler';
 import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
 import { normalizeIntensity, classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
-import { supabase } from '@/lib/supabase/client';
 import LeaderboardModal from '@/components/LeaderboardModal';
 import ReportPreview from '@/components/ReportPreview';
 
@@ -26,7 +25,6 @@ function AnalyzeContent() {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
-  const [lastInsertId, setLastInsertId] = useState<string | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [generatingVideo, setGeneratingVideo] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -347,12 +345,9 @@ function AnalyzeContent() {
         setDetailedAnalysis(detailed);
       }
 
-      // Save to Supabase leaderboard
-      try {
-        const predictedKmh = intensityToKmh(finalIntensity);
-        const payload: any = {
-          display_name: 'Anonymous',
-          predicted_kmh: Number(predictedKmh.toFixed(2)),
+      if (typeof window !== 'undefined') {
+        const pendingEntry = {
+          predicted_kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
           similarity_percent: Number(finalIntensity.toFixed(2)),
           intensity_percent: Number(finalIntensity.toFixed(2)),
           speed_class: speedClass,
@@ -360,19 +355,9 @@ function AnalyzeContent() {
             analyzer_mode: state.analyzerMode,
             app: 'bowling-analyzer',
           },
+          created_at: new Date().toISOString(),
         };
-        const { data, error } = await supabase.from('bowling_attempts').insert(payload).select('id').single();
-        if (error) {
-          console.warn('Supabase insert failed', error);
-        } else {
-          setLastInsertId(data?.id ?? null);
-          if (typeof window !== 'undefined' && data?.id) {
-            sessionStorage.setItem('lastLeaderboardEntryId', data.id);
-          }
-          addToast({ type: 'success', title: 'Saved to leaderboard', message: 'Your result is on the board!' });
-        }
-      } catch (e) {
-        console.warn('Skipping leaderboard save', e);
+        window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
       }
 
       // Show leaderboard modal
@@ -506,7 +491,7 @@ function AnalyzeContent() {
           details={detailedAnalysis}
         />
       </div>
-      <LeaderboardModal open={showLeaderboard} onOpenChange={setShowLeaderboard} highlightId={lastInsertId} />
+      <LeaderboardModal open={showLeaderboard} onOpenChange={setShowLeaderboard} highlightId={null} />
 
       {/* Mobile Analysis Report */}
       <div 

@@ -33,9 +33,16 @@ export default function LeaderboardClient() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [pendingEntryId, setPendingEntryId] = useState<string | null>(null);
+  type PendingEntryData = {
+    predicted_kmh: number;
+    similarity_percent: number;
+    intensity_percent: number;
+    speed_class: SpeedClass | null;
+    meta?: any;
+  };
+
+  const [pendingEntry, setPendingEntry] = useState<PendingEntryData | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [pendingAttempt, setPendingAttempt] = useState<LeaderboardEntry | null>(null);
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
@@ -77,9 +84,16 @@ export default function LeaderboardClient() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const stored = window.sessionStorage.getItem('lastLeaderboardEntryId');
+    const stored = window.sessionStorage.getItem('pendingLeaderboardEntry');
     if (stored) {
-      setPendingEntryId(stored);
+      try {
+        const parsed = JSON.parse(stored);
+        setPendingEntry(parsed);
+        setDetailsOpen(true);
+      } catch (error) {
+        console.warn('Invalid pending leaderboard entry', error);
+        window.sessionStorage.removeItem('pendingLeaderboardEntry');
+      }
     }
   }, []);
 
@@ -88,35 +102,6 @@ export default function LeaderboardClient() {
     [entries]
   );
 
-  const fetchAttempt = useCallback(async (id: string) => {
-    const { data, error } = await supabase
-      .from('bowling_attempts')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
-    if (error) {
-      console.warn('Failed to load attempt details', error);
-      setPendingAttempt(null);
-      return null;
-    }
-    setPendingAttempt((data || null) as LeaderboardEntry | null);
-    return data ?? null;
-  }, []);
-
-  useEffect(() => {
-    if (!pendingEntryId) return;
-    (async () => {
-      const attempt = await fetchAttempt(pendingEntryId);
-      if (!attempt) return;
-      const hasName = !!(attempt.display_name && attempt.display_name !== 'Anonymous');
-      if (!hasName) {
-        setDetailsOpen(true);
-      } else if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem('lastLeaderboardEntryId');
-        setPendingEntryId(null);
-      }
-    })();
-  }, [pendingEntryId, fetchAttempt]);
 
   const backgroundStyle = {
     backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
@@ -200,7 +185,7 @@ export default function LeaderboardClient() {
             />
             Retry Analysis
           </Link>
-          {pendingEntryId && (
+          {pendingEntry && (
             <button
               type="button"
               className={styles.ctaSecondary}
@@ -230,33 +215,35 @@ export default function LeaderboardClient() {
       </footer>
 
       <LeaderboardDetailsOverlay
-        open={detailsOpen && !!pendingEntryId}
+        open={detailsOpen && !!pendingEntry}
         onClose={() => setDetailsOpen(false)}
-        initialName={pendingAttempt?.display_name}
-        initialPhone={typeof pendingAttempt?.meta === 'object' ? pendingAttempt?.meta?.contact_phone : undefined}
         onSubmit={async ({ name, phone }) => {
-          if (!pendingEntryId) return;
-          const existingMeta = (typeof pendingAttempt?.meta === 'object' && pendingAttempt?.meta) ? pendingAttempt?.meta : {};
-          const updatedMeta = {
-            ...existingMeta,
-            contact_phone: phone,
-            verified: true,
+          if (!pendingEntry) return;
+          const payload: Record<string, any> = {
+            display_name: name.trim(),
+            predicted_kmh: pendingEntry.predicted_kmh,
+            similarity_percent: pendingEntry.similarity_percent,
+            intensity_percent: pendingEntry.intensity_percent,
+            speed_class: pendingEntry.speed_class,
+            meta: {
+              ...(pendingEntry.meta || {}),
+              contact_phone: phone,
+              verified: true,
+            },
           };
 
-          const { error: updateError } = await supabase
+          const { error: insertError } = await supabase
             .from('bowling_attempts')
-            .update({ display_name: name, meta: updatedMeta })
-            .eq('id', pendingEntryId);
+            .insert(payload);
 
-          if (updateError) {
-            throw updateError;
+          if (insertError) {
+            throw insertError;
           }
 
           if (typeof window !== 'undefined') {
-            window.sessionStorage.removeItem('lastLeaderboardEntryId');
+            window.sessionStorage.removeItem('pendingLeaderboardEntry');
           }
-          setPendingEntryId(null);
-          setPendingAttempt(null);
+          setPendingEntry(null);
           setDetailsOpen(false);
           await loadLeaderboard();
         }}

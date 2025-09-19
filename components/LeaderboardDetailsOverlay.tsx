@@ -55,14 +55,14 @@ export function LeaderboardDetailsOverlay({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(8px)' }}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(12px)' }}>
       <div
         className="relative w-[90%] max-w-md p-6 text-white"
         style={{
           borderRadius: '20px',
-          backgroundColor: 'rgba(255,255,255,0.12)',
-          border: '1px solid rgba(255,255,255,0.2)',
-          boxShadow: '0 12px 42px rgba(8,15,40,0.45)'
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
         }}
       >
         <button
