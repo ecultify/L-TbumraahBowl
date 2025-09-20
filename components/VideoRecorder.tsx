@@ -1,20 +1,68 @@
 'use client';
 
-import React, { useRef, useState, useCallback, useEffect } from 'react';
+import React, { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import { Camera, Square, Play, Loader2 } from 'lucide-react';
+
+interface RecordingCompletePayload {
+  url: string;
+  blob: Blob;
+  mimeType: string;
+  extension: string;
+}
 
 interface VideoRecorderProps {
   onVideoReady: (videoUrl: string) => void;
   autoStart?: boolean;
   orientation?: 'landscape' | 'portrait';
   autoSubmitOnStop?: boolean;
+  onRecordingComplete?: (payload: RecordingCompletePayload) => void;
 }
+
+const FALLBACK_MIME_TYPE = 'video/webm';
+
+const inferExtensionFromMime = (mimeType: string): string => {
+  const type = mimeType.toLowerCase();
+  if (type.includes('mp4')) return 'mp4';
+  if (type.includes('quicktime')) return 'mov';
+  if (type.includes('ogg')) return 'ogv';
+  return 'webm';
+};
+
+const resolvePreferredMimeType = (): string => {
+  if (typeof window === 'undefined' || typeof MediaRecorder === 'undefined') {
+    return '';
+  }
+
+  const candidates = [
+    'video/webm;codecs=vp9',
+    'video/webm;codecs=vp8',
+    'video/webm',
+    'video/mp4;codecs=h264',
+    'video/mp4',
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      const isSupported = typeof (MediaRecorder as any).isTypeSupported === 'function'
+        ? (MediaRecorder as any).isTypeSupported(candidate)
+        : false;
+      if (isSupported) {
+        return candidate;
+      }
+    } catch {
+      // Ignore and fall back to next candidate
+    }
+  }
+
+  return '';
+};
 
 export function VideoRecorder({
   onVideoReady,
   autoStart = true,
   orientation = 'landscape',
   autoSubmitOnStop = false,
+  onRecordingComplete,
 }: VideoRecorderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -26,6 +74,7 @@ export function VideoRecorder({
   const [recordedVideoUrl, setRecordedVideoUrl] = useState<string | null>(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const isPortrait = orientation === 'portrait';
+  const preferredMimeType = useMemo(resolvePreferredMimeType, []);
 
   const initializeCamera = useCallback(async () => {
     setIsInitializing(true);
@@ -93,9 +142,9 @@ export function VideoRecorder({
     }
 
     const stream = videoRef.current.srcObject as MediaStream;
-    const mediaRecorder = new MediaRecorder(stream, {
-      mimeType: 'video/webm;codecs=vp9'
-    });
+    const mediaRecorder = preferredMimeType
+      ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+      : new MediaRecorder(stream);
 
     chunksRef.current = [];
     mediaRecorderRef.current = mediaRecorder;
@@ -107,9 +156,24 @@ export function VideoRecorder({
     };
 
     mediaRecorder.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      const rawMime = preferredMimeType || mediaRecorder.mimeType || chunksRef.current[0]?.type || FALLBACK_MIME_TYPE;
+      const blob = new Blob(chunksRef.current, { type: rawMime || FALLBACK_MIME_TYPE });
       const url = URL.createObjectURL(blob);
+      const extension = inferExtensionFromMime(blob.type || rawMime || FALLBACK_MIME_TYPE);
+
+      onRecordingComplete?.({
+        url,
+        blob,
+        mimeType: blob.type || rawMime || FALLBACK_MIME_TYPE,
+        extension,
+      });
+
       setRecordedVideoUrl(url);
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
 
       if (autoSubmitOnStop) {
         onVideoReady(url);
@@ -125,7 +189,7 @@ export function VideoRecorder({
         stopRecording();
       }
     }, 20000);
-  }, [autoSubmitOnStop, initializeCamera, onVideoReady, stopRecording]);
+  }, [autoSubmitOnStop, initializeCamera, onRecordingComplete, onVideoReady, preferredMimeType, stopRecording]);
 
   const useRecording = useCallback(() => {
     if (autoSubmitOnStop) {

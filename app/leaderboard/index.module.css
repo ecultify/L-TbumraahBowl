@@ -110,6 +110,24 @@
   color: #fff;
 }
 
+.detailsSection {
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.detailsNotice {
+  margin: 1rem auto 0;
+  max-width: 360px;
+  padding: 0.75rem 1rem;
+  border-radius: 16px;
+  background: rgba(76, 175, 80, 0.18);
+  border: 1px solid rgba(76, 175, 80, 0.4);
+  color: #e8ffe8;
+  text-align: center;
+  font-size: 0.9rem;
+  font-family: 'Inter', sans-serif;
+}
+
 .boardTitle {
   margin: 0;
   font-size: 1rem;

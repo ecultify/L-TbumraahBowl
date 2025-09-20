@@ -16,6 +16,10 @@ function VideoPreviewContent() {
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<string>('00:00');
   const [fileName, setFileName] = useState<string>('');
+  const [videoSource, setVideoSource] = useState<'record' | 'upload' | 'unknown'>('unknown');
+  const [mimeType, setMimeType] = useState<string | null>(null);
+  const [fileSizeLabel, setFileSizeLabel] = useState<string | null>(null);
+  const [isPortraitVideo, setIsPortraitVideo] = useState(false);
   const searchParams = useSearchParams();
   const router = useRouter();
   const { state, dispatch } = useAnalysis();
@@ -30,13 +34,37 @@ function VideoPreviewContent() {
   const buttonsSection = useIntersectionObserver({ threshold: 0.1, freezeOnceVisible: true });
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     // Check if there's video data in sessionStorage (from upload)
     const storedVideoUrl = sessionStorage.getItem('uploadedVideoUrl');
     const storedFileName = sessionStorage.getItem('uploadedFileName');
+    const storedSource = sessionStorage.getItem('uploadedSource');
+    const storedMimeType = sessionStorage.getItem('uploadedMimeType');
+    const storedFileSize = sessionStorage.getItem('uploadedFileSize');
     
     if (storedVideoUrl) {
       setVideoUrl(storedVideoUrl);
-      setFileName(storedFileName || 'uploaded-video.mp4');
+      if (storedSource === 'record' || storedSource === 'upload') {
+        setVideoSource(storedSource);
+      }
+
+      if (storedMimeType) {
+        setMimeType(storedMimeType);
+      }
+
+      if (storedFileSize) {
+        const parsedSize = parseInt(storedFileSize, 10);
+        if (!Number.isNaN(parsedSize)) {
+          const sizeInMb = parsedSize / (1024 * 1024);
+          setFileSizeLabel(`${sizeInMb.toFixed(2)} MB`);
+        }
+      }
+
+      const fallbackName = storedSource === 'record' ? 'recording.webm' : 'uploaded-video.mp4';
+      setFileName(storedFileName || fallbackName);
     }
 
     // Cleanup function to remove sessionStorage when leaving the page
@@ -53,6 +81,7 @@ function VideoPreviewContent() {
     const minutes = Math.floor(duration / 60);
     const seconds = Math.floor(duration % 60);
     setVideoDuration(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+    setIsPortraitVideo(video.videoHeight > video.videoWidth);
   };
 
   const startAnalysis = useCallback(async () => {
@@ -231,18 +260,26 @@ function VideoPreviewContent() {
               style={{
                 borderRadius: '20px',
                 backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                aspectRatio: '16/9'
+                aspectRatio: isPortraitVideo ? '9/16' : '16/9'
               }}
             >
               {videoUrl ? (
                 <>
+                  {videoSource !== 'unknown' && (
+                    <span 
+                      className="absolute top-4 left-4 z-10 px-3 py-1 text-xs font-semibold rounded-full bg-black/70 text-white"
+                      style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}
+                    >
+                      {videoSource === 'record' ? 'Recorded clip' : 'Uploaded clip'}
+                    </span>
+                  )}
                   {/* Actual uploaded video */}
                   <video
                     ref={videoRef}
                     src={videoUrl}
                     controls
                     preload="metadata"
-                    className="w-full h-full object-cover"
+                    className={isPortraitVideo ? 'w-full h-full object-contain bg-black' : 'w-full h-full object-cover'}
                     style={{ borderRadius: '20px' }}
                     onLoadedMetadata={handleVideoLoadedMetadata}
                   >
@@ -317,6 +354,30 @@ function VideoPreviewContent() {
                 >
                   Duration: {videoDuration}
                 </p>
+                {fileSizeLabel && (
+                  <p 
+                    className="text-white text-xs opacity-70"
+                    style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Size: {fileSizeLabel}
+                  </p>
+                )}
+                {mimeType && (
+                  <p 
+                    className="text-white text-xs opacity-70"
+                    style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontWeight: '400',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Format: {mimeType}
+                  </p>
+                )}
               </div>
             </div>
           </div>

@@ -412,7 +412,7 @@ export default function InstructionsPage() {
         {/* Get Started Button */}
         <div className="flex justify-center px-4 mb-12">
           <Link 
-            href="/record-upload?mode=record"
+            href="/details"
             className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 animate-bounceIn animate-delay-500 ${proTipSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             style={{
               backgroundColor: '#FFC315',
@@ -684,7 +684,7 @@ export default function InstructionsPage() {
           {/* CTA Button - Moved up */}
           <div className="mt-8 text-center">
             <Link 
-              href="/record-upload"
+              href="/details"
               className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
               style={{
                 backgroundColor: '#FFC315',

@@ -54,8 +54,14 @@ export default function RecordUploadPage() {
   const handleVideoReady = useCallback((videoUrl: string) => {
     if (typeof window !== 'undefined') {
       sessionStorage.setItem('uploadedVideoUrl', videoUrl);
-      sessionStorage.setItem('uploadedFileName', 'recorded-video.webm');
-      sessionStorage.setItem('uploadedSource', 'record');
+
+      if (!sessionStorage.getItem('uploadedFileName')) {
+        sessionStorage.setItem('uploadedFileName', 'uploaded-video.mp4');
+      }
+
+      if (!sessionStorage.getItem('uploadedSource')) {
+        sessionStorage.setItem('uploadedSource', 'record');
+      }
     }
 
     router.push('/video-preview');
@@ -65,6 +71,19 @@ export default function RecordUploadPage() {
     setIsRecorderOpen(false);
     handleVideoReady(videoUrl);
   }, [handleVideoReady]);
+
+  const handleRecordingComplete = useCallback(({ url, mimeType, blob, extension }: { url: string; mimeType: string; blob: Blob; extension: string; }) => {
+    if (typeof window !== 'undefined') {
+      const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
+      const generatedName = `recording-${timestamp}.${extension}`;
+
+      sessionStorage.setItem('uploadedVideoUrl', url);
+      sessionStorage.setItem('uploadedFileName', generatedName);
+      sessionStorage.setItem('uploadedSource', 'record');
+      sessionStorage.setItem('uploadedMimeType', mimeType);
+      sessionStorage.setItem('uploadedFileSize', blob.size.toString());
+    }
+  }, []);
 
   const handleRecordClick = () => {
     setActiveMode('record');
@@ -149,6 +168,8 @@ export default function RecordUploadPage() {
       sessionStorage.setItem('uploadedVideoUrl', uploadedVideoUrl);
       sessionStorage.setItem('uploadedFileName', uploadedFile.name);
       sessionStorage.setItem('uploadedSource', 'upload');
+      sessionStorage.setItem('uploadedMimeType', uploadedFile.type || 'video/mp4');
+      sessionStorage.setItem('uploadedFileSize', uploadedFile.size.toString());
       
       // Navigate to video preview page
       router.push('/video-preview');
@@ -185,7 +206,7 @@ export default function RecordUploadPage() {
       {/* Header with Back Button */}
       <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
         <Link 
-          href="/instructions"
+          href="/details"
           className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -749,6 +770,7 @@ export default function RecordUploadPage() {
               <VideoRecorder
                 orientation="portrait"
                 autoSubmitOnStop
+                onRecordingComplete={handleRecordingComplete}
                 onVideoReady={handleRecorderReady}
               />
             </div>
@@ -852,7 +874,7 @@ export default function RecordUploadPage() {
             </div>
             <div className="absolute left-8 flex items-center gap-4">
               <Link 
-                href="/instructions"
+                href="/details"
                 className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
               >
                 <ArrowLeft className="w-5 h-5" />
@@ -978,7 +1000,11 @@ export default function RecordUploadPage() {
 
               <div className="bg-white/5 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
                 {isClient && !isMobileView ? (
-                  <VideoRecorder autoSubmitOnStop onVideoReady={handleVideoReady} />
+                  <VideoRecorder
+                    autoSubmitOnStop
+                    onRecordingComplete={handleRecordingComplete}
+                    onVideoReady={handleVideoReady}
+                  />
                 ) : (
                   <div className="flex flex-col items-center justify-center text-white/80 py-20">
                     <p

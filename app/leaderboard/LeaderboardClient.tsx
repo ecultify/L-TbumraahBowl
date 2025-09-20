@@ -7,7 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import styles from './index.module.css';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
-import { LeaderboardDetailsOverlay } from '@/components/LeaderboardDetailsOverlay';
+import { DetailsCard, type DetailsCardSubmitPayload } from '@/components/DetailsCard';
 
 type LeaderboardEntry = {
   id: string;
@@ -42,7 +42,7 @@ export default function LeaderboardClient() {
   };
 
   const [pendingEntry, setPendingEntry] = useState<PendingEntryData | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsSaved, setDetailsSaved] = useState(false);
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
@@ -89,7 +89,7 @@ export default function LeaderboardClient() {
       try {
         const parsed = JSON.parse(stored);
         setPendingEntry(parsed);
-        setDetailsOpen(true);
+        setDetailsSaved(false);
       } catch (error) {
         console.warn('Invalid pending leaderboard entry', error);
         window.sessionStorage.removeItem('pendingLeaderboardEntry');
@@ -100,6 +100,44 @@ export default function LeaderboardClient() {
   const ranked = useMemo<RankedEntry[]>(
     () => entries.map((entry, index) => ({ ...entry, rank: index + 1 })),
     [entries]
+  );
+
+  const handleDetailsSubmit = useCallback(
+    async ({ name, phone }: DetailsCardSubmitPayload) => {
+      if (!pendingEntry) {
+        throw new Error('No analysis results available to submit.');
+      }
+
+      const payload: Record<string, any> = {
+        display_name: name.trim(),
+        predicted_kmh: pendingEntry.predicted_kmh,
+        similarity_percent: pendingEntry.similarity_percent,
+        intensity_percent: pendingEntry.intensity_percent,
+        speed_class: pendingEntry.speed_class,
+        meta: {
+          ...(pendingEntry.meta || {}),
+          contact_phone: phone,
+          verified: true,
+        },
+      };
+
+      const { error: insertError } = await supabase
+        .from('bowling_attempts')
+        .insert(payload);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('pendingLeaderboardEntry');
+      }
+
+      setPendingEntry(null);
+      setDetailsSaved(true);
+      await loadLeaderboard();
+    },
+    [pendingEntry, loadLeaderboard]
   );
 
 
@@ -166,6 +204,22 @@ export default function LeaderboardClient() {
           )}
         </section>
 
+        {pendingEntry && (
+          <section className={styles.detailsSection}>
+            <DetailsCard
+              submitLabel="Save Details"
+              onSubmit={handleDetailsSubmit}
+              className="animate-fadeInUp"
+            />
+          </section>
+        )}
+
+        {detailsSaved && (
+          <div className={styles.detailsNotice}>
+            Details saved successfully! Your performance is now on the leaderboard.
+          </div>
+        )}
+
         <section className={styles.actions}>
           <Link href="/quick-analysis" className={styles.ctaPrimary}>
             <Image
@@ -185,15 +239,6 @@ export default function LeaderboardClient() {
             />
             Retry Analysis
           </Link>
-          {pendingEntry && (
-            <button
-              type="button"
-              className={styles.ctaSecondary}
-              onClick={() => setDetailsOpen(true)}
-            >
-              Verify &amp; Submit Details
-            </button>
-          )}
         </section>
       </main>
 
@@ -213,41 +258,6 @@ export default function LeaderboardClient() {
           </div>
         </div>
       </footer>
-
-      <LeaderboardDetailsOverlay
-        open={detailsOpen && !!pendingEntry}
-        onClose={() => setDetailsOpen(false)}
-        onSubmit={async ({ name, phone }) => {
-          if (!pendingEntry) return;
-          const payload: Record<string, any> = {
-            display_name: name.trim(),
-            predicted_kmh: pendingEntry.predicted_kmh,
-            similarity_percent: pendingEntry.similarity_percent,
-            intensity_percent: pendingEntry.intensity_percent,
-            speed_class: pendingEntry.speed_class,
-            meta: {
-              ...(pendingEntry.meta || {}),
-              contact_phone: phone,
-              verified: true,
-            },
-          };
-
-          const { error: insertError } = await supabase
-            .from('bowling_attempts')
-            .insert(payload);
-
-          if (insertError) {
-            throw insertError;
-          }
-
-          if (typeof window !== 'undefined') {
-            window.sessionStorage.removeItem('pendingLeaderboardEntry');
-          }
-          setPendingEntry(null);
-          setDetailsOpen(false);
-          await loadLeaderboard();
-        }}
-      />
     </div>
   );
 }
