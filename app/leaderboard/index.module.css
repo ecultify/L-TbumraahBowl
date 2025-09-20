@@ -110,15 +110,10 @@
   color: #fff;
 }
 
-.detailsSection {
-  max-width: 560px;
-  margin: 0 auto;
-}
-
-.detailsNotice {
-  margin: 1rem auto 0;
+.videoNotice {
+  margin: 1.5rem auto 0;
   max-width: 360px;
-  padding: 0.75rem 1rem;
+  padding: 0.9rem 1.2rem;
   border-radius: 16px;
   background: rgba(76, 175, 80, 0.18);
   border: 1px solid rgba(76, 175, 80, 0.4);
@@ -126,6 +121,14 @@
   text-align: center;
   font-size: 0.9rem;
   font-family: 'Inter', sans-serif;
+}
+
+.videoNotice a {
+  display: inline-block;
+  margin-top: 0.5rem;
+  color: #ffffff;
+  font-weight: 600;
+  text-decoration: underline;
 }
 
 .boardTitle {
@@ -246,6 +249,12 @@
 .ctaSecondary:hover {
   background: rgba(255, 255, 255, 0.18);
   transform: scale(1.05);
+}
+
+.ctaSecondary[disabled] {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
 }
 
 .footer {

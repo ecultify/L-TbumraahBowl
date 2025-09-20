@@ -26,8 +26,6 @@ function AnalyzeContent() {
   const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
-  const [generatingVideo, setGeneratingVideo] = useState(false);
-  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
 
@@ -121,75 +119,6 @@ function AnalyzeContent() {
       setGeneratingPdf(false);
     }
   }, [state.finalIntensity, state.speedClass, state.confidence, state.analyzerMode, detailedAnalysis, addToast]);
-
-  const generateAnalysisVideo = useCallback(async () => {
-    try {
-      setGeneratingVideo(true);
-      addToast({
-        type: 'info',
-        title: 'Generating video...',
-        message: 'Creating your personalized analysis video'
-      });
-
-      // Prepare analysis data for Remotion
-      const analysisData = {
-        intensity: state.finalIntensity,
-        speedClass: state.speedClass,
-        kmh: Number(intensityToKmh(state.finalIntensity).toFixed(2)),
-        similarity: state.finalIntensity,
-        frameIntensities: state.frameIntensities, // Add frame intensities for motion chart
-        phases: {
-          runUp: detailedAnalysis?.phaseComparison?.runUp ? Math.round(detailedAnalysis.phaseComparison.runUp * 100) : 50,
-          delivery: detailedAnalysis?.phaseComparison?.delivery ? Math.round(detailedAnalysis.phaseComparison.delivery * 100) : 60,
-          followThrough: detailedAnalysis?.phaseComparison?.followThrough ? Math.round(detailedAnalysis.phaseComparison.followThrough * 100) : 71
-        },
-        technicalMetrics: {
-          armSwing: detailedAnalysis?.technicalMetrics?.armSwingSimilarity ? Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100) : 49,
-          bodyMovement: detailedAnalysis?.technicalMetrics?.bodyMovementSimilarity ? Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100) : 69,
-          rhythm: detailedAnalysis?.technicalMetrics?.rhythmSimilarity ? Math.round(detailedAnalysis.technicalMetrics.rhythmSimilarity * 100) : 49,
-          releasePoint: detailedAnalysis?.technicalMetrics?.releasePointAccuracy ? Math.round(detailedAnalysis.technicalMetrics.releasePointAccuracy * 100) : 69
-        },
-        recommendations: detailedAnalysis?.recommendations || ['Focus on arm swing technique and timing'],
-        playerName: 'Pawan' // You can make this dynamic later
-      };
-
-      // Call the video generation API
-      const response = await fetch('/api/generate-video', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ analysisData }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Video generation failed');
-      }
-
-      const result = await response.json();
-      
-      if (result.success && result.videoUrl) {
-        setGeneratedVideoUrl(result.videoUrl);
-        addToast({
-          type: 'success',
-          title: 'Video ready!',
-          message: 'Your analysis video has been generated'
-        });
-      } else {
-        throw new Error(result.error || 'Video generation failed');
-      }
-
-    } catch (error) {
-      console.error('Video generation failed:', error);
-      addToast({
-        type: 'error',
-        title: 'Video generation failed',
-        message: 'Please try again later'
-      });
-    } finally {
-      setGeneratingVideo(false);
-    }
-  }, [state.finalIntensity, state.speedClass, detailedAnalysis, addToast]);
 
   const handleVideoReady = useCallback((videoUrl: string) => {
     dispatch({ type: 'SET_VIDEO', payload: videoUrl });
@@ -339,10 +268,11 @@ function AnalyzeContent() {
         } 
       });
 
+      let benchmarkDetailed: any = null;
       // Get detailed analysis if using benchmark mode
       if (state.analyzerMode === 'benchmark') {
-        const detailed = (analyzer as BenchmarkComparisonAnalyzer).getDetailedAnalysis();
-        setDetailedAnalysis(detailed);
+        benchmarkDetailed = (analyzer as BenchmarkComparisonAnalyzer).getDetailedAnalysis();
+        setDetailedAnalysis(benchmarkDetailed);
       }
 
       if (typeof window !== 'undefined') {
@@ -358,6 +288,43 @@ function AnalyzeContent() {
           created_at: new Date().toISOString(),
         };
         window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
+
+        const phaseSource = benchmarkDetailed ?? detailedAnalysis;
+        const phases = {
+          runUp: phaseSource?.phaseComparison?.runUp ? Math.round(phaseSource.phaseComparison.runUp * 100) : 50,
+          delivery: phaseSource?.phaseComparison?.delivery ? Math.round(phaseSource.phaseComparison.delivery * 100) : 60,
+          followThrough: phaseSource?.phaseComparison?.followThrough ? Math.round(phaseSource.phaseComparison.followThrough * 100) : 71,
+        };
+
+        const technicalSource = benchmarkDetailed ?? detailedAnalysis;
+        const technicalMetrics = {
+          armSwing: technicalSource?.technicalMetrics?.armSwingSimilarity ? Math.round(technicalSource.technicalMetrics.armSwingSimilarity * 100) : 49,
+          bodyMovement: technicalSource?.technicalMetrics?.bodyMovementSimilarity ? Math.round(technicalSource.technicalMetrics.bodyMovementSimilarity * 100) : 69,
+          rhythm: technicalSource?.technicalMetrics?.rhythmSimilarity ? Math.round(technicalSource.technicalMetrics.rhythmSimilarity * 100) : 49,
+          releasePoint: technicalSource?.technicalMetrics?.releasePointAccuracy ? Math.round(technicalSource.technicalMetrics.releasePointAccuracy * 100) : 69,
+        };
+
+        const recommendations = (phaseSource?.recommendations && phaseSource.recommendations.length > 0)
+          ? phaseSource.recommendations
+          : ['Focus on arm swing technique and timing'];
+
+        const analysisVideoData = {
+          intensity: finalIntensity,
+          speedClass,
+          kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
+          similarity: finalIntensity,
+          frameIntensities: intensities.map(({ timestamp, intensity }) => ({
+            timestamp: Number(timestamp.toFixed(3)),
+            intensity: Number(intensity.toFixed(3)),
+          })),
+          phases,
+          technicalMetrics,
+          recommendations,
+          playerName: 'Player',
+          createdAt: new Date().toISOString(),
+        };
+
+        window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisVideoData));
       }
 
       // Show leaderboard modal
@@ -671,10 +638,9 @@ function AnalyzeContent() {
 
           {hasResults && state.finalIntensity >= 85 ? (
             <div className="mt-6 flex justify-center">
-              <button
-                onClick={generateAnalysisVideo}
-                disabled={generatingVideo}
-                className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-60"
+              <Link
+                href="/leaderboard"
+                className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
                 style={{
                   backgroundColor: '#FFC315',
                   borderRadius: '25.62px',
@@ -685,8 +651,8 @@ function AnalyzeContent() {
                   height: '41px'
                 }}
               >
-                {generatingVideo ? 'Generating Video...' : 'Generate Analysis Video'}
-              </button>
+                Generate Video on Leaderboard
+              </Link>
             </div>
           ) : null}
 
@@ -964,35 +930,16 @@ function AnalyzeContent() {
                 <div className="rounded-2xl bg-white p-6 shadow-lg">
                   <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
                     <div className="text-sm text-gray-700">
-                      Create a personalized analysis video with your results!
+                      Create your personalized analysis video from the leaderboard after saving your details.
                     </div>
-                    <button
-                      onClick={generateAnalysisVideo}
-                      disabled={generatingVideo}
-                      className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-700 disabled:bg-gray-400"
+                    <Link
+                      href="/leaderboard"
+                      className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-700"
                       style={buttonFontStyle}
                     >
-                      {generatingVideo ? 'Generating Video...' : 'Generate Analysis Video'}
-                    </button>
+                      Generate Video on Leaderboard
+                    </Link>
                   </div>
-
-                  {generatedVideoUrl && (
-                    <div className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4">
-                      <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-                        <div className="text-sm text-green-700">
-                          🎉 Your analysis video is ready!
-                        </div>
-                        <a
-                          href={generatedVideoUrl}
-                          download="bowling-analysis-video.mp4"
-                          className="rounded-lg bg-green-600 px-5 py-2 font-semibold text-white hover:bg-green-700"
-                          style={buttonFontStyle}
-                        >
-                          Download Video
-                        </a>
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 

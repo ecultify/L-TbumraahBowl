@@ -60,8 +60,15 @@ export async function POST(request: NextRequest) {
 
     console.log('Rendering video with Remotion CLI...');
 
-    // Use Remotion CLI to render the video
-    const command = `npx @remotion/cli render remotion/index.ts first-frame "${outputPath}" --props="${propsPath}"`;
+    const remotionBin = process.platform === 'win32'
+      ? path.join(process.cwd(), 'node_modules', '.bin', 'remotion.cmd')
+      : path.join(process.cwd(), 'node_modules', '.bin', 'remotion');
+
+    if (!existsSync(remotionBin)) {
+      throw new Error('Remotion CLI not found. Please run `npm install` to install dependencies.');
+    }
+
+    const command = `"${remotionBin}" render remotion/index.ts first-frame "${outputPath}" --props="${propsPath}"`;
     
     const { stdout, stderr } = await execAsync(command, {
       cwd: process.cwd(),

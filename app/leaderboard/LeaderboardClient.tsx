@@ -7,7 +7,9 @@ import { ArrowLeft } from 'lucide-react';
 import styles from './index.module.css';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
-import { DetailsCard, type DetailsCardSubmitPayload } from '@/components/DetailsCard';
+import { LeaderboardDetailsOverlay } from '@/components/LeaderboardDetailsOverlay';
+import { useToast } from '@/components/Toast';
+import type { DetailsCardSubmitPayload } from '@/components/DetailsCard';
 
 type LeaderboardEntry = {
   id: string;
@@ -22,6 +24,28 @@ type LeaderboardEntry = {
 };
 
 type RankedEntry = LeaderboardEntry & { rank: number };
+
+type AnalysisVideoData = {
+  intensity: number;
+  speedClass: SpeedClass | null;
+  kmh: number;
+  similarity: number;
+  frameIntensities?: { timestamp: number; intensity: number }[];
+  phases: {
+    runUp: number;
+    delivery: number;
+    followThrough: number;
+  };
+  technicalMetrics: {
+    armSwing: number;
+    bodyMovement: number;
+    rhythm: number;
+    releasePoint: number;
+  };
+  recommendations: string[];
+  playerName?: string;
+  createdAt?: string;
+};
 
 const formatNumber = (value: number | null | undefined, digits = 1) =>
   typeof value === 'number' ? value.toFixed(digits) : '—';
@@ -42,8 +66,12 @@ export default function LeaderboardClient() {
   };
 
   const [pendingEntry, setPendingEntry] = useState<PendingEntryData | null>(null);
-  const [detailsSaved, setDetailsSaved] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [videoData, setVideoData] = useState<AnalysisVideoData | null>(null);
+  const [generatingVideo, setGeneratingVideo] = useState(false);
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
 
+  const { addToast, ToastContainer } = useToast();
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -84,12 +112,25 @@ export default function LeaderboardClient() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const storedVideo = window.sessionStorage.getItem('analysisVideoData');
+    if (storedVideo) {
+      try {
+        const parsedVideo = JSON.parse(storedVideo) as AnalysisVideoData;
+        if (!parsedVideo.playerName) {
+          parsedVideo.playerName = 'Player';
+        }
+        setVideoData(parsedVideo);
+      } catch (error) {
+        console.warn('Invalid analysis video data', error);
+        window.sessionStorage.removeItem('analysisVideoData');
+      }
+    }
     const stored = window.sessionStorage.getItem('pendingLeaderboardEntry');
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
         setPendingEntry(parsed);
-        setDetailsSaved(false);
+        setDetailsOpen(true);
       } catch (error) {
         console.warn('Invalid pending leaderboard entry', error);
         window.sessionStorage.removeItem('pendingLeaderboardEntry');
@@ -103,13 +144,16 @@ export default function LeaderboardClient() {
   );
 
   const handleDetailsSubmit = useCallback(
-    async ({ name, phone }: DetailsCardSubmitPayload) => {
-      if (!pendingEntry) {
-        throw new Error('No analysis results available to submit.');
+    async ({ name, phone, consent }: DetailsCardSubmitPayload) => {
+      if (!consent) {
+        throw new Error('Please accept the consent checkbox to continue.');
       }
+      if (!pendingEntry) return;
+
+      const trimmedName = name.trim();
 
       const payload: Record<string, any> = {
-        display_name: name.trim(),
+        display_name: trimmedName,
         predicted_kmh: pendingEntry.predicted_kmh,
         similarity_percent: pendingEntry.similarity_percent,
         intensity_percent: pendingEntry.intensity_percent,
@@ -133,12 +177,108 @@ export default function LeaderboardClient() {
         window.sessionStorage.removeItem('pendingLeaderboardEntry');
       }
 
+      setVideoData((prev) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          playerName: trimmedName || 'Player',
+        };
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('analysisVideoData', JSON.stringify(updated));
+        }
+        return updated;
+      });
+
+      setGeneratedVideoUrl(null);
       setPendingEntry(null);
-      setDetailsSaved(true);
+      setDetailsOpen(false);
       await loadLeaderboard();
     },
     [pendingEntry, loadLeaderboard]
   );
+
+  const generateAnalysisVideo = useCallback(async () => {
+    if (!videoData) {
+      addToast({
+        type: 'error',
+        title: 'Analysis missing',
+        message: 'Complete an analysis first to generate the video.',
+      });
+      return;
+    }
+
+    if (videoData.intensity < 85) {
+      addToast({
+        type: 'info',
+        title: 'Not eligible yet',
+        message: 'Generate a faster delivery (85%+) to unlock the video.',
+      });
+      return;
+    }
+
+    if (!videoData.playerName || videoData.playerName === 'Player') {
+      addToast({
+        type: 'warning',
+        title: 'Add your name',
+        message: 'Save your details so we can personalize the video.',
+      });
+      setDetailsOpen(true);
+      return;
+    }
+
+    try {
+      setGeneratingVideo(true);
+      setGeneratedVideoUrl(null);
+      addToast({
+        type: 'info',
+        title: 'Generating video...',
+        message: 'Give us a moment while we render your highlights.',
+      });
+
+      const analysisData = {
+        ...videoData,
+        speedClass: videoData.speedClass ?? 'Slow',
+        playerName: videoData.playerName?.trim() || 'Player',
+      } as AnalysisVideoData;
+
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisData));
+      }
+
+      const response = await fetch('/api/generate-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ analysisData }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Video generation failed');
+      }
+
+      const result = await response.json();
+      if (result.success && result.videoUrl) {
+        setGeneratedVideoUrl(result.videoUrl);
+        addToast({
+          type: 'success',
+          title: 'Video ready!',
+          message: 'Download your personalized analysis video.',
+        });
+      } else {
+        throw new Error(result.error || 'Video generation failed');
+      }
+    } catch (error) {
+      console.error('Video generation failed:', error);
+      addToast({
+        type: 'error',
+        title: 'Video generation failed',
+        message: 'Please try again in a moment.',
+      });
+    } finally {
+      setGeneratingVideo(false);
+    }
+  }, [videoData, addToast]);
 
 
   const backgroundStyle = {
@@ -150,6 +290,7 @@ export default function LeaderboardClient() {
 
   return (
     <div className={`${styles.page} min-h-screen relative`} style={backgroundStyle}>
+      <ToastContainer />
       <header className={styles.header}>
         <div className={styles.headerBar}>
           <Link href="/analyze" className={styles.backLink}>
@@ -204,22 +345,6 @@ export default function LeaderboardClient() {
           )}
         </section>
 
-        {pendingEntry && (
-          <section className={styles.detailsSection}>
-            <DetailsCard
-              submitLabel="Save Details"
-              onSubmit={handleDetailsSubmit}
-              className="animate-fadeInUp"
-            />
-          </section>
-        )}
-
-        {detailsSaved && (
-          <div className={styles.detailsNotice}>
-            Details saved successfully! Your performance is now on the leaderboard.
-          </div>
-        )}
-
         <section className={styles.actions}>
           <Link href="/quick-analysis" className={styles.ctaPrimary}>
             <Image
@@ -239,7 +364,35 @@ export default function LeaderboardClient() {
             />
             Retry Analysis
           </Link>
+          {videoData && videoData.intensity >= 85 && (
+            <button
+              type="button"
+              className={styles.ctaSecondary}
+              onClick={generateAnalysisVideo}
+              disabled={generatingVideo}
+            >
+              {generatingVideo ? 'Generating…' : 'Generate Analysis Video'}
+            </button>
+          )}
+          {pendingEntry && (
+            <button
+              type="button"
+              className={styles.ctaSecondary}
+              onClick={() => setDetailsOpen(true)}
+            >
+              Verify &amp; Submit Details
+            </button>
+          )}
         </section>
+
+        {generatedVideoUrl && (
+          <div className={styles.videoNotice}>
+            Your personalized video is ready!
+            <a href={generatedVideoUrl} download="bowling-analysis-video.mp4">
+              Download Analysis Video
+            </a>
+          </div>
+        )}
       </main>
 
       <footer className={styles.footer}>
@@ -258,6 +411,11 @@ export default function LeaderboardClient() {
           </div>
         </div>
       </footer>
+      <LeaderboardDetailsOverlay
+        open={detailsOpen && !!pendingEntry}
+        onClose={() => setDetailsOpen(false)}
+        onSubmit={handleDetailsSubmit}
+      />
     </div>
   );
 }
