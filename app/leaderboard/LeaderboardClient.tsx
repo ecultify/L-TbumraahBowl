@@ -11,6 +11,10 @@ import { LeaderboardDetailsOverlay } from '@/components/LeaderboardDetailsOverla
 import { useToast } from '@/components/Toast';
 import type { DetailsCardSubmitPayload } from '@/components/DetailsCard';
 
+const VIDEO_INTENSITY_THRESHOLD = 85;
+const isEligibleForVideo = (value?: number | null) =>
+  typeof value === 'number' && value >= VIDEO_INTENSITY_THRESHOLD;
+
 type LeaderboardEntry = {
   id: string;
   created_at: string;
@@ -44,8 +48,60 @@ type AnalysisVideoData = {
   };
   recommendations: string[];
   playerName?: string;
+  playerPhone?: string;
   createdAt?: string;
 };
+
+interface ProcessingModalProps {
+  message: string;
+}
+
+function ProcessingModal({ message }: ProcessingModalProps) {
+  return (
+    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
+      <div className={styles.modalCard}>
+        <div className={styles.modalSpinner} aria-hidden="true" />
+        <p className={styles.modalTitle}>Rendering your video…</p>
+        <p className={styles.modalBody}>{message}</p>
+      </div>
+    </div>
+  );
+}
+
+interface VideoResultModalProps {
+  videoUrl: string;
+  onClose: () => void;
+  onDownload?: () => void;
+}
+
+function VideoResultModal({ videoUrl, onClose, onDownload }: VideoResultModalProps) {
+  return (
+    <div className={styles.modalOverlay} role="dialog" aria-modal="true">
+      <div className={styles.modalCard}>
+        <button type="button" className={styles.modalClose} onClick={onClose} aria-label="Close video modal">
+          Close
+        </button>
+        <p className={styles.modalTitle}>Your analysis video is ready</p>
+        <video className={styles.modalVideo} src={videoUrl} controls playsInline autoPlay>
+          Your browser does not support the video tag.
+        </video>
+        <div className={styles.modalActions}>
+          <a
+            href={videoUrl}
+            download="bowling-analysis-video.mp4"
+            className={styles.modalButtonPrimary}
+            onClick={onDownload}
+          >
+            Download Video
+          </a>
+          <button type="button" className={styles.modalButtonSecondary} onClick={onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 const formatNumber = (value: number | null | undefined, digits = 1) =>
   typeof value === 'number' ? value.toFixed(digits) : '—';
@@ -68,8 +124,9 @@ export default function LeaderboardClient() {
   const [pendingEntry, setPendingEntry] = useState<PendingEntryData | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [videoData, setVideoData] = useState<AnalysisVideoData | null>(null);
-  const [generatingVideo, setGeneratingVideo] = useState(false);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
+  const [showProcessingModal, setShowProcessingModal] = useState(false);
+  const [showVideoModal, setShowVideoModal] = useState(false);
 
   const { addToast, ToastContainer } = useToast();
   const loadLeaderboard = useCallback(async () => {
@@ -119,11 +176,21 @@ export default function LeaderboardClient() {
         if (!parsedVideo.playerName) {
           parsedVideo.playerName = 'Player';
         }
+        if (parsedVideo.playerPhone === undefined && typeof window !== 'undefined') {
+          const storedPhone = window.sessionStorage.getItem('analysisPlayerPhone');
+          if (storedPhone) {
+            parsedVideo.playerPhone = storedPhone;
+          }
+        }
         setVideoData(parsedVideo);
       } catch (error) {
         console.warn('Invalid analysis video data', error);
         window.sessionStorage.removeItem('analysisVideoData');
       }
+    }
+    const storedGeneratedUrl = window.sessionStorage.getItem('analysisGeneratedVideoUrl');
+    if (storedGeneratedUrl) {
+      setGeneratedVideoUrl(storedGeneratedUrl);
     }
     const stored = window.sessionStorage.getItem('pendingLeaderboardEntry');
     if (stored) {
@@ -138,9 +205,111 @@ export default function LeaderboardClient() {
     }
   }, []);
 
+  useEffect(() => {
+    if (!videoData) return;
+    if (pendingEntry) return;
+    if (!videoData.playerName || videoData.playerName === 'Player') {
+      setDetailsOpen(true);
+    }
+  }, [videoData, pendingEntry]);
+
   const ranked = useMemo<RankedEntry[]>(
     () => entries.map((entry, index) => ({ ...entry, rank: index + 1 })),
     [entries]
+  );
+
+  const runVideoGeneration = useCallback(
+    async (rawData: AnalysisVideoData | null) => {
+      if (!rawData) {
+        addToast({
+          type: 'error',
+          title: 'Analysis missing',
+          message: 'Complete a fresh analysis to generate your video.',
+        });
+        return false;
+      }
+
+      if (!isEligibleForVideo(rawData.intensity)) {
+        addToast({
+          type: 'info',
+          title: 'Not eligible yet',
+          message: 'Generate a faster delivery (85%+) to unlock the video.',
+        });
+        return false;
+      }
+
+      const playerName = rawData.playerName?.trim();
+      if (!playerName || playerName === 'Player') {
+        addToast({
+          type: 'warning',
+          title: 'Add your name',
+          message: 'Save your details so we can personalize the video.',
+        });
+        setDetailsOpen(true);
+        return false;
+      }
+
+      const previousUrl = generatedVideoUrl;
+
+      try {
+        setShowVideoModal(false);
+        setGeneratedVideoUrl(null);
+        setShowProcessingModal(true);
+
+        const analysisData = {
+          ...rawData,
+          speedClass: rawData.speedClass ?? 'Slow',
+          playerName,
+        } as AnalysisVideoData;
+
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisData));
+          window.sessionStorage.removeItem('analysisGeneratedVideoUrl');
+        }
+
+        const response = await fetch('/api/generate-video', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ analysisData }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Video generation failed');
+        }
+
+        const result = await response.json();
+        if (result.success && result.videoUrl) {
+          setGeneratedVideoUrl(result.videoUrl);
+          setShowProcessingModal(false);
+          setShowVideoModal(true);
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem('analysisGeneratedVideoUrl', result.videoUrl);
+          }
+          return true;
+        }
+
+        throw new Error(result.error || 'Video generation failed');
+      } catch (error) {
+        console.error('Video generation failed:', error);
+        addToast({
+          type: 'error',
+          title: 'Video generation failed',
+          message: 'Please try again in a moment.',
+        });
+        if (previousUrl) {
+          setGeneratedVideoUrl(previousUrl);
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem('analysisGeneratedVideoUrl', previousUrl);
+          }
+        }
+        return false;
+      } finally {
+        setShowProcessingModal(false);
+      }
+    },
+    [addToast, generatedVideoUrl]
   );
 
   const handleDetailsSubmit = useCallback(
@@ -151,6 +320,7 @@ export default function LeaderboardClient() {
       if (!pendingEntry) return;
 
       const trimmedName = name.trim();
+      const trimmedPhone = phone.trim();
 
       const payload: Record<string, any> = {
         display_name: trimmedName,
@@ -160,7 +330,7 @@ export default function LeaderboardClient() {
         speed_class: pendingEntry.speed_class,
         meta: {
           ...(pendingEntry.meta || {}),
-          contact_phone: phone,
+          contact_phone: trimmedPhone || null,
           verified: true,
         },
       };
@@ -177,108 +347,45 @@ export default function LeaderboardClient() {
         window.sessionStorage.removeItem('pendingLeaderboardEntry');
       }
 
+      let resolvedVideoData: AnalysisVideoData | null = videoData;
       setVideoData((prev) => {
         if (!prev) return prev;
         const updated = {
           ...prev,
           playerName: trimmedName || 'Player',
+          playerPhone: trimmedPhone || prev.playerPhone,
         };
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem('analysisVideoData', JSON.stringify(updated));
+          if (trimmedPhone) {
+            window.sessionStorage.setItem('analysisPlayerPhone', trimmedPhone);
+          }
         }
+        resolvedVideoData = updated;
         return updated;
       });
 
-      setGeneratedVideoUrl(null);
       setPendingEntry(null);
       setDetailsOpen(false);
-      await loadLeaderboard();
+      const leaderboardPromise = loadLeaderboard();
+
+      if (resolvedVideoData && isEligibleForVideo(resolvedVideoData.intensity)) {
+        await runVideoGeneration(resolvedVideoData);
+      }
+
+      await leaderboardPromise;
     },
-    [pendingEntry, loadLeaderboard]
+    [pendingEntry, loadLeaderboard, runVideoGeneration, videoData]
   );
 
-  const generateAnalysisVideo = useCallback(async () => {
-    if (!videoData) {
-      addToast({
-        type: 'error',
-        title: 'Analysis missing',
-        message: 'Complete an analysis first to generate the video.',
-      });
-      return;
-    }
+  const handleVideoModalClose = useCallback(() => {
+    setShowVideoModal(false);
+  }, []);
 
-    if (videoData.intensity < 85) {
-      addToast({
-        type: 'info',
-        title: 'Not eligible yet',
-        message: 'Generate a faster delivery (85%+) to unlock the video.',
-      });
-      return;
-    }
-
-    if (!videoData.playerName || videoData.playerName === 'Player') {
-      addToast({
-        type: 'warning',
-        title: 'Add your name',
-        message: 'Save your details so we can personalize the video.',
-      });
-      setDetailsOpen(true);
-      return;
-    }
-
-    try {
-      setGeneratingVideo(true);
-      setGeneratedVideoUrl(null);
-      addToast({
-        type: 'info',
-        title: 'Generating video...',
-        message: 'Give us a moment while we render your highlights.',
-      });
-
-      const analysisData = {
-        ...videoData,
-        speedClass: videoData.speedClass ?? 'Slow',
-        playerName: videoData.playerName?.trim() || 'Player',
-      } as AnalysisVideoData;
-
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisData));
-      }
-
-      const response = await fetch('/api/generate-video', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ analysisData }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Video generation failed');
-      }
-
-      const result = await response.json();
-      if (result.success && result.videoUrl) {
-        setGeneratedVideoUrl(result.videoUrl);
-        addToast({
-          type: 'success',
-          title: 'Video ready!',
-          message: 'Download your personalized analysis video.',
-        });
-      } else {
-        throw new Error(result.error || 'Video generation failed');
-      }
-    } catch (error) {
-      console.error('Video generation failed:', error);
-      addToast({
-        type: 'error',
-        title: 'Video generation failed',
-        message: 'Please try again in a moment.',
-      });
-    } finally {
-      setGeneratingVideo(false);
-    }
-  }, [videoData, addToast]);
+  const handleViewVideo = useCallback(() => {
+    if (!generatedVideoUrl) return;
+    setShowVideoModal(true);
+  }, [generatedVideoUrl]);
 
 
   const backgroundStyle = {
@@ -291,6 +398,12 @@ export default function LeaderboardClient() {
   return (
     <div className={`${styles.page} min-h-screen relative`} style={backgroundStyle}>
       <ToastContainer />
+      {showProcessingModal && (
+        <ProcessingModal message="Give us a moment while we render your highlights." />
+      )}
+      {showVideoModal && generatedVideoUrl && (
+        <VideoResultModal videoUrl={generatedVideoUrl} onClose={handleVideoModalClose} />
+      )}
       <header className={styles.header}>
         <div className={styles.headerBar}>
           <Link href="/analyze" className={styles.backLink}>
@@ -364,16 +477,6 @@ export default function LeaderboardClient() {
             />
             Retry Analysis
           </Link>
-          {videoData && videoData.intensity >= 85 && (
-            <button
-              type="button"
-              className={styles.ctaSecondary}
-              onClick={generateAnalysisVideo}
-              disabled={generatingVideo}
-            >
-              {generatingVideo ? 'Generating…' : 'Generate Analysis Video'}
-            </button>
-          )}
           {pendingEntry && (
             <button
               type="button"
@@ -383,16 +486,16 @@ export default function LeaderboardClient() {
               Verify &amp; Submit Details
             </button>
           )}
+          {generatedVideoUrl && (
+            <button
+              type="button"
+              className={styles.ctaPrimary}
+              onClick={handleViewVideo}
+            >
+              Watch Analysis Video
+            </button>
+          )}
         </section>
-
-        {generatedVideoUrl && (
-          <div className={styles.videoNotice}>
-            Your personalized video is ready!
-            <a href={generatedVideoUrl} download="bowling-analysis-video.mp4">
-              Download Analysis Video
-            </a>
-          </div>
-        )}
       </main>
 
       <footer className={styles.footer}>

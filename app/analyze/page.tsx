@@ -636,26 +636,6 @@ function AnalyzeContent() {
             </div>
           ) : null}
 
-          {hasResults && state.finalIntensity >= 85 ? (
-            <div className="mt-6 flex justify-center">
-              <Link
-                href="/leaderboard"
-                className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
-                style={{
-                  backgroundColor: '#FFC315',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontSize: '16px',
-                  color: 'black',
-                  width: '261px',
-                  height: '41px'
-                }}
-              >
-                Generate Video on Leaderboard
-              </Link>
-            </div>
-          ) : null}
-
           <div className="mt-6 space-y-3">
             <div className="flex justify-center">
               <Link
@@ -922,23 +902,6 @@ function AnalyzeContent() {
                     >
                       {generatingPdf ? 'Preparing PDF...' : 'Download 2-page PDF'}
                     </button>
-                  </div>
-                </div>
-              )}
-
-              {state.speedClass && state.finalIntensity >= 85 && (
-                <div className="rounded-2xl bg-white p-6 shadow-lg">
-                  <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-                    <div className="text-sm text-gray-700">
-                      Create your personalized analysis video from the leaderboard after saving your details.
-                    </div>
-                    <Link
-                      href="/leaderboard"
-                      className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-700"
-                      style={buttonFontStyle}
-                    >
-                      Generate Video on Leaderboard
-                    </Link>
                   </div>
                 </div>
               )}
