@@ -241,7 +241,7 @@ export default function LeaderboardClient() {
       const playerName = rawData.playerName?.trim();
       if (!playerName || playerName === 'Player') {
         addToast({
-          type: 'warning',
+          type: 'info',
           title: 'Add your name',
           message: 'Save your details so we can personalize the video.',
         });
