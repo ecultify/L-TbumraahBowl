@@ -320,7 +320,7 @@ export default function LeaderboardClient() {
       if (!pendingEntry) return;
 
       const trimmedName = name.trim();
-      const trimmedPhone = phone.trim();
+      const trimmedPhone = phone?.trim() ?? '';
 
       const payload: Record<string, any> = {
         display_name: trimmedName,
