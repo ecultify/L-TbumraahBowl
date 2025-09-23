@@ -45,6 +45,15 @@ export interface DetailedAnalysisResult {
     releasePointAccuracy: number;
   };
   recommendations: string[];
+  // Flat properties that the UI expects
+  runUp: number;
+  delivery: number;
+  followThrough: number;
+  armSwing: number;
+  bodyMovement: number;
+  rhythm: number;
+  releasePoint: number;
+  overall: number;
 }
 
 export class BenchmarkComparisonAnalyzer {
@@ -560,6 +569,7 @@ export class BenchmarkComparisonAnalyzer {
 
     console.log('Similarity breakdown:', {
       armSwing: armSwingSim.toFixed(3),
+      bodyMovement: bodyMovementSim.toFixed(3),
       releasePoint: releasePointSim.toFixed(3),
       rhythm: rhythmSim.toFixed(3),
       followThrough: followThroughSim.toFixed(3),
@@ -716,7 +726,7 @@ export class BenchmarkComparisonAnalyzer {
     const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, bench.armSwingVelocities);
     const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, bench.bodyMovementVelocities);
     const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, bench.overallIntensities);
-    
+
     let releasePointAccuracy = 0;
     if (this.inputPattern.overallIntensities.length > 0 && bench.overallIntensities.length > 0) {
       const inputRelativeRelease = this.inputPattern.releasePointFrame / this.inputPattern.overallIntensities.length;
@@ -737,11 +747,12 @@ export class BenchmarkComparisonAnalyzer {
     if (rhythmSim < 0.5) recommendations.push("Practice maintaining consistent bowling rhythm");
     if (followThroughSim < 0.6) recommendations.push("Improve follow-through completion");
     if (runUpSim < 0.5) recommendations.push("Work on run-up consistency");
-    
+
     if (recommendations.length === 0) {
       recommendations.push("Excellent technique! Keep practicing to maintain consistency");
     }
 
+    // Return flat structure that the UI expects
     return {
       overallSimilarity,
       phaseComparison: {
@@ -755,7 +766,16 @@ export class BenchmarkComparisonAnalyzer {
         rhythmSimilarity: rhythmSim,
         releasePointAccuracy
       },
-      recommendations
+      recommendations,
+      // Add flat properties that the UI expects
+      runUp: runUpSim,
+      delivery: deliverySim,
+      followThrough: followThroughSim,
+      armSwing: armSwingSim,
+      bodyMovement: bodyMovementSim,
+      rhythm: rhythmSim,
+      releasePoint: releasePointAccuracy,
+      overall: overallSimilarity
     };
   }
 

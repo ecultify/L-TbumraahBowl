@@ -370,11 +370,13 @@ export default function HowToParticipatePage() {
           
           <div className="relative z-10 flex items-center justify-center max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center">
-              <img 
-                src="/frontend-images/homepage/justzoom logo.png" 
-                alt="JustZoom Logo" 
-                className="h-16 w-auto"
-              />
+              <Link href="/">
+                <img 
+                  src="/frontend-images/homepage/justzoom logo.png" 
+                  alt="JustZoom Logo" 
+                  className="h-16 w-auto cursor-pointer"
+                />
+              </Link>
             </div>
             <div className="absolute left-8 flex items-center gap-4">
               <Link 

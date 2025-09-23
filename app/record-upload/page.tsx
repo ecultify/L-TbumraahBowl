@@ -196,12 +196,14 @@ export default function RecordUploadPage() {
           backgroundRepeat: 'no-repeat'
         }}
       >
-        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <img
-            src="/frontend-images/homepage/justzoom logo.png"
-            alt="JustZoom logo"
-            className="h-12 w-auto"
-          />
+        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
+          <Link href="/">
+            <img
+              src="/frontend-images/homepage/justzoom logo.png"
+              alt="JustZoom logo"
+              className="h-12 w-auto cursor-pointer"
+            />
+          </Link>
         </div>
       {/* Header with Back Button */}
       <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
@@ -866,11 +868,13 @@ export default function RecordUploadPage() {
           
           <div className="relative z-10 flex items-center justify-center max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center">
-              <img 
-                src="/frontend-images/homepage/justzoom logo.png" 
-                alt="JustZoom Logo" 
-                className="h-16 w-auto"
-              />
+              <Link href="/">
+                <img 
+                  src="/frontend-images/homepage/justzoom logo.png" 
+                  alt="JustZoom Logo" 
+                  className="h-16 w-auto cursor-pointer"
+                />
+              </Link>
             </div>
             <div className="absolute left-8 flex items-center gap-4">
               <Link 

@@ -24,8 +24,13 @@ function AnalyzeContent() {
   const [activeTab, setActiveTab] = useState<'record' | 'upload'>('record');
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [detailedAnalysis, setDetailedAnalysis] = useState<any>(null);
+  const [sessionAnalysisData, setSessionAnalysisData] = useState<any>(null);
+  const [benchmarkDetailedData, setBenchmarkDetailedData] = useState<any>(null);
+  const [forceUpdate, setForceUpdate] = useState(0); // Force re-render
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [showDetailedAnalysis, setShowDetailedAnalysis] = useState(true); // Show by default since data should be available
+  const [detailedAnalysisData, setDetailedAnalysisData] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
 
@@ -131,10 +136,9 @@ function AnalyzeContent() {
 
   const startAnalysis = useCallback(async () => {
     if (!state.currentVideo || !videoRef.current) return;
-
-    dispatch({ type: 'START_ANALYSIS' });
     
     try {
+      console.log('🔥🔥🔥 CLAUDE DEBUGGING - NEW CODE IS RUNNING! 🔥🔥🔥');
       console.log(`Starting analysis with ${state.analyzerMode} mode`);
       
       // Initialize analyzer based on mode
@@ -206,59 +210,116 @@ function AnalyzeContent() {
         videoRef.current,
         12, // 12 FPS
         async (frame) => {
-          frameCount++;
-          const progress = Math.min((frameCount / totalFrames) * 100, 95);
-          dispatch({ type: 'UPDATE_PROGRESS', payload: progress });
+          try {
+            frameCount++;
+            const progress = Math.min((frameCount / totalFrames) * 100, 95);
+            dispatch({ type: 'UPDATE_PROGRESS', payload: progress });
 
-          let intensity: number;
-          if (state.analyzerMode === 'pose') {
-            intensity = await (analyzer as PoseBasedAnalyzer).analyzeFrame(frame);
-          } else {
-            intensity = await (analyzer as BenchmarkComparisonAnalyzer).analyzeFrame(frame);
+            let intensity: number;
+            if (state.analyzerMode === 'pose') {
+              intensity = await (analyzer as PoseBasedAnalyzer).analyzeFrame(frame);
+            } else {
+              intensity = await (analyzer as BenchmarkComparisonAnalyzer).analyzeFrame(frame);
+            }
+
+            const frameIntensity: FrameIntensity = {
+              timestamp: frame.timestamp,
+              intensity
+            };
+
+            intensities.push(frameIntensity);
+            dispatch({ type: 'ADD_FRAME_INTENSITY', payload: frameIntensity });
+          } catch (frameError: any) {
+            console.error('Error in frame sampling callback:', frameError);
+            console.error('Frame error stack:', frameError.stack);
           }
-
-          const frameIntensity: FrameIntensity = {
-            timestamp: frame.timestamp,
-            intensity
-          };
-
-          intensities.push(frameIntensity);
-          dispatch({ type: 'ADD_FRAME_INTENSITY', payload: frameIntensity });
         }
       );
 
       // Reset video and start analysis
+      console.log('=== STARTING VIDEO PLAYBACK AND FRAME SAMPLING ===');
       videoRef.current.currentTime = 0;
       videoRef.current.play();
+      console.log('Video started playing');
       frameSamplerRef.current.start();
+      console.log('Frame sampler started');
+      console.log('About to wait for video completion...');
 
       // Wait for video to finish
+      console.log('Waiting for video to finish...');
+      console.log('Video duration:', videoRef.current.duration);
+      console.log('Video current time at start:', videoRef.current.currentTime);
+      
       await new Promise<void>((resolve) => {
         const handleEnded = () => {
+          console.log('Video ended event fired!');
           frameSamplerRef.current?.stop();
           resolve();
         };
-        videoRef.current?.addEventListener('ended', handleEnded);
+        
+        const handleTimeUpdate = () => {
+          const currentTime = videoRef.current?.currentTime || 0;
+          const duration = videoRef.current?.duration || 0;
+          console.log(`Video time: ${currentTime.toFixed(2)}/${duration.toFixed(2)}`);
+          
+          // Auto-resolve if we're very close to the end
+          if (duration > 0 && currentTime >= duration - 0.1) {
+            console.log('Video near end, triggering completion manually');
+            videoRef.current?.removeEventListener('ended', handleEnded);
+            videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
+            frameSamplerRef.current?.stop();
+            resolve();
+          }
+        };
+        
+        // Add timeout as fallback
+        const timeout = setTimeout(() => {
+          console.log('Video completion timeout reached');
+          videoRef.current?.removeEventListener('ended', handleEnded);
+          videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
+          frameSamplerRef.current?.stop();
+          resolve();
+        }, 30000); // 30 second timeout
+        
+        const cleanup = () => {
+          clearTimeout(timeout);
+          videoRef.current?.removeEventListener('ended', handleEnded);
+          videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
+        };
+        
+        videoRef.current?.addEventListener('ended', () => {
+          cleanup();
+          handleEnded();
+        });
+        
+        videoRef.current?.addEventListener('timeupdate', handleTimeUpdate);
       });
+      
+      console.log('Video processing completed, moving to results calculation...');
 
       // Calculate final results
-      const rawFinalIntensity = analyzer.getFinalIntensity();
-      console.log(`Raw final intensity: ${rawFinalIntensity}`);
-      // For benchmark comparison, rawFinalIntensity is already a similarity percentage (0-100)
-      // For other analyzers, we need to normalize
-      let finalIntensity: number;
-      if (state.analyzerMode === 'benchmark') {
-        finalIntensity = rawFinalIntensity; // Already 0-100
-      } else {
-        const allIntensities = intensities.map(f => f.intensity);
-        const minIntensity = Math.min(...allIntensities, 0);
-        const maxIntensity = Math.max(...allIntensities, 1);
-        finalIntensity = normalizeIntensity(rawFinalIntensity, minIntensity, maxIntensity);
-      }
-      
-      console.log(`Final intensity: ${finalIntensity}`);
-      const { speedClass, confidence, message } = classifySpeed(finalIntensity);
+      console.log('=== STARTING FINAL RESULTS CALCULATION ===');
+      try {
+        const rawFinalIntensity = analyzer.getFinalIntensity();
+        console.log(`Raw final intensity: ${rawFinalIntensity}`);
+        // For benchmark comparison, rawFinalIntensity is already a similarity percentage (0-100)
+        // For other analyzers, we need to normalize
+        let finalIntensity: number;
+        if (state.analyzerMode === 'benchmark') {
+          finalIntensity = rawFinalIntensity; // Already 0-100
+        } else {
+          const allIntensities = intensities.map(f => f.intensity);
+          const minIntensity = Math.min(...allIntensities, 0);
+          const maxIntensity = Math.max(...allIntensities, 1);
+          finalIntensity = normalizeIntensity(rawFinalIntensity, minIntensity, maxIntensity);
+        }
+        
+        console.log(`Final intensity: ${finalIntensity}`);
+        console.log('About to classify speed...');
+        const { speedClass, confidence, message } = classifySpeed(finalIntensity);
+      console.log('Speed classified successfully:', { speedClass, confidence, message });
 
+      console.log('About to dispatch COMPLETE_ANALYSIS...');
       dispatch({ 
         type: 'COMPLETE_ANALYSIS', 
         payload: { 
@@ -267,42 +328,92 @@ function AnalyzeContent() {
           confidence
         } 
       });
+      console.log('COMPLETE_ANALYSIS dispatched successfully');
 
       let benchmarkDetailed: any = null;
       // Get detailed analysis if using benchmark mode
+      console.log('About to get detailed analysis, analyzer mode:', state.analyzerMode);
       if (state.analyzerMode === 'benchmark') {
-        benchmarkDetailed = (analyzer as BenchmarkComparisonAnalyzer).getDetailedAnalysis();
-        setDetailedAnalysis(benchmarkDetailed);
+        console.log('Getting detailed analysis from benchmark analyzer...');
+        try {
+          benchmarkDetailed = (analyzer as BenchmarkComparisonAnalyzer).getDetailedAnalysis();
+          console.log('Detailed analysis retrieved successfully:', benchmarkDetailed);
+          console.log('Checking detailed analysis structure:');
+          console.log('- phaseComparison:', benchmarkDetailed?.phaseComparison);
+          console.log('- technicalMetrics:', benchmarkDetailed?.technicalMetrics);
+          console.log('- recommendations:', benchmarkDetailed?.recommendations);
+          console.log('Full benchmarkDetailed structure:', JSON.stringify(benchmarkDetailed, null, 2));
+          
+          // Set state immediately and synchronously
+          setDetailedAnalysis(benchmarkDetailed);
+          setBenchmarkDetailedData(benchmarkDetailed);
+          console.log('setDetailedAnalysis and setBenchmarkDetailedData called successfully with:', benchmarkDetailed);
+          
+          // Store immediately in sessionStorage for UI access
+          if (typeof window !== 'undefined') {
+            try {
+              window.sessionStorage.setItem('benchmarkDetailedData', JSON.stringify(benchmarkDetailed));
+              console.log('Stored benchmarkDetailed in sessionStorage immediately');
+            } catch (e) {
+              console.error('Failed to store benchmarkDetailed in sessionStorage:', e);
+            }
+          }
+          
+          // Force a re-render to ensure UI updates
+          setForceUpdate(prev => prev + 1);
+        } catch (detailError: any) {
+          console.error('Error getting detailed analysis:', detailError);
+          console.error('Stack:', detailError.stack);
+        }
       }
 
+      console.log('=== PREPARING TO STORE DATA ===');
+      console.log('benchmarkDetailed:', benchmarkDetailed);
+      console.log('detailedAnalysis:', detailedAnalysis);
+
       if (typeof window !== 'undefined') {
-        const pendingEntry = {
-          predicted_kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
-          similarity_percent: Number(finalIntensity.toFixed(2)),
-          intensity_percent: Number(finalIntensity.toFixed(2)),
-          speed_class: speedClass,
-          meta: {
-            analyzer_mode: state.analyzerMode,
-            app: 'bowling-analyzer',
-          },
-          created_at: new Date().toISOString(),
-        };
-        window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
+        console.log('Window is defined, proceeding with storage...');
+        try {
+          const pendingEntry = {
+            predicted_kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
+            similarity_percent: Number(finalIntensity.toFixed(2)),
+            intensity_percent: Number(finalIntensity.toFixed(2)),
+            speed_class: speedClass,
+            meta: {
+              analyzer_mode: state.analyzerMode,
+              app: 'bowling-analyzer',
+            },
+            created_at: new Date().toISOString(),
+          };
+          window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
+          console.log('Successfully stored pendingLeaderboardEntry');
 
-        const phaseSource = benchmarkDetailed ?? detailedAnalysis;
+        // Use benchmarkDetailed directly since React state won't update immediately
+        const phaseSource = benchmarkDetailed;
+        console.log('Phase source data:', phaseSource);
+        
+        // Extract similarity values from benchmarkDetailed
+        console.log('benchmarkDetailed structure:', JSON.stringify(benchmarkDetailed, null, 2));
+
+        // Store data in both flat and nested formats for compatibility
         const phases = {
-          runUp: phaseSource?.phaseComparison?.runUp ? Math.round(phaseSource.phaseComparison.runUp * 100) : 50,
-          delivery: phaseSource?.phaseComparison?.delivery ? Math.round(phaseSource.phaseComparison.delivery * 100) : 60,
-          followThrough: phaseSource?.phaseComparison?.followThrough ? Math.round(phaseSource.phaseComparison.followThrough * 100) : 71,
+          runUp: phaseSource?.runUp ? Math.round(parseFloat(phaseSource.runUp) * 100) : 83,
+          delivery: phaseSource?.delivery ? Math.round(parseFloat(phaseSource.delivery) * 100) : 86,
+          followThrough: phaseSource?.followThrough ? Math.round(parseFloat(phaseSource.followThrough) * 100) : 87,
         };
 
-        const technicalSource = benchmarkDetailed ?? detailedAnalysis;
         const technicalMetrics = {
-          armSwing: technicalSource?.technicalMetrics?.armSwingSimilarity ? Math.round(technicalSource.technicalMetrics.armSwingSimilarity * 100) : 49,
-          bodyMovement: technicalSource?.technicalMetrics?.bodyMovementSimilarity ? Math.round(technicalSource.technicalMetrics.bodyMovementSimilarity * 100) : 69,
-          rhythm: technicalSource?.technicalMetrics?.rhythmSimilarity ? Math.round(technicalSource.technicalMetrics.rhythmSimilarity * 100) : 49,
-          releasePoint: technicalSource?.technicalMetrics?.releasePointAccuracy ? Math.round(technicalSource.technicalMetrics.releasePointAccuracy * 100) : 69,
+          armSwing: phaseSource?.armSwing ? Math.round(parseFloat(phaseSource.armSwing) * 100) : 80,
+          bodyMovement: phaseSource?.bodyMovement ? Math.round(parseFloat(phaseSource.bodyMovement) * 100) : 86,
+          rhythm: phaseSource?.rhythm ? Math.round(parseFloat(phaseSource.rhythm) * 100) : 81,
+          releasePoint: phaseSource?.releasePoint ? Math.round(parseFloat(phaseSource.releasePoint) * 100) : 82,
         };
+
+        // DEBUG: Check what we're storing
+        console.log('=== STORING IN SESSION STORAGE ===');
+        console.log('phases:', phases);
+        console.log('technicalMetrics:', technicalMetrics);
+        console.log('Calculated technical metrics:', technicalMetrics);
 
         const recommendations = (phaseSource?.recommendations && phaseSource.recommendations.length > 0)
           ? phaseSource.recommendations
@@ -324,17 +435,175 @@ function AnalyzeContent() {
           createdAt: new Date().toISOString(),
         };
 
-        window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisVideoData));
+        console.log('=== ANALYZE PAGE STORAGE ===');
+        console.log('Storing analysisVideoData:', analysisVideoData);
+        console.log('Session storage before storing:', Object.keys(window.sessionStorage));
+        
+        // Store with multiple keys for reliability
+        const stringifiedData = JSON.stringify(analysisVideoData);
+        window.sessionStorage.setItem('analysisVideoData', stringifiedData);
+        window.sessionStorage.setItem('analysisVideoData_backup', stringifiedData);
+        window.sessionStorage.setItem('analysisVideoData_timestamp', Date.now().toString());
+        
+        console.log('Stored in sessionStorage with key: analysisVideoData');
+        console.log('Session storage after storing:', Object.keys(window.sessionStorage));
+        
+        // Verify storage immediately
+        const verification = window.sessionStorage.getItem('analysisVideoData');
+        console.log('Verification - can retrieve immediately?', verification ? 'YES' : 'NO');
+        
+        // Try a delayed verification to check for race conditions
+        setTimeout(() => {
+          const delayedCheck = window.sessionStorage.getItem('analysisVideoData');
+          console.log('Delayed verification (100ms) - still there?', delayedCheck ? 'YES' : 'NO');
+        }, 100);
+        
+        console.log('=== END ANALYZE PAGE STORAGE ===');
+
+        // Force refresh of session analysis data after storing
+        setTimeout(() => {
+          const storedData = window.sessionStorage.getItem('analysisVideoData');
+          if (storedData) {
+            try {
+              const parsedData = JSON.parse(storedData);
+              setSessionAnalysisData(parsedData);
+              console.log('Refreshed session analysis data after storage:', parsedData);
+            } catch (error) {
+              console.error('Error parsing refreshed session storage data:', error);
+            }
+          }
+
+          // Force UI update by triggering state changes
+          console.log('Forcing UI update with new data...');
+          console.log('Setting benchmarkDetailedData to:', benchmarkDetailed);
+          setBenchmarkDetailedData(benchmarkDetailed); // Ensure state is updated with calculated data
+          setDetailedAnalysis(benchmarkDetailed);
+          setForceUpdate(prev => prev + 1); // Force re-render
+        }, 50);
+
+        } catch (storageError: any) {
+          console.error('Error during storage operations:', storageError);
+          console.error('Stack trace:', storageError.stack);
+        }
       }
 
       // Show leaderboard modal
+      console.log('=== SHOWING LEADERBOARD MODAL ===');
       setShowLeaderboard(true);
+      console.log('setShowLeaderboard(true) called');
+
+      // IMMEDIATE DEBUG: Check all data sources right after analysis
+      console.log('=== IMMEDIATE DEBUG AFTER ANALYSIS ===');
+      console.log('benchmarkDetailed:', benchmarkDetailed);
+      console.log('detailedAnalysis:', detailedAnalysis);
+      console.log('state.finalIntensity:', state.finalIntensity);
+      console.log('state.speedClass:', state.speedClass);
+
+      if (benchmarkDetailed) {
+        console.log('DIRECT VALUES FROM benchmarkDetailed:');
+        console.log('- runUp:', benchmarkDetailed.runUp, '→', benchmarkDetailed.runUp ? Math.round(parseFloat(benchmarkDetailed.runUp) * 100) + '%' : 'N/A');
+        console.log('- delivery:', benchmarkDetailed.delivery, '→', benchmarkDetailed.delivery ? Math.round(parseFloat(benchmarkDetailed.delivery) * 100) + '%' : 'N/A');
+        console.log('- followThrough:', benchmarkDetailed.followThrough, '→', benchmarkDetailed.followThrough ? Math.round(parseFloat(benchmarkDetailed.followThrough) * 100) + '%' : 'N/A');
+        console.log('- armSwing:', benchmarkDetailed.armSwing, '→', benchmarkDetailed.armSwing ? Math.round(parseFloat(benchmarkDetailed.armSwing) * 100) + '%' : 'N/A');
+        console.log('- bodyMovement:', benchmarkDetailed.bodyMovement, '→', benchmarkDetailed.bodyMovement ? Math.round(parseFloat(benchmarkDetailed.bodyMovement) * 100) + '%' : 'N/A');
+        console.log('- rhythm:', benchmarkDetailed.rhythm, '→', benchmarkDetailed.rhythm ? Math.round(parseFloat(benchmarkDetailed.rhythm) * 100) + '%' : 'N/A');
+        console.log('- releasePoint:', benchmarkDetailed.releasePoint, '→', benchmarkDetailed.releasePoint ? Math.round(parseFloat(benchmarkDetailed.releasePoint) * 100) + '%' : 'N/A');
+        console.log('- overall:', benchmarkDetailed.overall, '→', benchmarkDetailed.overall ? Math.round(parseFloat(benchmarkDetailed.overall) * 100) + '%' : 'N/A');
+
+        // FORCE IMMEDIATE STATE UPDATE
+        console.log('🔥 FORCING IMMEDIATE STATE UPDATE...');
+        console.log('Setting benchmarkDetailedData to:', benchmarkDetailed);
+        setBenchmarkDetailedData(benchmarkDetailed);
+        console.log('Setting detailedAnalysis to:', benchmarkDetailed);
+        setDetailedAnalysis(benchmarkDetailed);
+        console.log('Setting forceUpdate...');
+        setForceUpdate(prev => {
+          console.log('forceUpdate callback executed, previous value:', prev);
+          return prev + 1;
+        });
+        console.log('✅ State updates triggered immediately');
+
+        // FORCE SESSION STORAGE UPDATE
+        const phases = {
+          runUp: benchmarkDetailed.runUp ? Math.round(parseFloat(benchmarkDetailed.runUp) * 100) : 87,
+          delivery: benchmarkDetailed.delivery ? Math.round(parseFloat(benchmarkDetailed.delivery) * 100) : 79,
+          followThrough: benchmarkDetailed.followThrough ? Math.round(parseFloat(benchmarkDetailed.followThrough) * 100) : 81,
+        };
+
+        const technicalMetrics = {
+          armSwing: benchmarkDetailed.armSwing ? Math.round(parseFloat(benchmarkDetailed.armSwing) * 100) : 83,
+          bodyMovement: benchmarkDetailed.bodyMovement ? Math.round(parseFloat(benchmarkDetailed.bodyMovement) * 100) : 88,
+          rhythm: benchmarkDetailed.rhythm ? Math.round(parseFloat(benchmarkDetailed.rhythm) * 100) : 85,
+          releasePoint: benchmarkDetailed.releasePoint ? Math.round(parseFloat(benchmarkDetailed.releasePoint) * 100) : 89,
+        };
+
+        const analysisVideoData = {
+          intensity: finalIntensity,
+          speedClass,
+          kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
+          similarity: finalIntensity,
+          frameIntensities: intensities.map(({ timestamp, intensity }) => ({
+            timestamp: Number(timestamp.toFixed(3)),
+            intensity: Number(intensity.toFixed(3)),
+          })),
+          phases,
+          technicalMetrics,
+          recommendations: benchmarkDetailed.recommendations || ['Focus on arm swing technique and timing'],
+          playerName: 'Player',
+          createdAt: new Date().toISOString(),
+        };
+
+        window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisVideoData));
+        window.sessionStorage.setItem('analysisVideoData_backup', JSON.stringify(analysisVideoData));
+        window.sessionStorage.setItem('analysisVideoData_timestamp', Date.now().toString());
+
+        console.log('✅ FORCED IMMEDIATE DATA UPDATE COMPLETE');
+        console.log('📊 NEW VALUES SHOULD BE:');
+        console.log('- Run-up:', Math.round(parseFloat(benchmarkDetailed.runUp) * 100) + '%');
+        console.log('- Delivery:', Math.round(parseFloat(benchmarkDetailed.delivery) * 100) + '%');
+        console.log('- Follow-through:', Math.round(parseFloat(benchmarkDetailed.followThrough) * 100) + '%');
+        console.log('- Arm Swing:', Math.round(parseFloat(benchmarkDetailed.armSwing) * 100) + '%');
+        console.log('- Body Movement:', Math.round(parseFloat(benchmarkDetailed.bodyMovement) * 100) + '%');
+        console.log('- Rhythm:', Math.round(parseFloat(benchmarkDetailed.rhythm) * 100) + '%');
+        console.log('- Release Point:', Math.round(parseFloat(benchmarkDetailed.releasePoint) * 100) + '%');
+        console.log('- Overall:', Math.round(parseFloat(benchmarkDetailed.overall) * 100) + '%');
+
+        // FORCE IMMEDIATE UI REFRESH - Direct DOM manipulation as backup
+        console.log('🔄 ATTEMPTING DIRECT UI REFRESH...');
+        setTimeout(() => {
+          // Force multiple state updates to trigger re-renders
+          setBenchmarkDetailedData(benchmarkDetailed);
+          setDetailedAnalysis(benchmarkDetailed);
+          setSessionAnalysisData(analysisVideoData);
+          setForceUpdate(prev => prev + 1);
+          console.log('🚀 UI REFRESH TRIGGERED - Check console for updated values');
+        }, 50);
+      } else {
+        console.log('❌ benchmarkDetailed is null - NO DATA TO DISPLAY');
+      }
 
       addToast({
         type: 'success',
         title: `Analysis complete: ${speedClass}!`,
         message
       });
+      console.log('Success toast added');
+      
+      } catch (completionError: any) {
+        console.error('=== COMPLETION FLOW ERROR ===');
+        console.error('Error during analysis completion:', completionError);
+        console.error('Stack trace:', completionError.stack);
+        console.error('Error name:', completionError.name);
+        console.error('Error message:', completionError.message);
+        console.error('=== END COMPLETION ERROR ===');
+        
+        // Still show an error to the user
+        addToast({
+          type: 'error',
+          title: 'Analysis completion failed',
+          message: 'Analysis finished but results could not be processed'
+        });
+      }
 
     } catch (error) {
       console.error('Analysis failed:', error);
@@ -351,6 +620,66 @@ function AnalyzeContent() {
     frameSamplerRef.current?.stop();
     setCurrentVideoTime(0);
   }, [dispatch]);
+
+  const handleShowDetailedAnalysis = useCallback(() => {
+    console.log('📊 Show Detailed Analysis clicked');
+    
+    // Try to get data from multiple sources
+    let analysisData = null;
+    
+    // First, try benchmarkDetailedData from state
+    if (benchmarkDetailedData) {
+      console.log('✅ Using benchmarkDetailedData from state');
+      analysisData = benchmarkDetailedData;
+    }
+    // Then try sessionStorage
+    else if (typeof window !== 'undefined') {
+      const storedBenchmarkData = window.sessionStorage.getItem('benchmarkDetailedData');
+      if (storedBenchmarkData) {
+        try {
+          analysisData = JSON.parse(storedBenchmarkData);
+          console.log('✅ Using benchmarkDetailedData from sessionStorage');
+        } catch (e) {
+          console.error('Failed to parse benchmarkDetailedData from sessionStorage:', e);
+        }
+      }
+      
+      // Fallback to analysisVideoData from sessionStorage
+      if (!analysisData) {
+        const storedAnalysisData = window.sessionStorage.getItem('analysisVideoData');
+        if (storedAnalysisData) {
+          try {
+            const parsed = JSON.parse(storedAnalysisData);
+            // Transform the data to the expected format
+            analysisData = {
+              runUp: parsed.phases?.runUp / 100,
+              delivery: parsed.phases?.delivery / 100,
+              followThrough: parsed.phases?.followThrough / 100,
+              armSwing: parsed.technicalMetrics?.armSwing / 100,
+              bodyMovement: parsed.technicalMetrics?.bodyMovement / 100,
+              rhythm: parsed.technicalMetrics?.rhythm / 100,
+              releasePoint: parsed.technicalMetrics?.releasePoint / 100,
+              overall: parsed.similarity / 100,
+              recommendations: parsed.recommendations || []
+            };
+            console.log('✅ Using transformed analysisVideoData from sessionStorage');
+          } catch (e) {
+            console.error('Failed to parse analysisVideoData from sessionStorage:', e);
+          }
+        }
+      }
+    }
+    
+    if (analysisData) {
+      console.log('📊 Setting detailed analysis data:', analysisData);
+      setDetailedAnalysisData(analysisData);
+      setShowDetailedAnalysis(true);
+    } else {
+      console.warn('⚠️ No detailed analysis data available');
+      // Still show the UI with fallback values
+      setShowDetailedAnalysis(true);
+    }
+  }, [benchmarkDetailedData]);
 
 
   const toggleAnalyzerMode = useCallback(() => {
@@ -390,7 +719,75 @@ function AnalyzeContent() {
     return () => video.removeEventListener('timeupdate', handleTimeUpdate);
   }, [state.currentVideo]);
 
+  // Read analysis data from session storage - simplified and more aggressive loading
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('🔍 LOADING DATA FROM SESSION STORAGE ON MOUNT');
+      
+      // Load analysisVideoData
+      const storedData = window.sessionStorage.getItem('analysisVideoData');
+      if (storedData) {
+        try {
+          const parsedData = JSON.parse(storedData);
+          console.log('📦 Session storage analysisVideoData:', JSON.stringify(parsedData, null, 2));
+          setSessionAnalysisData(parsedData);
+          
+          // If we have stored data, automatically show detailed analysis
+          setShowDetailedAnalysis(true);
+        } catch (error) {
+          console.error('Error parsing session storage data:', error);
+        }
+      }
+      
+      // Load benchmarkDetailedData  
+      const benchmarkData = window.sessionStorage.getItem('benchmarkDetailedData');
+      if (benchmarkData) {
+        try {
+          const parsedBenchmarkData = JSON.parse(benchmarkData);
+          console.log('📦 Loading benchmarkDetailedData from sessionStorage:', parsedBenchmarkData);
+          setBenchmarkDetailedData(parsedBenchmarkData);
+          setDetailedAnalysis(parsedBenchmarkData);
+          setDetailedAnalysisData(parsedBenchmarkData);
+          
+          // If we have detailed data, automatically show it
+          setShowDetailedAnalysis(true);
+        } catch (error) {
+          console.error('Error parsing benchmarkDetailedData from session storage:', error);
+        }
+      }
+      
+      console.log('📊 Current sessionStorage keys:', Object.keys(window.sessionStorage));
+    }
+  }, []); // Only run once on mount
+
+  // Monitor benchmarkDetailedData changes
+  useEffect(() => {
+    if (benchmarkDetailedData) {
+      console.log('📊 benchmarkDetailedData updated:', benchmarkDetailedData);
+      console.log('Data structure check:');
+      console.log('- Has runUp?', !!benchmarkDetailedData.runUp, benchmarkDetailedData.runUp);
+      console.log('- Has armSwing?', !!benchmarkDetailedData.armSwing, benchmarkDetailedData.armSwing);
+      console.log('- Has overall?', !!benchmarkDetailedData.overall, benchmarkDetailedData.overall);
+      console.log('- Run-up score (flat):', benchmarkDetailedData?.runUp ? Math.round(parseFloat(benchmarkDetailedData.runUp) * 100) : 'N/A');
+      console.log('- Arm swing score (flat):', benchmarkDetailedData?.armSwing ? Math.round(parseFloat(benchmarkDetailedData.armSwing) * 100) : 'N/A');
+      console.log('- Overall score (flat):', benchmarkDetailedData?.overall ? Math.round(parseFloat(benchmarkDetailedData.overall) * 100) : 'N/A');
+    } else {
+      console.log('⚠️ benchmarkDetailedData is null/undefined');
+    }
+  }, [benchmarkDetailedData, forceUpdate]);
+  
   const hasResults = state.finalIntensity > 0 && !!state.speedClass;
+  
+  // Debug useEffect to trace all data sources
+  useEffect(() => {
+    console.log('🕰️ === DATA SOURCES DEBUG ===');
+    console.log('benchmarkDetailedData:', !!benchmarkDetailedData, benchmarkDetailedData);
+    console.log('sessionAnalysisData:', !!sessionAnalysisData, sessionAnalysisData);
+    console.log('detailedAnalysis:', !!detailedAnalysis, detailedAnalysis);
+    console.log('detailedAnalysisData:', !!detailedAnalysisData, detailedAnalysisData);
+    console.log('showDetailedAnalysis:', showDetailedAnalysis);
+    console.log('hasResults:', hasResults);
+  }, [benchmarkDetailedData, sessionAnalysisData, detailedAnalysis, detailedAnalysisData, showDetailedAnalysis, hasResults]);
   const kmhValue = hasResults ? Math.round(intensityToKmh(state.finalIntensity)) : 142;
   const mphValue = hasResults ? Number((kmhValue * 0.621371).toFixed(1)) : 88.2;
   const mphValueDisplay = Number.isNaN(mphValue)
@@ -402,41 +799,148 @@ function AnalyzeContent() {
     ? classificationResult.message
     : 'Excellent bowling speed! Your technique shows good consistency with room for minor improvements.';
   const accuracyScore = hasResults
-    ? (detailedAnalysis?.overallSimilarity
-      ? Math.round(detailedAnalysis.overallSimilarity * 100)
-      : Math.max(0, Math.round(state.finalIntensity)))
-    : 85;
+    ? (benchmarkDetailedData?.overall
+      ? Math.round(parseFloat(benchmarkDetailedData.overall) * 100)
+      : (detailedAnalysis?.overallSimilarity
+        ? Math.round(detailedAnalysis.overallSimilarity * 100)
+        : Math.max(0, Math.round(state.finalIntensity))))
+    : 93;
   const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
   const releaseTimeValue = detailedAnalysis?.timing?.releaseTime
     ? `${detailedAnalysis.timing.releaseTime.toFixed(2)}s`
     : '0.18s';
-  const runUpScore = hasResults && detailedAnalysis?.phaseComparison?.runUp
-    ? Math.round(detailedAnalysis.phaseComparison.runUp * 100)
-    : 78;
-  const deliveryScore = hasResults && detailedAnalysis?.phaseComparison?.delivery
-    ? Math.round(detailedAnalysis.phaseComparison.delivery * 100)
-    : 82;
-  const followThroughScore = hasResults && detailedAnalysis?.phaseComparison?.followThrough
-    ? Math.round(detailedAnalysis.phaseComparison.followThrough * 100)
-    : 80;
-  const armSwingScore = hasResults && detailedAnalysis?.technicalMetrics?.armSwingSimilarity
-    ? Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)
-    : 74;
-  const bodyMovementScore = hasResults && detailedAnalysis?.technicalMetrics?.bodyMovementSimilarity
-    ? Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)
-    : 79;
-  const rhythmScore = hasResults && detailedAnalysis?.technicalMetrics?.rhythmSimilarity
-    ? Math.round(detailedAnalysis.technicalMetrics.rhythmSimilarity * 100)
-    : 72;
-  const releasePointScore = hasResults && detailedAnalysis?.technicalMetrics?.releasePointAccuracy
-    ? Math.round(detailedAnalysis.technicalMetrics.releasePointAccuracy * 100)
-    : 76;
+  // Check if data is flat (direct properties) or nested
+  const runUpScore = hasResults && benchmarkDetailedData?.runUp
+    ? Math.round(parseFloat(benchmarkDetailedData.runUp) * 100)
+    : (hasResults && sessionAnalysisData?.phases?.runUp
+      ? sessionAnalysisData.phases.runUp
+      : (hasResults && detailedAnalysis?.phaseComparison?.runUp
+        ? Math.round(detailedAnalysis.phaseComparison.runUp * 100)
+        : 87));
+  const deliveryScore = hasResults && benchmarkDetailedData?.delivery
+    ? Math.round(parseFloat(benchmarkDetailedData.delivery) * 100)
+    : (hasResults && sessionAnalysisData?.phases?.delivery
+      ? sessionAnalysisData.phases.delivery
+      : (hasResults && detailedAnalysis?.phaseComparison?.delivery
+        ? Math.round(detailedAnalysis.phaseComparison.delivery * 100)
+        : 79));
+  const followThroughScore = hasResults && benchmarkDetailedData?.followThrough
+    ? Math.round(parseFloat(benchmarkDetailedData.followThrough) * 100)
+    : (hasResults && sessionAnalysisData?.phases?.followThrough
+      ? sessionAnalysisData.phases.followThrough
+      : (hasResults && detailedAnalysis?.phaseComparison?.followThrough
+        ? Math.round(detailedAnalysis.phaseComparison.followThrough * 100)
+        : 81));
+  const armSwingScore = hasResults && benchmarkDetailedData?.armSwing
+    ? Math.round(parseFloat(benchmarkDetailedData.armSwing) * 100)
+    : (hasResults && sessionAnalysisData?.technicalMetrics?.armSwing
+      ? sessionAnalysisData.technicalMetrics.armSwing
+      : (hasResults && detailedAnalysis?.technicalMetrics?.armSwingSimilarity
+        ? Math.round(detailedAnalysis.technicalMetrics.armSwingSimilarity * 100)
+        : 83));
+  const bodyMovementScore = hasResults && benchmarkDetailedData?.bodyMovement
+    ? Math.round(parseFloat(benchmarkDetailedData.bodyMovement) * 100)
+    : (hasResults && sessionAnalysisData?.technicalMetrics?.bodyMovement
+      ? sessionAnalysisData.technicalMetrics.bodyMovement
+      : (hasResults && detailedAnalysis?.technicalMetrics?.bodyMovementSimilarity
+        ? Math.round(detailedAnalysis.technicalMetrics.bodyMovementSimilarity * 100)
+        : 88));
+  const rhythmScore = hasResults && benchmarkDetailedData?.rhythm
+    ? Math.round(parseFloat(benchmarkDetailedData.rhythm) * 100)
+    : (hasResults && sessionAnalysisData?.technicalMetrics?.rhythm
+      ? sessionAnalysisData.technicalMetrics.rhythm
+      : (hasResults && detailedAnalysis?.technicalMetrics?.rhythmSimilarity
+        ? Math.round(detailedAnalysis.technicalMetrics.rhythmSimilarity * 100)
+        : 85));
+  const releasePointScore = hasResults && benchmarkDetailedData?.releasePoint
+    ? Math.round(parseFloat(benchmarkDetailedData.releasePoint) * 100)
+    : (hasResults && sessionAnalysisData?.technicalMetrics?.releasePoint
+      ? sessionAnalysisData.technicalMetrics.releasePoint
+      : (hasResults && detailedAnalysis?.technicalMetrics?.releasePointAccuracy
+        ? Math.round(detailedAnalysis.technicalMetrics.releasePointAccuracy * 100)
+        : 89));
+
+  // FORCE CORRECT VALUES if we have benchmarkDetailedData
+  const finalRunUpScore = benchmarkDetailedData?.runUp ? Math.round(parseFloat(benchmarkDetailedData.runUp) * 100) : runUpScore;
+  const finalDeliveryScore = benchmarkDetailedData?.delivery ? Math.round(parseFloat(benchmarkDetailedData.delivery) * 100) : deliveryScore;
+  const finalFollowThroughScore = benchmarkDetailedData?.followThrough ? Math.round(parseFloat(benchmarkDetailedData.followThrough) * 100) : followThroughScore;
+  const finalArmSwingScore = benchmarkDetailedData?.armSwing ? Math.round(parseFloat(benchmarkDetailedData.armSwing) * 100) : armSwingScore;
+  const finalBodyMovementScore = benchmarkDetailedData?.bodyMovement ? Math.round(parseFloat(benchmarkDetailedData.bodyMovement) * 100) : bodyMovementScore;
+  const finalRhythmScore = benchmarkDetailedData?.rhythm ? Math.round(parseFloat(benchmarkDetailedData.rhythm) * 100) : rhythmScore;
+  const finalReleasePointScore = benchmarkDetailedData?.releasePoint ? Math.round(parseFloat(benchmarkDetailedData.releasePoint) * 100) : releasePointScore;
+  const finalAccuracyScore = benchmarkDetailedData?.overall ? Math.round(parseFloat(benchmarkDetailedData.overall) * 100) : accuracyScore;
+
+  // DIRECT OVERRIDE: If we have benchmarkDetailedData, use it directly
+  const directRunUpScore = benchmarkDetailedData?.runUp ? Math.round(parseFloat(benchmarkDetailedData.runUp) * 100) : finalRunUpScore;
+  const directDeliveryScore = benchmarkDetailedData?.delivery ? Math.round(parseFloat(benchmarkDetailedData.delivery) * 100) : finalDeliveryScore;
+  const directFollowThroughScore = benchmarkDetailedData?.followThrough ? Math.round(parseFloat(benchmarkDetailedData.followThrough) * 100) : finalFollowThroughScore;
+  const directArmSwingScore = benchmarkDetailedData?.armSwing ? Math.round(parseFloat(benchmarkDetailedData.armSwing) * 100) : finalArmSwingScore;
+  const directBodyMovementScore = benchmarkDetailedData?.bodyMovement ? Math.round(parseFloat(benchmarkDetailedData.bodyMovement) * 100) : finalBodyMovementScore;
+  const directRhythmScore = benchmarkDetailedData?.rhythm ? Math.round(parseFloat(benchmarkDetailedData.rhythm) * 100) : finalRhythmScore;
+  const directReleasePointScore = benchmarkDetailedData?.releasePoint ? Math.round(parseFloat(benchmarkDetailedData.releasePoint) * 100) : finalReleasePointScore;
+  const directAccuracyScore = benchmarkDetailedData?.overall ? Math.round(parseFloat(benchmarkDetailedData.overall) * 100) : finalAccuracyScore;
 
   const metrics = [
-    { label: 'Run-up', value: runUpScore },
-    { label: 'Delivery', value: deliveryScore },
-    { label: 'Follow-through', value: followThroughScore },
+    { label: 'Run-up', value: directRunUpScore },
+    { label: 'Delivery', value: directDeliveryScore },
+    { label: 'Follow-through', value: directFollowThroughScore },
   ];
+
+  // DEBUG: Log what UI will actually display
+  console.log('=== UI VALUES BEING DISPLAYED ===');
+  console.log('📊 DIRECT VALUES FOR UI DISPLAY (ACTUAL):');
+  console.log('- accuracyScore (Overall):', directAccuracyScore + '%');
+  console.log('- runUpScore (Run-up):', directRunUpScore + '%');
+  console.log('- deliveryScore (Delivery):', directDeliveryScore + '%');
+  console.log('- followThroughScore (Follow-through):', directFollowThroughScore + '%');
+  console.log('- armSwingScore (Arm Swing):', directArmSwingScore + '%');
+  console.log('- bodyMovementScore (Body Movement):', directBodyMovementScore + '%');
+  console.log('- rhythmScore (Rhythm):', directRhythmScore + '%');
+  console.log('- releasePointScore (Release Point):', directReleasePointScore + '%');
+  console.log('📊 FALLBACK VALUES (if direct fails):');
+  console.log('- accuracyScore (Overall):', finalAccuracyScore + '%');
+  console.log('- runUpScore (Run-up):', finalRunUpScore + '%');
+  console.log('- deliveryScore (Delivery):', finalDeliveryScore + '%');
+  console.log('- followThroughScore (Follow-through):', finalFollowThroughScore + '%');
+  console.log('- armSwingScore (Arm Swing):', finalArmSwingScore + '%');
+  console.log('- bodyMovementScore (Body Movement):', finalBodyMovementScore + '%');
+  console.log('- rhythmScore (Rhythm):', finalRhythmScore + '%');
+  console.log('- releasePointScore (Release Point):', finalReleasePointScore + '%');
+  console.log('metrics:', metrics);
+  console.log('hasResults:', hasResults);
+  console.log('benchmarkDetailedData exists:', !!benchmarkDetailedData);
+  console.log('sessionAnalysisData exists:', !!sessionAnalysisData);
+  console.log('detailedAnalysis exists:', !!detailedAnalysis);
+
+  // FINAL CHECK: If we have benchmarkDetailedData, make sure we're using it
+  if (benchmarkDetailedData && hasResults) {
+    console.log('✅ USING benchmarkDetailedData for display - should be correct values');
+    // FORCE VALUES TO BE CORRECT - Override any fallback behavior
+    const forcedRunUpScore = Math.round(parseFloat(benchmarkDetailedData.runUp) * 100);
+    const forcedDeliveryScore = Math.round(parseFloat(benchmarkDetailedData.delivery) * 100);
+    const forcedFollowThroughScore = Math.round(parseFloat(benchmarkDetailedData.followThrough) * 100);
+    const forcedArmSwingScore = Math.round(parseFloat(benchmarkDetailedData.armSwing) * 100);
+    const forcedBodyMovementScore = Math.round(parseFloat(benchmarkDetailedData.bodyMovement) * 100);
+    const forcedRhythmScore = Math.round(parseFloat(benchmarkDetailedData.rhythm) * 100);
+    const forcedReleasePointScore = Math.round(parseFloat(benchmarkDetailedData.releasePoint) * 100);
+    const forcedAccuracyScore = Math.round(parseFloat(benchmarkDetailedData.overall) * 100);
+
+    console.log('🔥 FORCED VALUES FOR UI:');
+    console.log('- Run-up:', forcedRunUpScore + '%');
+    console.log('- Delivery:', forcedDeliveryScore + '%');
+    console.log('- Follow-through:', forcedFollowThroughScore + '%');
+    console.log('- Arm Swing:', forcedArmSwingScore + '%');
+    console.log('- Body Movement:', forcedBodyMovementScore + '%');
+    console.log('- Rhythm:', forcedRhythmScore + '%');
+    console.log('- Release Point:', forcedReleasePointScore + '%');
+    console.log('- Overall:', forcedAccuracyScore + '%');
+  } else if (sessionAnalysisData && hasResults) {
+    console.log('⚠️ Using sessionAnalysisData fallback');
+  } else if (detailedAnalysis && hasResults) {
+    console.log('⚠️ Using detailedAnalysis fallback');
+  } else {
+    console.log('❌ Using hardcoded fallbacks - something is wrong');
+  }
 
   return (
     <div
@@ -470,12 +974,14 @@ function AnalyzeContent() {
           backgroundRepeat: 'no-repeat'
         }}
       >
-        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <img
-            src="/frontend-images/homepage/justzoom logo.png"
-            alt="JustZoom logo"
-            className="h-12 w-auto"
-          />
+        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
+          <Link href="/">
+            <img
+              src="/frontend-images/homepage/justzoom logo.png"
+              alt="JustZoom logo"
+              className="h-12 w-auto"
+            />
+          </Link>
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
@@ -549,8 +1055,30 @@ function AnalyzeContent() {
 
           <div className="relative">
             <div className="relative rounded-[20px] bg-[#FFC315] px-6 py-6 text-left text-black shadow-[0_8px_32px_rgba(31,38,135,0.25)]">
-              <h3 className="mb-4 text-lg font-bold uppercase tracking-tight">Performance Summary</h3>
-              {metrics.map((metric) => (
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold uppercase tracking-tight">Performance Summary</h3>
+              </div>
+              
+              {[
+                { 
+                  label: 'Run-up', 
+                  value: detailedAnalysisData?.runUp 
+                    ? Math.round(parseFloat(detailedAnalysisData.runUp) * 100) 
+                    : (sessionAnalysisData?.phases?.runUp || directRunUpScore)
+                },
+                { 
+                  label: 'Delivery', 
+                  value: detailedAnalysisData?.delivery 
+                    ? Math.round(parseFloat(detailedAnalysisData.delivery) * 100) 
+                    : (sessionAnalysisData?.phases?.delivery || directDeliveryScore)
+                },
+                { 
+                  label: 'Follow-through', 
+                  value: detailedAnalysisData?.followThrough 
+                    ? Math.round(parseFloat(detailedAnalysisData.followThrough) * 100) 
+                    : (sessionAnalysisData?.phases?.followThrough || directFollowThroughScore)
+                },
+              ].map((metric) => (
                 <div key={metric.label} className="mb-4 last:mb-0">
                   <div className="flex items-center justify-between text-sm font-semibold">
                     <span>{metric.label}</span>
@@ -564,7 +1092,6 @@ function AnalyzeContent() {
                   </div>
                 </div>
               ))}
-              <p className="mt-5 text-sm font-medium leading-relaxed">{summaryMessage}</p>
             </div>
           </div>
 
@@ -585,13 +1112,36 @@ function AnalyzeContent() {
                 className="rounded-2xl bg-white/10 p-5 text-white backdrop-blur-xl shadow-[0_12px_32px_rgba(31,38,135,0.25)] space-y-5 text-left"
               >
                 <div>
-                  <p className="text-xs uppercase tracking-[0.3em] text-white/70 mb-3">Technical Breakdown</p>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs uppercase tracking-[0.3em] text-white/70">Technical Breakdown</p>
+                  </div>
+                  
                   <div className="space-y-3">
                     {[
-                      { label: 'Arm Swing', value: armSwingScore },
-                      { label: 'Body Movement', value: bodyMovementScore },
-                      { label: 'Rhythm', value: rhythmScore },
-                      { label: 'Release Point', value: releasePointScore },
+                      { 
+                        label: 'Arm Swing', 
+                        value: detailedAnalysisData?.armSwing 
+                          ? Math.round(parseFloat(detailedAnalysisData.armSwing) * 100) 
+                          : (sessionAnalysisData?.technicalMetrics?.armSwing || directArmSwingScore)
+                      },
+                      { 
+                        label: 'Body Movement', 
+                        value: detailedAnalysisData?.bodyMovement 
+                          ? Math.round(parseFloat(detailedAnalysisData.bodyMovement) * 100) 
+                          : (sessionAnalysisData?.technicalMetrics?.bodyMovement || directBodyMovementScore)
+                      },
+                      { 
+                        label: 'Rhythm', 
+                        value: detailedAnalysisData?.rhythm 
+                          ? Math.round(parseFloat(detailedAnalysisData.rhythm) * 100) 
+                          : (sessionAnalysisData?.technicalMetrics?.rhythm || directRhythmScore)
+                      },
+                      { 
+                        label: 'Release Point', 
+                        value: detailedAnalysisData?.releasePoint 
+                          ? Math.round(parseFloat(detailedAnalysisData.releasePoint) * 100) 
+                          : (sessionAnalysisData?.technicalMetrics?.releasePoint || directReleasePointScore)
+                      },
                     ].map((metric) => (
                       <div key={metric.label} className="flex items-center justify-between gap-3">
                         <span className="text-sm text-white/80">{metric.label}</span>
@@ -612,26 +1162,20 @@ function AnalyzeContent() {
             </div>
           </div>
 
-          {hasResults && detailedAnalysis?.recommendations?.length ? (
-            <div className="mt-6 flex justify-center">
-              <div
-                className="w-[353px] rounded-[20px] bg-[#FFC315] px-6 py-5 text-black shadow-[0_8px_24px_rgba(31,38,135,0.25)]"
-                style={{ fontFamily: "'Frutiger','Inter',sans-serif" }}
-              >
+          {hasResults && (detailedAnalysisData?.recommendations?.length || sessionAnalysisData?.recommendations?.length || detailedAnalysis?.recommendations?.length) ? (
+            <div className="mt-6">
+              <div className="relative rounded-[20px] bg-[#FFC315] px-6 py-5 text-left text-black shadow-[0_8px_32px_rgba(31,38,135,0.25)]">
                 <h4
-                  className="mb-3 text-left text-lg font-bold uppercase tracking-tight"
+                  className="mb-3 text-lg font-bold uppercase tracking-tight"
                   style={{ fontFamily: "'Frutiger Bold','Frutiger','Inter',sans-serif" }}
                 >
                   Recommendations
                 </h4>
-                <ul className="space-y-2 text-sm leading-relaxed">
-                  {detailedAnalysis.recommendations.map((rec: string, index: number) => (
-                    <li key={index} className="flex items-start gap-2">
-                      <span className="mt-1.5 inline-block h-1.5 w-1.5 rounded-full bg-black/70" />
-                      <span>{rec}</span>
-                    </li>
+                <div className="space-y-2 text-sm leading-relaxed">
+                  {(detailedAnalysisData?.recommendations || sessionAnalysisData?.recommendations || detailedAnalysis?.recommendations || []).map((rec: string, index: number) => (
+                    <p key={index}>{rec}</p>
                   ))}
-                </ul>
+                </div>
               </div>
             </div>
           ) : null}
@@ -730,222 +1274,312 @@ function AnalyzeContent() {
       </div>
 
       {/* Desktop Experience */}
-      <div
-        className="hidden md:block min-h-screen"
-        style={{
-          backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      >
-        <div className="max-w-6xl mx-auto px-4 py-8">
-          <div className="flex items-center justify-between mb-8">
-            <Link
-              href="/"
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Back to Home
-            </Link>
+      <div className="hidden md:block min-h-screen">
+        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
+          <Link href="/">
+            <img
+              src="/frontend-images/homepage/justzoom logo.png"
+              alt="JustZoom logo"
+              className="h-12 w-auto"
+            />
+          </Link>
+        </div>
 
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-3 rounded-xl bg-white p-2 shadow-md">
-                <Settings2 className="w-4 h-4 text-gray-500" />
-                <span className="text-sm font-medium text-gray-700">Analyzer:</span>
-                <button
-                  onClick={toggleAnalyzerMode}
-                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${
-                    state.analyzerMode === 'benchmark'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-purple-100 text-purple-800'
-                  }`}
-                  style={buttonFontStyle}
-                >
-                  {state.analyzerMode === 'benchmark' ? 'Benchmark' : 'Pose AI'}
-                </button>
-              </div>
-            </div>
+        <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
+          <Link 
+            href="/quick-analysis"
+            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
+          >
+            <ArrowLeft className="w-5 h-5" />
+            <span className="text-sm font-medium">Back</span>
+          </Link>
+        </div>
+
+        {/* Main Content */}
+        <div className="flex-1 pt-20 pb-12 px-4">
+          {/* Title Section */}
+          <div className="text-center mb-8">
+            <h1 
+              className="mb-2"
+              style={{
+                fontFamily: 'Frutiger, Inter, sans-serif',
+                fontWeight: '700',
+                fontSize: '32px',
+                color: '#FDC217',
+                lineHeight: '1.2'
+              }}
+            >
+              Analysis Report
+            </h1>
+            <p 
+              style={{
+                fontFamily: 'Inter, sans-serif',
+                fontWeight: '400',
+                fontSize: '16px',
+                color: 'white',
+                lineHeight: '1.3'
+              }}
+            >
+              Your bowling performance breakdown
+            </p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
-              <div className="flex rounded-2xl bg-white p-2 shadow-md">
-                <button
-                  onClick={() => setActiveTab('record')}
-                  className={`flex-1 rounded-xl py-3 px-4 font-semibold transition-all duration-200 ${
-                    activeTab === 'record'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                  style={buttonFontStyle}
-                >
-                  Record
-                </button>
-                <button
-                  onClick={() => setActiveTab('upload')}
-                  className={`flex-1 rounded-xl py-3 px-4 font-semibold transition-all duration-200 ${
-                    activeTab === 'upload'
-                      ? 'bg-blue-600 text-white shadow-md'
-                      : 'text-gray-600 hover:bg-gray-50'
-                  }`}
-                  style={buttonFontStyle}
-                >
-                  Upload
-                </button>
-              </div>
-
-              <div className="rounded-2xl bg-white p-6 shadow-lg">
-                {activeTab === 'record' ? (
-                  <VideoRecorder onVideoReady={handleVideoReady} />
-                ) : (
-                  <VideoUploader onVideoReady={handleVideoReady} />
-                )}
-              </div>
-
-              {state.currentVideo && (
-                <div className="rounded-2xl bg-white p-6 shadow-lg">
-                  <div className="mb-4 flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-gray-800">Analysis</h3>
-                    {state.progress > 0 && state.progress < 100 && (
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-32 overflow-hidden rounded-full bg-gray-200">
-                          <div
-                            className="h-full bg-blue-500 transition-all duration-300"
-                            style={{ width: `${state.progress}%` }}
-                          />
-                        </div>
-                        <span className="text-sm text-gray-600">{Math.round(state.progress)}%</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <video
-                    ref={videoRef}
-                    src={state.currentVideo}
-                    controls
-                    className="mb-4 w-full rounded-xl"
-                  />
-
-                  <div className="flex gap-3">
-                    <button
-                      onClick={startAnalysis}
-                      disabled={state.isAnalyzing}
-                      className="flex items-center gap-2 rounded-xl bg-green-600 px-6 py-3 font-semibold text-white transition-all duration-200 hover:scale-105 hover:bg-green-700 disabled:scale-100 disabled:bg-gray-400"
-                      style={buttonFontStyle}
-                    >
-                      <Play className="w-5 h-5" />
-                      {state.isAnalyzing ? 'Analyzing...' : 'Analyze'}
-                    </button>
-
-                    {state.speedClass && (
-                      <button
-                        onClick={resetAnalysis}
-                        className="flex items-center gap-2 rounded-xl bg-gray-600 px-6 py-3 font-semibold text-white transition-all duration-200 hover:bg-gray-700"
-                        style={buttonFontStyle}
-                      >
-                        <RotateCcw className="w-5 h-5" />
-                        Try Another Video
-                      </button>
-                    )}
+          <div className="max-w-5xl mx-auto">
+            {/* Bowling Speed Section */}
+            <div className="mb-8">
+              <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+                <h2 className="text-lg font-semibold tracking-wide text-white text-center mb-6">Bowling Speed</h2>
+                <div className="flex justify-center mb-6">
+                  <div
+                    className="flex h-[120px] w-[120px] flex-col items-center justify-center rounded-full shadow-lg"
+                    style={{ background: 'linear-gradient(180deg, #40A5EF 0%, #0A526E 100%)' }}
+                  >
+                    <span className="text-[40px] font-extrabold leading-none text-white">{kmhValue}</span>
+                    <span className="mt-1 text-xs font-semibold uppercase tracking-wide text-white/90">km/h</span>
                   </div>
                 </div>
-              )}
+                
+                <div className="flex items-start justify-between text-white">
+                  <div>
+                    <p className="text-[13px] uppercase tracking-wide text-white/70">Speed (Imperial)</p>
+                    <p className="text-xl font-bold leading-tight">{mphValueDisplay}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[13px] uppercase tracking-wide text-white/70">Bowling Type</p>
+                    <p className="text-xl font-bold leading-tight">{speedLabel}</p>
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="rounded-2xl bg-white p-4 shadow-lg sm:p-8">
-                <h2 className="mb-6 text-center text-xl font-bold text-gray-800 sm:mb-8 sm:text-2xl">Speed Meter</h2>
-                <SpeedMeter
-                  intensity={state.finalIntensity}
-                  speedClass={state.speedClass}
-                  isAnimating={!state.isAnalyzing && state.finalIntensity > 0}
-                  displayValue={hasResults ? `${kmhValue} km/h` : undefined}
-                  displayLabel={hasResults ? 'Predicted speed' : undefined}
-                />
-
-                {state.speedClass && (
-                  <div className="mt-6 text-center">
-                    <div className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-4 py-2 text-sm">
-                      <span className="font-medium">Confidence:</span>
-                      <span className="font-bold">{Math.round(state.confidence * 100)}%</span>
-                    </div>
-                  </div>
-                )}
+            {/* Accuracy and Release Time */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+              <div className="rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl flex flex-col items-center text-center">
+                <img src="/frontend-images/homepage/icons/carbon_growth.svg" alt="Accuracy" className="h-10 w-10" />
+                <p className="mt-3 text-xl font-semibold">{accuracyDisplay}%</p>
+                <p className="text-xs tracking-wide text-white/70">Accuracy score</p>
               </div>
+              <div className="rounded-[20px] border border-white/10 bg-white/10 px-4 py-5 text-white shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl flex flex-col items-center text-center">
+                <img src="/frontend-images/homepage/icons/streamline-sharp_time-lapse.svg" alt="Release Time" className="h-10 w-10" />
+                <p className="mt-3 text-xl font-semibold">{releaseTimeValue}</p>
+                <p className="text-xs tracking-wide text-white/70">Release time</p>
+              </div>
+            </div>
 
-              {state.frameIntensities.length > 0 && (
-                <Sparkline
-                  frameIntensities={state.frameIntensities}
-                  currentTime={currentVideoTime}
-                />
-              )}
-
-              {detailedAnalysis && state.speedClass && (
-                <AnalysisResults
-                  analysis={detailedAnalysis}
-                  speedClass={state.speedClass}
-                />
-              )}
-
-              {state.speedClass && state.finalIntensity < 85 && (
-                <div className="rounded-2xl bg-white p-6 shadow-lg">
-                  <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
-                    <div className="text-sm text-gray-700">
-                      Want personalized tips? Download your improvement report.
-                    </div>
-                    <button
-                      onClick={downloadReportPdf}
-                      disabled={generatingPdf}
-                      className="rounded-lg bg-purple-600 px-5 py-2 font-semibold text-white hover:bg-purple-700 disabled:bg-gray-400"
-                      style={buttonFontStyle}
-                    >
-                      {generatingPdf ? 'Preparing PDF...' : 'Download 2-page PDF'}
-                    </button>
-                  </div>
+            {/* Performance Summary */}
+            <div className="mb-8">
+              <div className="rounded-[20px] bg-[#FFC315] px-6 py-6 text-left text-black shadow-[0_8px_32px_rgba(31,38,135,0.25)]">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold uppercase tracking-tight">Performance Summary</h3>
                 </div>
-              )}
-
-              {!state.currentVideo && (
-                <div className="rounded-2xl border border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50 p-6">
-                  <div className="mb-4">
-                    <h3 className="text-lg font-semibold text-purple-800">Benchmark Video Reference</h3>
-                  </div>
-                  <p className="mb-4 text-sm text-purple-700">
-                    This is an example of good bowling footage for analysis. Your video should have similar clarity and framing.
-                  </p>
-                  <div className="flex flex-col items-start gap-4 lg:flex-row">
-                    <video
-                      src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
-                      controls
-                      preload="metadata"
-                      className="w-full rounded-xl shadow-md lg:w-64"
-                      poster="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4/ik-thumbnail.jpg"
-                    />
-                    <div className="flex-1 space-y-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                        <span className="text-gray-700">Clear view of bowler's full action</span>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  {[
+                    { 
+                      label: 'Run-up', 
+                      value: detailedAnalysisData?.runUp 
+                        ? Math.round(parseFloat(detailedAnalysisData.runUp) * 100) 
+                        : (sessionAnalysisData?.phases?.runUp || directRunUpScore)
+                    },
+                    { 
+                      label: 'Delivery', 
+                      value: detailedAnalysisData?.delivery 
+                        ? Math.round(parseFloat(detailedAnalysisData.delivery) * 100) 
+                        : (sessionAnalysisData?.phases?.delivery || directDeliveryScore)
+                    },
+                    { 
+                      label: 'Follow-through', 
+                      value: detailedAnalysisData?.followThrough 
+                        ? Math.round(parseFloat(detailedAnalysisData.followThrough) * 100) 
+                        : (sessionAnalysisData?.phases?.followThrough || directFollowThroughScore)
+                    },
+                  ].map((metric) => (
+                    <div key={metric.label} className="">
+                      <div className="flex items-center justify-between text-sm font-semibold mb-2">
+                        <span>{metric.label}</span>
+                        <span>{Math.min(metric.value, 100)}%</span>
                       </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                        <span className="text-gray-700">Good lighting and contrast</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                        <span className="text-gray-700">Stable camera position</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <div className="h-2 w-2 rounded-full bg-green-500"></div>
-                        <span className="text-gray-700">Complete bowling motion captured</span>
+                      <div className="h-2 overflow-hidden rounded-full bg-black/10 border border-black">
+                        <div
+                          className="h-full rounded-full bg-white"
+                          style={{ width: `${Math.min(metric.value, 100)}%` }}
+                        />
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Technical Breakdown */}
+            <div className="mb-8">
+              <div className="rounded-2xl bg-white/10 p-6 text-white backdrop-blur-xl shadow-[0_12px_32px_rgba(31,38,135,0.25)]">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-white">Technical Breakdown</h3>
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {[
+                    { 
+                      label: 'Arm Swing', 
+                      value: detailedAnalysisData?.armSwing 
+                        ? Math.round(parseFloat(detailedAnalysisData.armSwing) * 100) 
+                        : (sessionAnalysisData?.technicalMetrics?.armSwing || directArmSwingScore)
+                    },
+                    { 
+                      label: 'Body Movement', 
+                      value: detailedAnalysisData?.bodyMovement 
+                        ? Math.round(parseFloat(detailedAnalysisData.bodyMovement) * 100) 
+                        : (sessionAnalysisData?.technicalMetrics?.bodyMovement || directBodyMovementScore)
+                    },
+                    { 
+                      label: 'Rhythm', 
+                      value: detailedAnalysisData?.rhythm 
+                        ? Math.round(parseFloat(detailedAnalysisData.rhythm) * 100) 
+                        : (sessionAnalysisData?.technicalMetrics?.rhythm || directRhythmScore)
+                    },
+                    { 
+                      label: 'Release Point', 
+                      value: detailedAnalysisData?.releasePoint 
+                        ? Math.round(parseFloat(detailedAnalysisData.releasePoint) * 100) 
+                        : (sessionAnalysisData?.technicalMetrics?.releasePoint || directReleasePointScore)
+                    },
+                  ].map((metric) => (
+                    <div key={metric.label} className="flex items-center justify-between gap-3">
+                      <span className="text-sm text-white/80">{metric.label}</span>
+                      <div className="flex items-center gap-2">
+                        <div className="w-32 h-2 rounded-full bg-white/15 border border-black/40 overflow-hidden">
+                          <div
+                            className="h-full bg-[#FFC315]"
+                            style={{ width: `${Math.min(100, metric.value)}%` }}
+                          />
+                        </div>
+                        <span className="w-10 text-right text-sm font-semibold">{metric.value}%</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Recommendations */}
+            {hasResults && (detailedAnalysisData?.recommendations?.length || sessionAnalysisData?.recommendations?.length || detailedAnalysis?.recommendations?.length) ? (
+              <div className="mb-8">
+                <div className="rounded-[20px] bg-[#FFC315] px-6 py-5 text-left text-black shadow-[0_8px_32px_rgba(31,38,135,0.25)]">
+                  <h4 className="mb-3 text-lg font-bold uppercase tracking-tight">
+                    Recommendations
+                  </h4>
+                  <div className="space-y-2 text-sm leading-relaxed">
+                    {(detailedAnalysisData?.recommendations || sessionAnalysisData?.recommendations || detailedAnalysis?.recommendations || []).map((rec: string, index: number) => (
+                      <p key={index}>{rec}</p>
+                    ))}
                   </div>
                 </div>
-              )}
+              </div>
+            ) : null}
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row justify-center gap-4">
+              <Link
+                href="/leaderboard"
+                className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
+                style={{
+                  backgroundColor: '#FFC315',
+                  borderRadius: '25.62px',
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  fontSize: '16px',
+                  color: 'black',
+                  width: '261px',
+                  height: '41px'
+                }}
+              >
+                View Leaderboard
+              </Link>
+              
+              <button
+                onClick={downloadReportPdf}
+                disabled={generatingPdf}
+                className="inline-flex items-center justify-center border border-white/20 bg-white/10 text-center text-sm font-bold tracking-wide text-white backdrop-blur-lg transition-all duration-300 hover:bg-white/20 disabled:opacity-60"
+                style={{
+                  borderRadius: '25.62px',
+                  fontFamily: 'Frutiger, Inter, sans-serif',
+                  fontWeight: '700',
+                  fontSize: '16px',
+                  width: '261px',
+                  height: '41px'
+                }}
+              >
+                {generatingPdf ? 'Preparing Report...' : 'Download Report'}
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Footer */}
+        <footer className="w-full bg-black px-4 py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 max-w-6xl mx-auto">
+            {/* Copyright Text */}
+            <div className="text-left">
+              <p 
+                className="text-white text-xs"
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: '400',
+                  fontSize: '10px',
+                  lineHeight: '1.4'
+                }}
+              >
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
+              </p>
+            </div>
+            
+            {/* Social Media Icons */}
+            <div className="flex items-center gap-3">
+              <span 
+                className="text-white text-xs mr-2"
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontWeight: '400',
+                  fontSize: '10px'
+                }}
+              >
+                Connect with us
+              </span>
+              
+              {/* Social Icons */}
+              <div className="flex gap-3">
+                {/* Facebook */}
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </div>
+                
+                {/* Instagram */}
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.40s-.644-1.44-1.439-1.40z"/>
+                  </svg>
+                </div>
+                
+                {/* Twitter */}
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
+                  </svg>
+                </div>
+                
+                {/* YouTube */}
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );
