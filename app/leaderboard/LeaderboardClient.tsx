@@ -107,7 +107,12 @@ const formatNumber = (value: number | null | undefined, digits = 1) =>
   typeof value === 'number' ? value.toFixed(digits) : '—';
 
 const fallbackName = (entry: LeaderboardEntry, index: number) =>
-  entry.name || entry.display_name || `Bowler ${index + 1}`;
+  entry.name ||
+  entry.display_name ||
+  entry.meta?.display_name ||
+  entry.meta?.player_name ||
+  entry.meta?.playerName ||
+  `Bowler ${index + 1}`;
 
 export default function LeaderboardClient() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
@@ -331,6 +336,8 @@ export default function LeaderboardClient() {
         meta: {
           ...(pendingEntry.meta || {}),
           contact_phone: trimmedPhone || null,
+          display_name: trimmedName,
+          player_name: trimmedName,
           verified: true,
         },
       };
