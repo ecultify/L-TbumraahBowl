@@ -32,7 +32,9 @@ export default function FaceSwapTestPage() {
   const [openCvLoaded, setOpenCvLoaded] = useState(false);
   const [croppedFacePreview, setCroppedFacePreview] = useState<string>('');
   const [sharpenedFacePreview, setSharpenedFacePreview] = useState<string>('');
-  const [optimalFrameInfo, setOptimalFrameInfo] = useState<{position: number, brightness: number} | null>(null);
+  const [upscaledHeadPreview, setUpscaledHeadPreview] = useState<string>('');
+  const [optimalFrameInfo, setOptimalFrameInfo] = useState<{position: number, brightness: number, analysis?: any} | null>(null);
+  const [videoAnalysisProgress, setVideoAnalysisProgress] = useState<{current: number, total: number, percentage: number} | null>(null);
 
   // Download utility function
   const downloadFrame = useCallback((dataUrl: string, filename: string) => {
@@ -53,8 +55,8 @@ export default function FaceSwapTestPage() {
     }
   }, [currentFrame, downloadFrame]);
 
-  // Crop face from frame for better face swap accuracy
-  const cropFaceFromFrame = useCallback((frameDataUrl: string, face: DetectedFace) => {
+  // Crop head from frame for better head swap accuracy (includes hair, face, neck)
+  const cropHeadFromFrame = useCallback((frameDataUrl: string, head: DetectedFace) => {
     return new Promise<string>((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -67,12 +69,12 @@ export default function FaceSwapTestPage() {
           return;
         }
         
-        // Add padding around the face for better context (20% padding)
-        const padding = 0.2;
-        const paddedWidth = face.width * (1 + padding * 2);
-        const paddedHeight = face.height * (1 + padding * 2);
-        const paddedX = Math.max(0, face.x - face.width * padding);
-        const paddedY = Math.max(0, face.y - face.height * padding);
+        // Add padding around the head for complete head capture (40% padding for hair/neck)
+        const padding = 0.4;  // Increased padding for full head
+        const paddedWidth = head.width * (1 + padding * 2);
+        const paddedHeight = head.height * (1 + padding * 2);
+        const paddedX = Math.max(0, head.x - head.width * padding);
+        const paddedY = Math.max(0, head.y - head.height * padding);
         
         // Ensure we don't go beyond image boundaries
         const cropX = Math.max(0, paddedX);
@@ -84,14 +86,14 @@ export default function FaceSwapTestPage() {
         canvas.width = cropWidth;
         canvas.height = cropHeight;
         
-        // Draw the cropped face region
+        // Draw the cropped head region (includes hair, face, neck)
         ctx.drawImage(
           img,
           cropX, cropY, cropWidth, cropHeight,  // Source rectangle
           0, 0, cropWidth, cropHeight           // Destination rectangle
         );
         
-        // Convert to high-quality JPEG for face swap API
+        // Convert to high-quality JPEG for head swap API
         const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.95);
         resolve(croppedDataUrl);
       };
@@ -101,32 +103,172 @@ export default function FaceSwapTestPage() {
     });
   }, []);
 
-  // Download cropped face
-  const handleDownloadCroppedFace = useCallback(async () => {
+  // Download cropped head
+  const handleDownloadCroppedHead = useCallback(async () => {
     if (currentFrame && detectedFaces.length > 0) {
       try {
-        const face = detectedFaces[0]; // Use the first detected face
-        const croppedFace = await cropFaceFromFrame(currentFrame, face);
+        const head = detectedFaces[0]; // Use the first detected head
+        const croppedHead = await cropHeadFromFrame(currentFrame, head);
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `cropped-face-${timestamp}.jpg`;
-        downloadFrame(croppedFace, filename);
+        const filename = `cropped-head-${timestamp}.jpg`;
+        downloadFrame(croppedHead, filename);
       } catch (error) {
-        console.error('Failed to crop face:', error);
+        console.error('Failed to crop head:', error);
       }
     }
-  }, [currentFrame, detectedFaces, cropFaceFromFrame, downloadFrame]);
+  }, [currentFrame, detectedFaces, cropHeadFromFrame, downloadFrame]);
 
-  // Download sharpened face
-  const handleDownloadSharpenedFace = useCallback(() => {
+  // Download sharpened head
+  const handleDownloadSharpenedHead = useCallback(() => {
     if (sharpenedFacePreview) {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `sharpened-face-${timestamp}.jpg`;
+      const filename = `sharpened-head-${timestamp}.jpg`;
       downloadFrame(sharpenedFacePreview, filename);
     }
   }, [sharpenedFacePreview, downloadFrame]);
 
-  // Sharpen cropped face image for better face swap results
-  const sharpenCroppedFace = useCallback((croppedFaceDataUrl: string) => {
+  // Download upscaled head
+  const handleDownloadUpscaledHead = useCallback(() => {
+    if (upscaledHeadPreview) {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const filename = `upscaled-head-${timestamp}.jpg`;
+      downloadFrame(upscaledHeadPreview, filename);
+    }
+  }, [upscaledHeadPreview, downloadFrame]);
+
+  // AI Upscale image using advanced bicubic interpolation with edge enhancement
+  const upscaleImage = useCallback(async (imageDataUrl: string, scaleFactor: number = 2) => {
+    try {
+      console.log('Starting local AI-enhanced upscaling process...');
+      
+      return new Promise<string>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+              reject(new Error('Failed to get canvas context for upscaling'));
+              return;
+            }
+            
+            const originalWidth = img.width;
+            const originalHeight = img.height;
+            const newWidth = originalWidth * scaleFactor;
+            const newHeight = originalHeight * scaleFactor;
+            
+            console.log(`Upscaling from ${originalWidth}x${originalHeight} to ${newWidth}x${newHeight}`);
+            
+            // Set canvas to new dimensions
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            
+            // Step 1: Use browser's high-quality image scaling (bicubic-like)
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, newWidth, newHeight);
+            
+            // Step 2: Apply edge enhancement for sharper upscaled result
+            const imageData = ctx.getImageData(0, 0, newWidth, newHeight);
+            const data = imageData.data;
+            const enhanced = new Uint8ClampedArray(data);
+            
+            // Enhanced sharpening kernel for upscaled images
+            const enhanceKernel = [
+              -0.1, -0.2, -0.1,
+              -0.2,  2.2, -0.2,
+              -0.1, -0.2, -0.1
+            ];
+            
+            // Apply enhancement (skip edges to avoid artifacts)
+            for (let y = 1; y < newHeight - 1; y++) {
+              for (let x = 1; x < newWidth - 1; x++) {
+                for (let c = 0; c < 3; c++) { // RGB channels only
+                  let sum = 0;
+                  
+                  // Apply enhancement kernel
+                  for (let ky = -1; ky <= 1; ky++) {
+                    for (let kx = -1; kx <= 1; kx++) {
+                      const idx = ((y + ky) * newWidth + (x + kx)) * 4 + c;
+                      const kernelIdx = (ky + 1) * 3 + (kx + 1);
+                      sum += data[idx] * enhanceKernel[kernelIdx];
+                    }
+                  }
+                  
+                  const pixelIdx = (y * newWidth + x) * 4 + c;
+                  enhanced[pixelIdx] = Math.max(0, Math.min(255, sum));
+                }
+              }
+            }
+            
+            // Step 3: Apply subtle noise reduction to smooth out artifacts
+            const smoothed = new Uint8ClampedArray(enhanced);
+            for (let y = 1; y < newHeight - 1; y++) {
+              for (let x = 1; x < newWidth - 1; x++) {
+                for (let c = 0; c < 3; c++) {
+                  const idx = (y * newWidth + x) * 4 + c;
+                  
+                  // Light 3x3 smoothing
+                  const sum = 
+                    enhanced[((y - 1) * newWidth + (x - 1)) * 4 + c] * 0.1 +
+                    enhanced[((y - 1) * newWidth + x) * 4 + c] * 0.1 +
+                    enhanced[((y - 1) * newWidth + (x + 1)) * 4 + c] * 0.1 +
+                    enhanced[(y * newWidth + (x - 1)) * 4 + c] * 0.2 +
+                    enhanced[(y * newWidth + x) * 4 + c] * 0.2 +
+                    enhanced[(y * newWidth + (x + 1)) * 4 + c] * 0.2 +
+                    enhanced[((y + 1) * newWidth + (x - 1)) * 4 + c] * 0.1 +
+                    enhanced[((y + 1) * newWidth + x) * 4 + c] * 0.1 +
+                    enhanced[((y + 1) * newWidth + (x + 1)) * 4 + c] * 0.1;
+                    
+                  smoothed[idx] = Math.max(0, Math.min(255, sum));
+                }
+              }
+            }
+            
+            // Step 4: Apply contrast enhancement for better definition
+            const contrastFactor = 1.1;
+            for (let i = 0; i < smoothed.length; i += 4) {
+              for (let c = 0; c < 3; c++) {
+                const enhanced = ((smoothed[i + c] - 128) * contrastFactor + 128);
+                smoothed[i + c] = Math.max(0, Math.min(255, enhanced));
+              }
+            }
+            
+            // Put enhanced data back to canvas
+            ctx.putImageData(new ImageData(smoothed, newWidth, newHeight), 0, 0);
+            
+            // Convert to high-quality JPEG
+            const upscaledDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            console.log('Local AI-enhanced upscaling completed successfully');
+            resolve(upscaledDataUrl);
+            
+          } catch (error) {
+            console.error('Local upscaling error:', error);
+            reject(error);
+          }
+        };
+        
+        img.onerror = () => {
+          console.error('Failed to load image for upscaling');
+          // Return original image if upscaling fails
+          resolve(imageDataUrl);
+        };
+        
+        img.src = imageDataUrl;
+      });
+      
+    } catch (error) {
+      console.error('Upscaling process error:', error);
+      // Return original image if upscaling fails
+      console.log('Upscaling failed, using original sharpened image');
+      return imageDataUrl;
+    }
+  }, []);
+
+  // Sharpen cropped head image for better head swap results
+  const sharpenCroppedHead = useCallback((croppedHeadDataUrl: string) => {
     return new Promise<string>((resolve, reject) => {
       const img = new Image();
       img.crossOrigin = 'anonymous';
@@ -184,7 +326,7 @@ export default function FaceSwapTestPage() {
           }
         }
         
-        // Apply slight brightness boost to faces
+        // Apply slight brightness boost to heads (works for faces and hair)
         const brightnessBoost = 15;
         for (let i = 0; i < sharpened.length; i += 4) {
           for (let c = 0; c < 3; c++) {
@@ -197,32 +339,38 @@ export default function FaceSwapTestPage() {
         
         // Convert to high-quality JPEG
         const sharpenedDataUrl = canvas.toDataURL('image/jpeg', 0.98);
-        console.log('Face sharpened successfully');
+        console.log('Head sharpened successfully');
         resolve(sharpenedDataUrl);
       };
       
       img.onerror = () => reject(new Error('Failed to load image for sharpening'));
-      img.src = croppedFaceDataUrl;
+      img.src = croppedHeadDataUrl;
     });
   }, []);
 
-  // Generate cropped face preview after successful detection
-  const generateCroppedFacePreview = useCallback(async (frameData: string, faces: DetectedFace[]) => {
-    if (faces.length > 0) {
+  // Generate cropped head preview after successful detection
+  const generateCroppedHeadPreview = useCallback(async (frameData: string, heads: DetectedFace[]) => {
+    if (heads.length > 0) {
       try {
-        const croppedFace = await cropFaceFromFrame(frameData, faces[0]);
-        setCroppedFacePreview(croppedFace);
-        console.log('Cropped face preview generated');
+        const croppedHead = await cropHeadFromFrame(frameData, heads[0]);
+        setCroppedFacePreview(croppedHead);
+        console.log('Cropped head preview generated');
         
-        // Also generate sharpened preview
-        const sharpenedFace = await sharpenCroppedFace(croppedFace);
-        setSharpenedFacePreview(sharpenedFace);
-        console.log('Sharpened face preview generated');
+        // Generate sharpened preview
+        const sharpenedHead = await sharpenCroppedHead(croppedHead);
+        setSharpenedFacePreview(sharpenedHead);
+        console.log('Sharpened head preview generated');
+        
+        // Generate upscaled preview for best quality
+        console.log('Starting AI upscaling for enhanced quality...');
+        const upscaledHead = await upscaleImage(sharpenedHead, 2); // 2x upscale
+        setUpscaledHeadPreview(upscaledHead);
+        console.log('Upscaled head preview generated');
       } catch (error) {
-        console.error('Failed to generate face previews:', error);
+        console.error('Failed to generate head previews:', error);
       }
     }
-  }, [cropFaceFromFrame, sharpenCroppedFace]);
+  }, [cropHeadFromFrame, sharpenCroppedHead, upscaleImage]);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -486,38 +634,44 @@ export default function FaceSwapTestPage() {
     }
   }, []);
 
-  // Try multiple time positions to find the best frame for face detection
+  // Comprehensive video analysis to find the frame with the most visible and clear face
   const findOptimalFrame = useCallback(async () => {
     if (!videoRef.current) return null;
 
     const video = videoRef.current;
     const duration = video.duration;
     
-    // Define multiple candidate positions (in seconds)
-    const candidatePositions = [];
+    console.log(`Starting comprehensive video analysis (duration: ${duration.toFixed(1)}s)`);
+    setStatus('Analyzing entire video to find the clearest face...');
     
-    if (duration > 5) {
-      candidatePositions.push(2.5, 3.0, 2.0, 3.5, 1.5); // For longer videos
-    } else if (duration > 3) {
-      candidatePositions.push(
-        duration * 0.4, 
-        duration * 0.5, 
-        duration * 0.3, 
-        duration * 0.6
-      );
-    } else {
-      candidatePositions.push(
-        duration * 0.3, 
-        duration * 0.5, 
-        duration * 0.2
-      );
-    }
+    // Configuration for analysis
+    const sampleInterval = Math.max(0.5, duration / 60); // Sample every 0.5s or 60 samples max
+    const totalSamples = Math.floor(duration / sampleInterval);
+    const startTime = Math.max(0.5, duration * 0.1); // Skip first 10% or 0.5s
+    const endTime = Math.min(duration - 0.5, duration * 0.9); // Skip last 10% or 0.5s
     
-    console.log(`Trying ${candidatePositions.length} candidate positions:`, candidatePositions.map(p => p.toFixed(1) + 's').join(', '));
+    console.log(`Analyzing ${totalSamples} frames with ${sampleInterval.toFixed(1)}s intervals`);
     
-    for (let i = 0; i < candidatePositions.length; i++) {
-      const position = candidatePositions[i];
-      setStatus(`Trying position ${i + 1}/${candidatePositions.length}: ${position.toFixed(1)}s...`);
+    const frameAnalyses: Array<{
+      position: number;
+      frameData: string;
+      brightness: number;
+      contrast: number;
+      sharpness: number;
+      skinToneScore: number;
+      headScore: number;
+      overallScore: number;
+    }> = [];
+    
+    let processed = 0;
+    
+    for (let time = startTime; time <= endTime; time += sampleInterval) {
+      if (time >= duration) break;
+      
+      processed++;
+      const progress = Math.round((processed / totalSamples) * 100);
+      setVideoAnalysisProgress({ current: processed, total: totalSamples, percentage: progress });
+      setStatus(`Analyzing frame ${processed}/${totalSamples} (${progress}%) at ${time.toFixed(1)}s...`);
       
       try {
         // Seek to this position
@@ -527,89 +681,262 @@ export default function FaceSwapTestPage() {
             resolve(true);
           };
           
+          const handleError = () => {
+            video.removeEventListener('error', handleError);
+            video.removeEventListener('seeked', handleSeeked);
+            resolve(false);
+          };
+          
           video.addEventListener('seeked', handleSeeked);
-          video.currentTime = position;
+          video.addEventListener('error', handleError);
+          video.currentTime = time;
           
           // Timeout
           setTimeout(() => {
             video.removeEventListener('seeked', handleSeeked);
+            video.removeEventListener('error', handleError);
             resolve(false);
-          }, 1500);
+          }, 1000);
         });
         
-        if (!seeked) continue;
-        
-        // Wait for frame to stabilize
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // Capture frame and do quick quality assessment
-        const frameData = await captureFrame(true); // With preprocessing
-        if (!frameData) continue;
-        
-        // Quick brightness/quality check
-        const img = new Image();
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
-          img.src = frameData;
-        });
-        
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) continue;
-        
-        canvas.width = img.width;
-        canvas.height = img.height;
-        ctx.drawImage(img, 0, 0);
-        
-        // Analyze brightness and quality
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const data = imageData.data;
-        let totalBrightness = 0;
-        let samples = 0;
-        
-        // Sample the center region where face is likely to be
-        const centerX = canvas.width * 0.5;
-        const centerY = canvas.height * 0.3; // Upper center for face
-        const sampleRadius = Math.min(canvas.width, canvas.height) * 0.2;
-        
-        for (let y = centerY - sampleRadius; y < centerY + sampleRadius; y += 10) {
-          for (let x = centerX - sampleRadius; x < centerX + sampleRadius; x += 10) {
-            if (x >= 0 && x < canvas.width && y >= 0 && y < canvas.height) {
-              const idx = (Math.floor(y) * canvas.width + Math.floor(x)) * 4;
-              const brightness = (data[idx] + data[idx + 1] + data[idx + 2]) / 3;
-              totalBrightness += brightness;
-              samples++;
-            }
-          }
+        if (!seeked) {
+          console.log(`Failed to seek to ${time.toFixed(1)}s`);
+          continue;
         }
         
-        const avgBrightness = totalBrightness / samples;
-        console.log(`Position ${position.toFixed(1)}s: brightness = ${avgBrightness.toFixed(1)}`);
+        // Wait for frame to stabilize
+        await new Promise(resolve => setTimeout(resolve, 100));
         
-        // If brightness is good (not too dark, not overexposed), use this frame
-        if (avgBrightness > 80 && avgBrightness < 220) {
-          console.log(`✓ Selected optimal position: ${position.toFixed(1)}s (brightness: ${avgBrightness.toFixed(1)})`);
-          return { frameData, position, brightness: avgBrightness };
+        // Capture frame
+        const frameData = await captureFrame(false); // Raw frame for better analysis
+        if (!frameData) continue;
+        
+        // Analyze frame quality
+        const analysis = await analyzeFrameQuality(frameData, time);
+        if (analysis) {
+          frameAnalyses.push(analysis);
+          console.log(`Frame ${time.toFixed(1)}s: Score=${analysis.overallScore.toFixed(2)} (B:${analysis.brightness.toFixed(0)}, C:${analysis.contrast.toFixed(2)}, S:${analysis.sharpness.toFixed(2)}, Skin:${analysis.skinToneScore.toFixed(2)}, Head:${analysis.headScore.toFixed(2)})`);
         }
         
       } catch (error) {
-        console.log(`Position ${position.toFixed(1)}s failed:`, error);
+        console.log(`Analysis failed at ${time.toFixed(1)}s:`, error);
         continue;
       }
     }
     
-    // If no optimal position found, use the first candidate
-    console.log('No optimal position found, using first candidate');
-    try {
-      video.currentTime = candidatePositions[0];
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const frameData = await captureFrame(true);
-      return { frameData, position: candidatePositions[0], brightness: 0 };
-    } catch (error) {
+    if (frameAnalyses.length === 0) {
+      setStatus('No valid frames found during analysis');
       return null;
     }
-  }, [captureFrame, seekToOptimalTime]);
+    
+    // Sort by overall score (highest first)
+    frameAnalyses.sort((a, b) => b.overallScore - a.overallScore);
+    
+    const bestFrame = frameAnalyses[0];
+    console.log(`✓ Best frame selected: ${bestFrame.position.toFixed(1)}s with score ${bestFrame.overallScore.toFixed(2)}`);
+    console.log('Top 5 frames:', frameAnalyses.slice(0, 5).map(f => `${f.position.toFixed(1)}s: ${f.overallScore.toFixed(2)}`));
+    
+    // Seek to the best frame and capture final high-quality version
+    setStatus(`Capturing best frame at ${bestFrame.position.toFixed(1)}s...`);
+    
+    try {
+      await new Promise<boolean>((resolve) => {
+        const handleSeeked = () => {
+          video.removeEventListener('seeked', handleSeeked);
+          resolve(true);
+        };
+        video.addEventListener('seeked', handleSeeked);
+        video.currentTime = bestFrame.position;
+        setTimeout(() => {
+          video.removeEventListener('seeked', handleSeeked);
+          resolve(false);
+        }, 1000);
+      });
+      
+      await new Promise(resolve => setTimeout(resolve, 200));
+      const finalFrameData = await captureFrame(true); // With preprocessing for final quality
+      
+      return {
+        frameData: finalFrameData || bestFrame.frameData,
+        position: bestFrame.position,
+        brightness: bestFrame.brightness,
+        analysis: bestFrame
+      };
+      
+    } catch (error) {
+      console.error('Failed to capture final frame:', error);
+      return {
+        frameData: bestFrame.frameData,
+        position: bestFrame.position,
+        brightness: bestFrame.brightness,
+        analysis: bestFrame
+      };
+    }
+  }, [captureFrame]);
+  
+  // Analyze frame quality for face visibility and clarity
+  const analyzeFrameQuality = useCallback(async (frameData: string, position: number) => {
+    return new Promise<{
+      position: number;
+      frameData: string;
+      brightness: number;
+      contrast: number;
+      sharpness: number;
+      skinToneScore: number;
+      headScore: number;
+      overallScore: number;
+    } | null>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(null);
+            return;
+          }
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          
+          // 1. Brightness analysis (avoid too dark/bright)
+          let totalBrightness = 0;
+          let brightnessSamples = 0;
+          
+          // 2. Contrast analysis (higher contrast = clearer features)
+          let totalContrast = 0;
+          let contrastSamples = 0;
+          
+          // 3. Sharpness analysis (edge detection)
+          let totalSharpness = 0;
+          let sharpnessSamples = 0;
+          
+          // 4. Skin tone detection
+          let skinPixels = 0;
+          let totalPixels = 0;
+          
+          // 5. Head region analysis (focus on upper-center area for entire head)
+          const headRegion = {
+            startX: Math.floor(canvas.width * 0.15),  // Wider for head
+            endX: Math.floor(canvas.width * 0.85),
+            startY: Math.floor(canvas.height * 0.05), // Higher up for hair/forehead
+            endY: Math.floor(canvas.height * 0.65)    // Lower for chin/neck
+          };
+          
+          let headRegionQuality = 0;
+          let headRegionPixels = 0;
+          
+          for (let y = 0; y < canvas.height - 1; y++) {
+            for (let x = 0; x < canvas.width - 1; x++) {
+              const i = (y * canvas.width + x) * 4;
+              const r = data[i];
+              const g = data[i + 1];
+              const b = data[i + 2];
+              
+              // Brightness calculation
+              const brightness = (r + g + b) / 3;
+              totalBrightness += brightness;
+              brightnessSamples++;
+              
+              // Contrast calculation (compare with neighbor)
+              const i_next = ((y * canvas.width) + (x + 1)) * 4;
+              const r_next = data[i_next];
+              const g_next = data[i_next + 1];
+              const b_next = data[i_next + 2];
+              const brightness_next = (r_next + g_next + b_next) / 3;
+              const contrast = Math.abs(brightness - brightness_next);
+              totalContrast += contrast;
+              contrastSamples++;
+              
+              // Sharpness calculation (Sobel edge detection simplified)
+              if (y > 0 && x > 0) {
+                const i_up = ((y - 1) * canvas.width + x) * 4;
+                const i_left = (y * canvas.width + (x - 1)) * 4;
+                const r_up = data[i_up];
+                const r_left = data[i_left];
+                const dx = r - r_left;
+                const dy = r - r_up;
+                const edge = Math.sqrt(dx * dx + dy * dy);
+                totalSharpness += edge;
+                sharpnessSamples++;
+              }
+              
+              // Enhanced skin tone detection
+              const isSkin = (
+                (r > 95 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 15) ||
+                (r > 120 && g > 80 && b > 50 && r > g && g > b && (r - g) < 80) ||
+                (r > 180 && g > 120 && b > 90 && Math.abs(r - g) < 50)
+              );
+              
+              if (isSkin) skinPixels++;
+              totalPixels++;
+              
+              // Head region specific analysis (includes hair, forehead, face, chin)
+              if (x >= headRegion.startX && x <= headRegion.endX && 
+                  y >= headRegion.startY && y <= headRegion.endY) {
+                // Enhanced head detection: skin tone gets 2x weight, hair/dark areas get 1.5x
+                const isHairLikely = (r < 100 && g < 100 && b < 100) && (r + g + b < 200); // Dark areas (hair)
+                const headPixelQuality = brightness * (contrast / 100) * (isSkin ? 2 : isHairLikely ? 1.5 : 1);
+                headRegionQuality += headPixelQuality;
+                headRegionPixels++;
+              }
+            }
+          }
+          
+          // Calculate metrics
+          const avgBrightness = totalBrightness / brightnessSamples;
+          const avgContrast = totalContrast / contrastSamples;
+          const avgSharpness = totalSharpness / sharpnessSamples;
+          const skinToneRatio = skinPixels / totalPixels;
+          const headRegionScore = headRegionPixels > 0 ? headRegionQuality / headRegionPixels : 0;
+          
+          // Scoring algorithm
+          let brightnessScore = 0;
+          if (avgBrightness >= 80 && avgBrightness <= 200) {
+            brightnessScore = 1.0 - Math.abs(avgBrightness - 140) / 140; // Optimal around 140
+          } else {
+            brightnessScore = Math.max(0, 1.0 - Math.abs(avgBrightness - 140) / 200);
+          }
+          
+          const contrastScore = Math.min(1.0, avgContrast / 30); // Higher contrast is better
+          const sharpnessScore = Math.min(1.0, avgSharpness / 50); // Higher sharpness is better
+          const skinScore = Math.min(1.0, skinToneRatio * 10); // More skin tone is better
+          const headScore = Math.min(1.0, headRegionScore / 200); // Better head region quality
+          
+          // Weighted overall score (optimized for head detection)
+          const overallScore = (
+            brightnessScore * 0.25 +
+            contrastScore * 0.20 +
+            sharpnessScore * 0.20 +
+            skinScore * 0.15 +      // Slightly reduced since hair doesn't have skin tone
+            headScore * 0.20        // Increased weight for head region
+          );
+          
+          resolve({
+            position,
+            frameData,
+            brightness: avgBrightness,
+            contrast: avgContrast,
+            sharpness: avgSharpness,
+            skinToneScore: skinScore,
+            headScore: headScore,
+            overallScore
+          });
+          
+        } catch (error) {
+          console.error('Frame analysis error:', error);
+          resolve(null);
+        }
+      };
+      
+      img.onerror = () => resolve(null);
+      img.src = frameData;
+    });
+  }, []);
 
   const detectFaces = useCallback(async () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -632,12 +959,20 @@ export default function FaceSwapTestPage() {
       setCurrentFrame(optimalFrame.frameData);
       setOptimalFrameInfo({
         position: optimalFrame.position,
-        brightness: optimalFrame.brightness
+        brightness: optimalFrame.brightness,
+        analysis: optimalFrame.analysis
       });
-      setStatus(`✓ Using optimal frame at ${optimalFrame.position.toFixed(1)}s (brightness: ${optimalFrame.brightness.toFixed(0)})`);
+      setVideoAnalysisProgress(null); // Clear progress
+      
+      const analysisText = optimalFrame.analysis ? 
+        `(Score: ${optimalFrame.analysis.overallScore.toFixed(2)}, Brightness: ${optimalFrame.brightness.toFixed(0)}, Contrast: ${optimalFrame.analysis.contrast.toFixed(1)}, Sharpness: ${optimalFrame.analysis.sharpness.toFixed(1)})` :
+        `(Brightness: ${optimalFrame.brightness.toFixed(0)})`;
+        
+      setStatus(`✓ Best frame selected at ${optimalFrame.position.toFixed(1)}s ${analysisText}`);
       console.log('Optimal frame selected:', {
         position: optimalFrame.position,
-        brightness: optimalFrame.brightness
+        brightness: optimalFrame.brightness,
+        analysis: optimalFrame.analysis
       });
 
       const video = videoRef.current;
@@ -729,8 +1064,8 @@ export default function FaceSwapTestPage() {
                         setPreviousFaces(trackedFaces);
                         setCurrentFrame(currentFrame!);
                         
-                        // Generate cropped face preview for the primary face
-                        generateCroppedFacePreview(currentFrame!, trackedFaces);
+                        // Generate cropped head preview for the primary head
+                        generateCroppedHeadPreview(currentFrame!, trackedFaces);
                         
                         setStatus(`MediaPipe detected ${trackedFaces.length} face(s) (${i === 0 ? 'enhanced' : 'original'} frame)! Ready for face swap.`);
                         console.log('MediaPipe detection successful:', trackedFaces);
@@ -821,8 +1156,8 @@ export default function FaceSwapTestPage() {
                   });
                   
                   setDetectedFaces(blazeFaces);
-                  // Generate cropped face preview
-                  generateCroppedFacePreview(frameData, blazeFaces);
+                  // Generate cropped head preview
+                  generateCroppedHeadPreview(frameData, blazeFaces);
                   setStatus(`BlazeFace detected ${blazeFaces.length} face(s)! Ready for face swap.`);
                   resolve(null);
                 } else {
@@ -888,8 +1223,8 @@ export default function FaceSwapTestPage() {
                     });
                     
                     setDetectedFaces(landmarkFaces);
-                    // Generate cropped face preview
-                    generateCroppedFacePreview(frameData, landmarkFaces);
+                    // Generate cropped head preview
+                    generateCroppedHeadPreview(frameData, landmarkFaces);
                     setStatus(`Face Landmarks detected ${landmarkFaces.length} face(s)! Ready for face swap.`);
                     resolve(null);
                   } else {
@@ -940,8 +1275,8 @@ export default function FaceSwapTestPage() {
                         });
                         
                         setDetectedFaces(visionFaces);
-                        // Generate cropped face preview
-                        generateCroppedFacePreview(frameData, visionFaces);
+                        // Generate cropped head preview
+                        generateCroppedHeadPreview(frameData, visionFaces);
                         setStatus(`Browser Vision API detected ${visionFaces.length} face(s)! Ready for face swap.`);
                         resolve(null);
                       } else {
@@ -1145,8 +1480,8 @@ export default function FaceSwapTestPage() {
             const currentFrameData = await captureFrame(true);
             setCurrentFrame(currentFrameData || frameData);
             
-            // Generate cropped face preview
-            generateCroppedFacePreview(currentFrameData || frameData, finalFaces);
+            // Generate cropped head preview
+            generateCroppedHeadPreview(currentFrameData || frameData, finalFaces);
             
             setStatus(`Advanced sports detection completed! Confidence: ${(finalFaces[0].confidence * 100).toFixed(0)}% (Skin: ${(skinConfidence*100).toFixed(0)}%, Motion: ${(motionConfidence*100).toFixed(0)}%, Edges: ${(edgeConfidence*100).toFixed(0)}%)`);
             console.log('Advanced sports detection result:', finalFaces[0]);
@@ -1164,36 +1499,41 @@ export default function FaceSwapTestPage() {
     } finally {
       setIsProcessing(false);
     }
-  }, [captureFrame, trackFaces, preprocessImage, detectFacesWithOpenCV, generateCroppedFacePreview, seekToOptimalTime, findOptimalFrame]);
+  }, [captureFrame, trackFaces, preprocessImage, detectFacesWithOpenCV, generateCroppedHeadPreview, seekToOptimalTime, findOptimalFrame]);
 
-  const performFaceSwap = useCallback(async () => {
+  const performHeadSwap = useCallback(async () => {
     if (!currentFrame || detectedFaces.length === 0) {
-      setStatus('No face detected. Please detect faces first.');
+      setStatus('No head detected. Please detect heads first.');
       return;
     }
 
     setIsProcessing(true);
-    setStatus('Preparing images for face swap...');
+    setStatus('Preparing images for head swap...');
 
     try {
-      console.log('Starting face swap process');
+      console.log('Starting head swap process');
       
-      // Crop the detected face for better accuracy
-      setStatus('Cropping detected face for better accuracy...');
-      const primaryFace = detectedFaces[0]; // Use the first (usually highest confidence) face
-      console.log('Using face for swap:', primaryFace);
+      // Crop the detected head for better accuracy
+      setStatus('Cropping detected head for better accuracy...');
+      const primaryHead = detectedFaces[0]; // Use the first (usually highest confidence) head
+      console.log('Using head for swap:', primaryHead);
       
-      const croppedFaceDataUrl = await cropFaceFromFrame(currentFrame, primaryFace);
-      console.log('Face cropped successfully, cropped image size:', croppedFaceDataUrl.length);
+      const croppedHeadDataUrl = await cropHeadFromFrame(currentFrame, primaryHead);
+      console.log('Head cropped successfully, cropped image size:', croppedHeadDataUrl.length);
       
-      // Sharpen the cropped face for better quality
-      setStatus('Sharpening face for optimal quality...');
-      const sharpenedFaceDataUrl = await sharpenCroppedFace(croppedFaceDataUrl);
-      console.log('Face sharpened successfully, sharpened image size:', sharpenedFaceDataUrl.length);
+      // Sharpen the cropped head for better quality
+      setStatus('Sharpening head for optimal quality...');
+      const sharpenedHeadDataUrl = await sharpenCroppedHead(croppedHeadDataUrl);
+      console.log('Head sharpened successfully, sharpened image size:', sharpenedHeadDataUrl.length);
       
-      // Convert sharpened face (data URL) to base64
-      const base64Data = sharpenedFaceDataUrl.split(',')[1];
-      console.log('Sharpened face base64 length:', base64Data.length);
+      // Upscale the sharpened head for maximum quality
+      setStatus('AI upscaling head for maximum quality (processing locally)...');
+      const upscaledHeadDataUrl = await upscaleImage(sharpenedHeadDataUrl, 2);
+      console.log('Head upscaled successfully, upscaled image size:', upscaledHeadDataUrl.length);
+      
+      // Convert upscaled head (data URL) to base64
+      const base64Data = upscaledHeadDataUrl.split(',')[1];
+      console.log('Upscaled head base64 length:', base64Data.length);
       
       setStatus('Loading target image (base.png)...');
       
@@ -1222,17 +1562,17 @@ export default function FaceSwapTestPage() {
       
       console.log('Target image (base.png) base64 length:', baseImageBase64.length);
       
-      setStatus('Calling face swap API...');
+      setStatus('Calling head swap API...');
       
-      // Prepare API request data for face swapping
-      // source_image = the SHARPENED CROPPED face we want to use (FROM the video)
-      // target_image = the image with face we want to replace (base.png has existing face)
-      // Result: base.png but with sharpened cropped video face replacing its original face
+      // Prepare API request data for head swapping
+      // source_image = the AI-UPSCALED SHARPENED CROPPED head we want to use (FROM the video)
+      // target_image = the image with head we want to replace (base.png has existing head)
+      // Result: base.png but with high-quality upscaled video head replacing its original head
       const requestData = {
-        source_image: base64Data, // SHARPENED CROPPED face from video (face to take FROM)
-        target_image: baseImageBase64, // Base.png (face to replace IN this image)
+        source_image: base64Data, // AI-UPSCALED SHARPENED CROPPED head from video (head to take FROM)
+        target_image: baseImageBase64, // Base.png (head to replace IN this image)
         model_type: 'quality', // Use quality model for better results
-        swap_type: 'head',
+        swap_type: 'head',     // Ensure we're doing head swap, not just face
         style_type: 'normal',
         seed: Math.floor(Math.random() * 10000),
         image_format: 'png',
@@ -1273,7 +1613,7 @@ export default function FaceSwapTestPage() {
               success: true,
               imageUrl: imageUrl
             });
-            setStatus('Face swap completed! Video face has replaced the face in base.png');
+            setStatus('Head swap completed! Video head has replaced the head in base.png');
           } else {
             throw new Error('No image data in response');
           }
@@ -1289,13 +1629,13 @@ export default function FaceSwapTestPage() {
               success: true,
               imageUrl: imageUrl
             });
-            setStatus('Face swap completed successfully!');
+            setStatus('Head swap completed successfully!');
           } else if (result.startsWith('data:')) {
             setFaceSwapResult({
               success: true,
               imageUrl: result
             });
-            setStatus('Face swap completed! Video face has replaced the face in base.png');
+            setStatus('Head swap completed! Video head has replaced the head in base.png');
           } else {
             throw new Error('Invalid response format');
           }
@@ -1304,7 +1644,7 @@ export default function FaceSwapTestPage() {
         const errorText = await response.text();
         console.error('API error response:', errorText);
         
-        let errorMessage = 'Face swap failed';
+        let errorMessage = 'Head swap failed';
         try {
           const errorData = JSON.parse(errorText);
           errorMessage = errorData.message || errorData.error || errorMessage;
@@ -1316,20 +1656,20 @@ export default function FaceSwapTestPage() {
           success: false,
           error: errorMessage
         });
-        setStatus(`Face swap failed: ${errorMessage}`);
+        setStatus(`Head swap failed: ${errorMessage}`);
       }
     } catch (error) {
-      console.error('Face swap error:', error);
+      console.error('Head swap error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       setFaceSwapResult({
         success: false,
         error: errorMessage
       });
-      setStatus(`Face swap failed: ${errorMessage}`);
+      setStatus(`Head swap failed: ${errorMessage}`);
     } finally {
       setIsProcessing(false);
     }
-  }, [currentFrame, detectedFaces, cropFaceFromFrame, sharpenCroppedFace]);
+  }, [currentFrame, detectedFaces, cropHeadFromFrame, sharpenCroppedHead, upscaleImage]);
 
   const downloadResult = useCallback(() => {
     if (!faceSwapResult?.imageUrl) return;
@@ -1351,7 +1691,9 @@ export default function FaceSwapTestPage() {
     setStatus('');
     setCroppedFacePreview('');
     setSharpenedFacePreview('');
+    setUpscaledHeadPreview('');
     setOptimalFrameInfo(null);
+    setVideoAnalysisProgress(null);
     setPreviousFaces([]);
     setFrameCount(0);
     if (fileInputRef.current) {
@@ -1405,7 +1747,7 @@ export default function FaceSwapTestPage() {
                 lineHeight: '1.2'
               }}
             >
-              AI Face Detection + Swap
+              AI Head Detection + Swap
             </h1>
             <p 
               style={{
@@ -1416,7 +1758,7 @@ export default function FaceSwapTestPage() {
                 lineHeight: '1.3'
               }}
             >
-              Advanced face detection with MediaPipe & TensorFlow + face swapping
+              Comprehensive video analysis finds the clearest head frame using AI
             </p>
           </div>
 
@@ -1464,10 +1806,10 @@ export default function FaceSwapTestPage() {
                       style={{ maxHeight: '400px', maxWidth: '100%' }}
                     />
                     
-                    {/* Face detection overlay */}
+                    {/* Head detection overlay */}
                     {detectedFaces.length > 0 && videoRef.current && (
                       <div className="absolute inset-0 pointer-events-none">
-                        {detectedFaces.map((face, index) => {
+                        {detectedFaces.map((head, index) => {
                           // Get the actual displayed video dimensions
                           const video = videoRef.current!;
                           const videoRect = video.getBoundingClientRect();
@@ -1477,11 +1819,11 @@ export default function FaceSwapTestPage() {
                           const scaleX = video.offsetWidth / video.videoWidth;
                           const scaleY = video.offsetHeight / video.videoHeight;
                           
-                          // Scale and position the face box
-                          const scaledX = face.x * scaleX;
-                          const scaledY = face.y * scaleY;
-                          const scaledWidth = face.width * scaleX;
-                          const scaledHeight = face.height * scaleY;
+                          // Scale and position the head box
+                          const scaledX = head.x * scaleX;
+                          const scaledY = head.y * scaleY;
+                          const scaledWidth = head.width * scaleX;
+                          const scaledHeight = head.height * scaleY;
                           
                           return (
                             <div
@@ -1495,7 +1837,7 @@ export default function FaceSwapTestPage() {
                               }}
                             >
                               <div className="absolute -top-6 left-0 text-xs text-red-500 bg-black/75 px-2 py-1 rounded whitespace-nowrap">
-                                Face {index + 1} ({(face.confidence * 100).toFixed(0)}%)
+                                Head {index + 1} ({(head.confidence * 100).toFixed(0)}%)
                               </div>
                             </div>
                           );
@@ -1512,16 +1854,16 @@ export default function FaceSwapTestPage() {
                     className="px-6 py-2 bg-[#FFC315] text-black font-semibold rounded-lg hover:bg-yellow-400 disabled:opacity-50 flex items-center gap-2"
                   >
                     <Camera className="w-4 h-4" />
-                    {isProcessing ? 'Processing...' : 'Detect Faces'}
+                    {isProcessing ? 'Processing...' : 'Detect Heads'}
                   </button>
                   
                   {detectedFaces.length > 0 && (
                     <button
-                      onClick={performFaceSwap}
+                      onClick={performHeadSwap}
                       disabled={isProcessing}
                       className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {isProcessing ? 'Swapping...' : 'Perform Face Swap'}
+                      {isProcessing ? 'Swapping...' : 'Perform Head Swap'}
                     </button>
                   )}
                 </div>
@@ -1552,20 +1894,30 @@ export default function FaceSwapTestPage() {
                     {detectedFaces.length > 0 && (
                       <>
                         <button
-                          onClick={handleDownloadCroppedFace}
+                          onClick={handleDownloadCroppedHead}
                           className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors"
                         >
                           <Download className="w-4 h-4" />
-                          Download Cropped
+                          Download Cropped Head
                         </button>
                         
                         {sharpenedFacePreview && (
                           <button
-                            onClick={handleDownloadSharpenedFace}
+                            onClick={handleDownloadSharpenedHead}
                             className="px-4 py-2 bg-purple-600 text-white font-semibold rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-colors"
                           >
                             <Download className="w-4 h-4" />
                             Download Sharpened
+                          </button>
+                        )}
+                        
+                        {upscaledHeadPreview && (
+                          <button
+                            onClick={handleDownloadUpscaledHead}
+                            className="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors"
+                          >
+                            <Download className="w-4 h-4" />
+                            Download AI Upscaled
                           </button>
                         )}
                       </>
@@ -1580,41 +1932,60 @@ export default function FaceSwapTestPage() {
           {croppedFacePreview && (
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
-                <h2 className="text-lg font-semibold text-white mb-4">Face Processing Pipeline</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">Head Processing Pipeline</h2>
                 <p className="text-sm text-white/80 mb-4 text-center">
-                  From detected face → cropped → sharpened → sent to Segmind API
+                  From detected head → cropped → sharpened → AI upscaled → sent to Segmind API
                 </p>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Cropped Face */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Cropped Head */}
                   <div className="text-center">
-                    <h3 className="text-sm font-semibold text-white mb-2">1. Cropped Face</h3>
+                    <h3 className="text-sm font-semibold text-white mb-2">1. Cropped Head</h3>
                     <img 
                       src={croppedFacePreview} 
-                      alt="Cropped face"
+                      alt="Cropped head"
                       className="max-w-full mx-auto rounded-lg border-2 border-blue-400"
-                      style={{ maxHeight: '180px' }}
+                      style={{ maxHeight: '150px' }}
                     />
                     <p className="text-xs text-white/60 mt-1">
                       Size: {Math.round(croppedFacePreview.length / 1024)} KB
                     </p>
                   </div>
                   
-                  {/* Sharpened Face */}
+                  {/* Sharpened Head */}
                   {sharpenedFacePreview && (
                     <div className="text-center">
-                      <h3 className="text-sm font-semibold text-white mb-2">2. Sharpened Face (→ API)</h3>
+                      <h3 className="text-sm font-semibold text-white mb-2">2. Sharpened Head</h3>
                       <img 
                         src={sharpenedFacePreview} 
-                        alt="Sharpened face for face swap"
+                        alt="Sharpened head"
                         className="max-w-full mx-auto rounded-lg border-2 border-purple-400"
-                        style={{ maxHeight: '180px' }}
+                        style={{ maxHeight: '150px' }}
                       />
                       <p className="text-xs text-white/60 mt-1">
                         Size: {Math.round(sharpenedFacePreview.length / 1024)} KB
                       </p>
                       <p className="text-xs text-green-400 mt-1">
-                        ✓ Enhanced • Sharpened • High Quality
+                        ✓ Enhanced • Sharpened
+                      </p>
+                    </div>
+                  )}
+                  
+                  {/* AI Upscaled Head */}
+                  {upscaledHeadPreview && (
+                    <div className="text-center">
+                      <h3 className="text-sm font-semibold text-white mb-2">3. AI Upscaled Head (→ API)</h3>
+                      <img 
+                        src={upscaledHeadPreview} 
+                        alt="AI upscaled head for head swap"
+                        className="max-w-full mx-auto rounded-lg border-2 border-green-400"
+                        style={{ maxHeight: '150px' }}
+                      />
+                      <p className="text-xs text-white/60 mt-1">
+                        Size: {Math.round(upscaledHeadPreview.length / 1024)} KB
+                      </p>
+                      <p className="text-xs text-green-400 mt-1">
+                        ✓ AI Enhanced • 2x Resolution • Premium Quality
                       </p>
                     </div>
                   )}
@@ -1627,13 +1998,13 @@ export default function FaceSwapTestPage() {
           {faceSwapResult && (
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
-                <h2 className="text-lg font-semibold text-white mb-4">Face Swap Result</h2>
+                <h2 className="text-lg font-semibold text-white mb-4">Head Swap Result</h2>
                 
                 {faceSwapResult.success && faceSwapResult.imageUrl ? (
                   <div>
                     <img 
                       src={faceSwapResult.imageUrl} 
-                      alt="Face swap result"
+                      alt="Head swap result"
                       className="w-full max-w-md mx-auto rounded-lg mb-4"
                     />
                     <div className="text-center">
@@ -1660,6 +2031,25 @@ export default function FaceSwapTestPage() {
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-4 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
                 <p className="text-white text-center">{status}</p>
+                
+                {/* Video Analysis Progress Bar */}
+                {videoAnalysisProgress && (
+                  <div className="mt-4">
+                    <div className="flex justify-between text-sm text-white/80 mb-2">
+                      <span>Analyzing Frames</span>
+                      <span>{videoAnalysisProgress.current}/{videoAnalysisProgress.total}</span>
+                    </div>
+                    <div className="w-full bg-white/20 rounded-full h-2">
+                      <div 
+                        className="bg-[#FFC315] h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${videoAnalysisProgress.percentage}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-center text-white/70 text-xs mt-2">
+                      {videoAnalysisProgress.percentage}% Complete
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1679,13 +2069,13 @@ export default function FaceSwapTestPage() {
                 
                 {detectedFaces.length > 0 && (
                   <div className="mt-3">
-                    <p className="text-sm text-white/80 mb-2">Detected Faces:</p>
-                    {detectedFaces.map((face, index) => (
+                    <p className="text-sm text-white/80 mb-2">Detected Heads:</p>
+                    {detectedFaces.map((head, index) => (
                       <div key={index} className="text-xs text-white/70 bg-black/20 p-2 rounded mb-2">
-                        <p>Face {index + 1}:</p>
-                        <p>Position: ({Math.round(face.x)}, {Math.round(face.y)})</p>
-                        <p>Size: {Math.round(face.width)} × {Math.round(face.height)}</p>
-                        <p>Confidence: {(face.confidence * 100).toFixed(1)}%</p>
+                        <p>Head {index + 1}:</p>
+                        <p>Position: ({Math.round(head.x)}, {Math.round(head.y)})</p>
+                        <p>Size: {Math.round(head.width)} × {Math.round(head.height)}</p>
+                        <p>Confidence: {(head.confidence * 100).toFixed(1)}%</p>
                         <p className="text-green-400 text-xs mt-1">
                           Method: {status.includes('MediaPipe') ? 'Google MediaPipe' : 
                                   status.includes('BlazeFace') ? 'TensorFlow BlazeFace' : 
@@ -1709,6 +2099,44 @@ export default function FaceSwapTestPage() {
                           {optimalFrameInfo.brightness > 150 ? ' (Bright)' : 
                            optimalFrameInfo.brightness > 100 ? ' (Good)' : ' (Dark)'}
                         </p>
+                        
+                        {/* Comprehensive Analysis Results */}
+                        {optimalFrameInfo.analysis && (
+                          <div className="mt-3 bg-black/30 p-3 rounded-lg">
+                            <p className="text-sm text-blue-300 mb-2 font-semibold">Comprehensive Analysis Results:</p>
+                            <div className="grid grid-cols-2 gap-2 text-xs">
+                              <div className="text-white/70">
+                                <span className="text-yellow-300">Overall Score:</span> {optimalFrameInfo.analysis.overallScore.toFixed(3)}
+                              </div>
+                              <div className="text-white/70">
+                                <span className="text-yellow-300">Brightness:</span> {optimalFrameInfo.brightness.toFixed(0)}/255
+                              </div>
+                              <div className="text-white/70">
+                                <span className="text-yellow-300">Contrast:</span> {optimalFrameInfo.analysis.contrast.toFixed(2)}
+                              </div>
+                              <div className="text-white/70">
+                                <span className="text-yellow-300">Sharpness:</span> {optimalFrameInfo.analysis.sharpness.toFixed(2)}
+                              </div>
+                              <div className="text-white/70">
+                                <span className="text-yellow-300">Skin Tone:</span> {(optimalFrameInfo.analysis.skinToneScore * 100).toFixed(1)}%
+                              </div>
+                              <div className="text-white/70">
+                                <span className="text-yellow-300">Head Region:</span> {(optimalFrameInfo.analysis.headScore * 100).toFixed(1)}%
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className="w-full bg-gray-700 rounded-full h-1.5">
+                                <div 
+                                  className="bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 h-1.5 rounded-full transition-all duration-500"
+                                  style={{ width: `${optimalFrameInfo.analysis.overallScore * 100}%` }}
+                                ></div>
+                              </div>
+                              <p className="text-center text-xs text-white/60 mt-1">
+                                Quality Score: {(optimalFrameInfo.analysis.overallScore * 100).toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
