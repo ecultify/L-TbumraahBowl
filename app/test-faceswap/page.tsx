@@ -159,7 +159,10 @@ export default function FaceSwapTestPage() {
             const newWidth = originalWidth * scaleFactor;
             const newHeight = originalHeight * scaleFactor;
             
-            console.log(`Upscaling from ${originalWidth}x${originalHeight} to ${newWidth}x${newHeight}`);
+            console.log(`📐 UPSCALING DIMENSIONS:`);
+            console.log(`   Input: ${originalWidth}x${originalHeight} (${(originalWidth * originalHeight / 1000).toFixed(0)}K pixels)`);
+            console.log(`   Output: ${newWidth}x${newHeight} (${(newWidth * newHeight / 1000).toFixed(0)}K pixels)`);
+            console.log(`   Scale Factor: ${scaleFactor}x`);
             
             // Set canvas to new dimensions
             canvas.width = newWidth;

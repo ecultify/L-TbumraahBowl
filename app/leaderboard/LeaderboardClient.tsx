@@ -7,9 +7,7 @@ import { ArrowLeft } from 'lucide-react';
 import styles from './index.module.css';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
-import { LeaderboardDetailsOverlay } from '@/components/LeaderboardDetailsOverlay';
 import { useToast } from '@/components/Toast';
-import type { DetailsCardSubmitPayload } from '@/components/DetailsCard';
 
 const VIDEO_INTENSITY_THRESHOLD = 85;
 const isEligibleForVideo = (value?: number | null) =>
@@ -118,16 +116,8 @@ export default function LeaderboardClient() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  type PendingEntryData = {
-    predicted_kmh: number;
-    similarity_percent: number;
-    intensity_percent: number;
-    speed_class: SpeedClass | null;
-    meta?: any;
-  };
 
-  const [pendingEntry, setPendingEntry] = useState<PendingEntryData | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
+  // Removed pendingEntry and detailsOpen as details modal moved to analyze page
   const [videoData, setVideoData] = useState<AnalysisVideoData | null>(null);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [showProcessingModal, setShowProcessingModal] = useState(false);
@@ -246,26 +236,10 @@ export default function LeaderboardClient() {
     if (storedGeneratedUrl) {
       setGeneratedVideoUrl(storedGeneratedUrl);
     }
-    const stored = window.sessionStorage.getItem('pendingLeaderboardEntry');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setPendingEntry(parsed);
-        setDetailsOpen(true);
-      } catch (error) {
-        console.warn('Invalid pending leaderboard entry', error);
-        window.sessionStorage.removeItem('pendingLeaderboardEntry');
-      }
-    }
+    // Pending entry handling moved to analyze page
   }, []);
 
-  useEffect(() => {
-    if (!videoData) return;
-    if (pendingEntry) return;
-    if (!videoData.playerName || videoData.playerName === 'Player') {
-      setDetailsOpen(true);
-    }
-  }, [videoData, pendingEntry]);
+  // Auto-show details modal logic moved to analyze page
 
   const ranked = useMemo<RankedEntry[]>(
     () => entries.map((entry, index) => ({ ...entry, rank: index + 1 })),
@@ -297,9 +271,8 @@ export default function LeaderboardClient() {
         addToast({
           type: 'info',
           title: 'Add your name',
-          message: 'Save your details so we can personalize the video.',
+          message: 'Complete your analysis details first.',
         });
-        setDetailsOpen(true);
         return false;
       }
 
@@ -366,74 +339,7 @@ export default function LeaderboardClient() {
     [addToast, generatedVideoUrl]
   );
 
-  const handleDetailsSubmit = useCallback(
-    async ({ name, phone, consent }: DetailsCardSubmitPayload) => {
-      if (!consent) {
-        throw new Error('Please accept the consent checkbox to continue.');
-      }
-      if (!pendingEntry) return;
-
-      const trimmedName = name.trim();
-      const trimmedPhone = phone?.trim() ?? '';
-
-      const payload: Record<string, any> = {
-        display_name: trimmedName,
-        predicted_kmh: pendingEntry.predicted_kmh,
-        similarity_percent: pendingEntry.similarity_percent,
-        intensity_percent: pendingEntry.intensity_percent,
-        speed_class: pendingEntry.speed_class,
-        meta: {
-          ...(pendingEntry.meta || {}),
-          contact_phone: trimmedPhone || null,
-          display_name: trimmedName,
-          player_name: trimmedName,
-          verified: true,
-        },
-      };
-
-      const { error: insertError } = await supabase
-        .from('bowling_attempts')
-        .insert(payload);
-
-      if (insertError) {
-        throw insertError;
-      }
-
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem('pendingLeaderboardEntry');
-      }
-
-      let resolvedVideoData: AnalysisVideoData | null = videoData;
-      setVideoData((prev) => {
-        if (!prev) return prev;
-        const updated = {
-          ...prev,
-          playerName: trimmedName || 'Player',
-          playerPhone: trimmedPhone || prev.playerPhone,
-        };
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem('analysisVideoData', JSON.stringify(updated));
-          if (trimmedPhone) {
-            window.sessionStorage.setItem('analysisPlayerPhone', trimmedPhone);
-          }
-        }
-        resolvedVideoData = updated;
-        return updated;
-      });
-
-      setPendingEntry(null);
-      setDetailsOpen(false);
-      const leaderboardPromise = loadLeaderboard();
-
-      // Don't auto-generate video, let user click the button
-      // if (resolvedVideoData && isEligibleForVideo(resolvedVideoData.intensity)) {
-      //   await runVideoGeneration(resolvedVideoData);
-      // }
-
-      await leaderboardPromise;
-    },
-    [pendingEntry, loadLeaderboard, runVideoGeneration, videoData]
-  );
+  // handleDetailsSubmit moved to analyze page
 
   const handleVideoModalClose = useCallback(() => {
     setShowVideoModal(false);
@@ -539,15 +445,7 @@ export default function LeaderboardClient() {
             />
             Retry Analysis
           </Link>
-          {pendingEntry && (
-            <button
-              type="button"
-              className={styles.ctaSecondary}
-              onClick={() => setDetailsOpen(true)}
-            >
-              Verify &amp; Submit Details
-            </button>
-          )}
+          {/* Verify & Submit Details button removed - now handled in analyze page */}
           {/* Video Generation for High Performance Users */}
           {videoData && isEligibleForVideo(videoData.similarity || videoData.intensity) && (
             <div>
@@ -631,11 +529,6 @@ export default function LeaderboardClient() {
           </div>
         </div>
       </footer>
-      <LeaderboardDetailsOverlay
-        open={detailsOpen && !!pendingEntry}
-        onClose={() => setDetailsOpen(false)}
-        onSubmit={handleDetailsSubmit}
-      />
     </div>
   );
 }

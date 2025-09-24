@@ -15,8 +15,11 @@ import { FrameSampler } from '@/lib/video/frameSampler';
 import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
 import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
 import { normalizeIntensity, classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
+import { supabase } from '@/lib/supabase/client';
 import LeaderboardModal from '@/components/LeaderboardModal';
 import ReportPreview from '@/components/ReportPreview';
+import { LeaderboardDetailsOverlay } from '@/components/LeaderboardDetailsOverlay';
+import type { DetailsCardSubmitPayload } from '@/components/DetailsCard';
 
 function AnalyzeContent() {
   const { state, dispatch } = useAnalysis();
@@ -31,6 +34,10 @@ function AnalyzeContent() {
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [showDetailedAnalysis, setShowDetailedAnalysis] = useState(true); // Show by default since data should be available
   const [detailedAnalysisData, setDetailedAnalysisData] = useState<any>(null);
+  // Details modal state
+  const [pendingEntry, setPendingEntry] = useState<any>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [videoData, setVideoData] = useState<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
 
@@ -681,6 +688,73 @@ function AnalyzeContent() {
     }
   }, [benchmarkDetailedData]);
 
+  const handleDetailsSubmit = useCallback(
+    async ({ name, phone, consent }: DetailsCardSubmitPayload) => {
+      if (!consent) {
+        throw new Error('Please accept the consent checkbox to continue.');
+      }
+      if (!pendingEntry) return;
+
+      const trimmedName = name.trim();
+      const trimmedPhone = phone?.trim() ?? '';
+
+      const payload: Record<string, any> = {
+        display_name: trimmedName,
+        predicted_kmh: pendingEntry.predicted_kmh,
+        similarity_percent: pendingEntry.similarity_percent,
+        intensity_percent: pendingEntry.intensity_percent,
+        speed_class: pendingEntry.speed_class,
+        meta: {
+          ...(pendingEntry.meta || {}),
+          contact_phone: trimmedPhone || null,
+          display_name: trimmedName,
+          player_name: trimmedName,
+          verified: true,
+        },
+      };
+
+      const { error: insertError } = await supabase
+        .from('bowling_attempts')
+        .insert(payload);
+
+      if (insertError) {
+        throw insertError;
+      }
+
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem('pendingLeaderboardEntry');
+      }
+
+      // Update video data with user details
+      let resolvedVideoData: any | null = videoData;
+      setVideoData((prev: any) => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          playerName: trimmedName || 'Player',
+          playerPhone: trimmedPhone || prev.playerPhone,
+        };
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('analysisVideoData', JSON.stringify(updated));
+          if (trimmedPhone) {
+            window.sessionStorage.setItem('analysisPlayerPhone', trimmedPhone);
+          }
+        }
+        resolvedVideoData = updated;
+        return updated;
+      });
+
+      setPendingEntry(null);
+      setDetailsOpen(false);
+
+      addToast({
+        type: 'success',
+        title: 'Details saved!',
+        message: 'Your information has been submitted to the leaderboard.'
+      });
+    },
+    [pendingEntry, videoData, addToast]
+  );
 
   const toggleAnalyzerMode = useCallback(() => {
     const modes: AnalyzerMode[] = ['benchmark', 'pose'];
@@ -757,8 +831,51 @@ function AnalyzeContent() {
       }
       
       console.log('📊 Current sessionStorage keys:', Object.keys(window.sessionStorage));
+
+      // Load pending leaderboard entry
+      const stored = window.sessionStorage.getItem('pendingLeaderboardEntry');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setPendingEntry(parsed);
+          setDetailsOpen(true);
+        } catch (error) {
+          console.warn('Invalid pending leaderboard entry', error);
+          window.sessionStorage.removeItem('pendingLeaderboardEntry');
+        }
+      }
+
+      // Load video data for modal
+      const storedVideo = window.sessionStorage.getItem('analysisVideoData');
+      if (storedVideo) {
+        try {
+          const parsedVideo = JSON.parse(storedVideo);
+          if (!parsedVideo.playerName) {
+            parsedVideo.playerName = 'Player';
+          }
+          if (parsedVideo.playerPhone === undefined) {
+            const storedPhone = window.sessionStorage.getItem('analysisPlayerPhone');
+            if (storedPhone) {
+              parsedVideo.playerPhone = storedPhone;
+            }
+          }
+          setVideoData(parsedVideo);
+        } catch (error) {
+          console.warn('Invalid analysis video data', error);
+          window.sessionStorage.removeItem('analysisVideoData');
+        }
+      }
     }
   }, []); // Only run once on mount
+
+  // Auto-show details modal if there's video data but no player name
+  useEffect(() => {
+    if (!videoData) return;
+    if (pendingEntry) return; // Let pending entry take priority
+    if (!videoData.playerName || videoData.playerName === 'Player') {
+      setDetailsOpen(true);
+    }
+  }, [videoData, pendingEntry]);
 
   // Monitor benchmarkDetailedData changes
   useEffect(() => {
@@ -1581,6 +1698,13 @@ function AnalyzeContent() {
           </div>
         </footer>
       </div>
+      
+      {/* Details Modal */}
+      <LeaderboardDetailsOverlay
+        open={detailsOpen && !!pendingEntry}
+        onClose={() => setDetailsOpen(false)}
+        onSubmit={handleDetailsSubmit}
+      />
     </div>
   );
 }
