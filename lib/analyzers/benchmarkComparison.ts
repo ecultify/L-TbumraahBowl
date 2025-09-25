@@ -440,6 +440,238 @@ export class BenchmarkComparisonAnalyzer {
     return result;
   }
 
+  /**
+   * Detects if the person is in a sitting posture based on pose keypoints
+   * Analyzes multiple frames to determine consistent sitting posture
+   */
+  private detectSittingPosture(): boolean {
+    if (this.inputPattern.keypoints.length === 0) {
+      return false;
+    }
+
+    let sittingFrameCount = 0;
+    let validFrameCount = 0;
+    const SITTING_CONFIDENCE_THRESHOLD = 0.6; // 60% of frames must indicate sitting
+
+    // Analyze multiple frames to get consistent posture reading
+    for (const frameData of this.inputPattern.keypoints) {
+      if (frameData.poses.length === 0) continue;
+      
+      const pose = frameData.poses[0];
+      const isSittingFrame = this.analyzeSittingInFrame(pose);
+      
+      if (isSittingFrame !== null) {
+        validFrameCount++;
+        if (isSittingFrame) {
+          sittingFrameCount++;
+        }
+      }
+    }
+
+    if (validFrameCount === 0) {
+      console.log('No valid frames for posture analysis');
+      return false;
+    }
+
+    const sittingRatio = sittingFrameCount / validFrameCount;
+    const isSitting = sittingRatio >= SITTING_CONFIDENCE_THRESHOLD;
+    
+    console.log(`Posture analysis: ${sittingFrameCount}/${validFrameCount} frames indicate sitting (${(sittingRatio * 100).toFixed(1)}%), threshold: ${(SITTING_CONFIDENCE_THRESHOLD * 100).toFixed(1)}%`);
+    
+    return isSitting;
+  }
+
+  /**
+   * Analyzes a single frame to determine if the pose indicates sitting
+   * Returns true if sitting, false if standing, null if indeterminate
+   */
+  private analyzeSittingInFrame(pose: poseDetection.Pose): boolean | null {
+    const getKeypoint = (name: string) => {
+      const kp = pose.keypoints.find(k => k.name === name);
+      return (kp && kp.score && kp.score > 0.4) ? kp : null;
+    };
+
+    const leftHip = getKeypoint('left_hip');
+    const rightHip = getKeypoint('right_hip');
+    const leftKnee = getKeypoint('left_knee');
+    const rightKnee = getKeypoint('right_knee');
+    const leftAnkle = getKeypoint('left_ankle');
+    const rightAnkle = getKeypoint('right_ankle');
+
+    // Need at least hips and knees for analysis
+    if (!leftHip && !rightHip) {
+      return null; // Can't determine without hip data
+    }
+
+    let sittingIndicators = 0;
+    let standingIndicators = 0;
+    let totalChecks = 0;
+
+    // Check 1: Hip to knee angle (sitting = more horizontal, standing = more vertical)
+    if ((leftHip && leftKnee) || (rightHip && rightKnee)) {
+      const hipKneeAngles = [];
+      
+      if (leftHip && leftKnee) {
+        const angle = this.calculateAngleFromVertical(leftHip, leftKnee);
+        hipKneeAngles.push(angle);
+      }
+      
+      if (rightHip && rightKnee) {
+        const angle = this.calculateAngleFromVertical(rightHip, rightKnee);
+        hipKneeAngles.push(angle);
+      }
+      
+      const avgHipKneeAngle = hipKneeAngles.reduce((a, b) => a + b, 0) / hipKneeAngles.length;
+      
+      totalChecks++;
+      if (avgHipKneeAngle > 45) { // More horizontal = sitting
+        sittingIndicators++;
+      } else {
+        standingIndicators++;
+      }
+    }
+
+    // Check 2: Knee to ankle relationship (sitting = knees typically higher than or level with ankles)
+    if ((leftKnee && leftAnkle) || (rightKnee && rightAnkle)) {
+      let kneeAnkleChecks = 0;
+      let kneesHigherCount = 0;
+      
+      if (leftKnee && leftAnkle) {
+        kneeAnkleChecks++;
+        if (leftKnee.y < leftAnkle.y) { // Lower Y = higher on screen = sitting
+          kneesHigherCount++;
+        }
+      }
+      
+      if (rightKnee && rightAnkle) {
+        kneeAnkleChecks++;
+        if (rightKnee.y < rightAnkle.y) {
+          kneesHigherCount++;
+        }
+      }
+      
+      if (kneeAnkleChecks > 0) {
+        totalChecks++;
+        const kneeHigherRatio = kneesHigherCount / kneeAnkleChecks;
+        if (kneeHigherRatio >= 0.5) { // At least half the knees are higher than ankles
+          sittingIndicators++;
+        } else {
+          standingIndicators++;
+        }
+      }
+    }
+
+    // Check 3: Overall body compactness (sitting = more compressed vertically)
+    const allPoints = [leftHip, rightHip, leftKnee, rightKnee, leftAnkle, rightAnkle].filter(p => p !== null);
+    if (allPoints.length >= 4) {
+      const yPositions = allPoints.map(p => p!.y);
+      const verticalSpread = Math.max(...yPositions) - Math.min(...yPositions);
+      const bodyWidth = this.getNormalizationScale(pose);
+      
+      if (bodyWidth > 0) {
+        const compactnessRatio = verticalSpread / bodyWidth;
+        totalChecks++;
+        if (compactnessRatio < 1.2) { // More compact = likely sitting
+          sittingIndicators++;
+        } else {
+          standingIndicators++;
+        }
+      }
+    }
+
+    if (totalChecks === 0) {
+      return null; // Couldn't make any reliable checks
+    }
+
+    // Determine result based on majority of indicators
+    const sittingRatio = sittingIndicators / totalChecks;
+    return sittingRatio > 0.5;
+  }
+
+  /**
+   * Calculate angle from vertical for two points
+   * Returns angle in degrees (0 = vertical, 90 = horizontal)
+   */
+  private calculateAngleFromVertical(point1: poseDetection.Keypoint, point2: poseDetection.Keypoint): number {
+    const dx = point2.x - point1.x;
+    const dy = point2.y - point1.y;
+    const angleRadians = Math.atan2(Math.abs(dx), Math.abs(dy));
+    const angleDegrees = angleRadians * (180 / Math.PI);
+    return angleDegrees;
+  }
+
+  /**
+   * Checks if required FULL BODY keypoints are consistently detected across frames
+   * Requires BOTH upper body (shoulders, arms) AND lower body (hips, legs) keypoints
+   * Returns true if sufficient full body visibility, false otherwise
+   */
+  private checkRequiredFullBodyKeypoints(): boolean {
+    if (this.inputPattern.keypoints.length === 0) {
+      return false;
+    }
+
+    let validFrameCount = 0;
+    let framesWithFullBody = 0;
+    const FULL_BODY_THRESHOLD = 0.6; // 60% of frames must have both upper and lower body keypoints
+    const MIN_CONFIDENCE = 0.4;
+
+    // Analyze frames for consistent full body keypoint detection
+    for (const frameData of this.inputPattern.keypoints) {
+      if (frameData.poses.length === 0) continue;
+      
+      const pose = frameData.poses[0];
+      validFrameCount++;
+      
+      // === UPPER BODY KEYPOINTS ===
+      // Shoulders (critical for bowling analysis)
+      const leftShoulder = pose.keypoints.find(kp => kp.name === 'left_shoulder' && kp.score && kp.score > MIN_CONFIDENCE);
+      const rightShoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder' && kp.score && kp.score > MIN_CONFIDENCE);
+      
+      // Arms (essential for bowling motion)
+      const leftElbow = pose.keypoints.find(kp => kp.name === 'left_elbow' && kp.score && kp.score > MIN_CONFIDENCE);
+      const rightElbow = pose.keypoints.find(kp => kp.name === 'right_elbow' && kp.score && kp.score > MIN_CONFIDENCE);
+      const leftWrist = pose.keypoints.find(kp => kp.name === 'left_wrist' && kp.score && kp.score > MIN_CONFIDENCE);
+      const rightWrist = pose.keypoints.find(kp => kp.name === 'right_wrist' && kp.score && kp.score > MIN_CONFIDENCE);
+      
+      // === LOWER BODY KEYPOINTS ===
+      // Hips (critical for stance analysis)
+      const leftHip = pose.keypoints.find(kp => kp.name === 'left_hip' && kp.score && kp.score > MIN_CONFIDENCE);
+      const rightHip = pose.keypoints.find(kp => kp.name === 'right_hip' && kp.score && kp.score > MIN_CONFIDENCE);
+      
+      // Legs (essential for full bowling motion)
+      const leftKnee = pose.keypoints.find(kp => kp.name === 'left_knee' && kp.score && kp.score > MIN_CONFIDENCE);
+      const rightKnee = pose.keypoints.find(kp => kp.name === 'right_knee' && kp.score && kp.score > MIN_CONFIDENCE);
+      const leftAnkle = pose.keypoints.find(kp => kp.name === 'left_ankle' && kp.score && kp.score > MIN_CONFIDENCE);
+      const rightAnkle = pose.keypoints.find(kp => kp.name === 'right_ankle' && kp.score && kp.score > MIN_CONFIDENCE);
+      
+      // === UPPER BODY REQUIREMENTS ===
+      const hasShoulders = leftShoulder || rightShoulder;
+      const hasArms = (leftElbow || rightElbow) && (leftWrist || rightWrist);
+      const hasUpperBody = hasShoulders && hasArms;
+      
+      // === LOWER BODY REQUIREMENTS ===
+      const hasHips = leftHip || rightHip;
+      const hasLegs = (leftKnee || rightKnee) && (leftAnkle || rightAnkle);
+      const hasLowerBody = hasHips && hasLegs;
+      
+      // === FULL BODY CHECK ===
+      if (hasUpperBody && hasLowerBody) {
+        framesWithFullBody++;
+      }
+    }
+
+    if (validFrameCount === 0) {
+      return false;
+    }
+
+    const fullBodyRatio = framesWithFullBody / validFrameCount;
+    const hasRequiredFullBody = fullBodyRatio >= FULL_BODY_THRESHOLD;
+    
+    console.log(`Full body keypoint analysis: ${framesWithFullBody}/${validFrameCount} frames have complete body (${(fullBodyRatio * 100).toFixed(1)}%), threshold: ${(FULL_BODY_THRESHOLD * 100).toFixed(1)}%`);
+    
+    return hasRequiredFullBody;
+  }
+
   async analyzeFrame(frame: FrameData): Promise<number> {
     if (!this.detector || !this.isInitialized) {
       console.warn('Detector not initialized');
@@ -493,6 +725,13 @@ export class BenchmarkComparisonAnalyzer {
   getFinalIntensity(): number {
     if (!this.benchmarkPattern || this.inputPattern.keypoints.length === 0) {
       console.warn('No benchmark pattern or input data for comparison');
+      return 0;
+    }
+
+    // Check for required full body keypoints - reject videos without both upper AND lower body visibility
+    const hasRequiredFullBodyKeypoints = this.checkRequiredFullBodyKeypoints();
+    if (!hasRequiredFullBodyKeypoints) {
+      console.log('Required full body keypoints not detected - bowling analysis requires complete body visibility');
       return 0;
     }
 
