@@ -136,7 +136,21 @@ export class BenchmarkComparisonAnalyzer {
         }
       } catch {}
 
-      // Prefer multi-reference benchmarks first
+      // Prefer single benchmark pattern for consistency
+      try {
+        const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
+        if (res.ok) {
+          const data = await res.json() as SerializedPattern;
+          this.benchmarkPattern = this.deserializePattern(data);
+          this.isInitialized = true;
+          console.log('Loaded single benchmark pattern from /benchmarkPattern.json');
+          return true;
+        }
+      } catch (e) {
+        console.warn('No public benchmarkPattern.json found or failed to load', e);
+      }
+
+      // Fallback to multi-reference benchmarks if single pattern not found
       try {
         const idxRes = await fetch('/benchmarks/index.json', { cache: 'force-cache' });
         if (idxRes.ok) {
@@ -155,26 +169,12 @@ export class BenchmarkComparisonAnalyzer {
             this.benchmarkPatterns = loaded;
             this.benchmarkPattern = loaded[0];
             this.isInitialized = true;
-            console.log(`Loaded ${loaded.length} benchmark patterns from /benchmarks`);
+            console.log(`Loaded ${loaded.length} benchmark patterns from /benchmarks as fallback`);
             return true;
           }
         }
       } catch (e) {
         console.warn('No multi-reference benchmarks found', e);
-      }
-
-      // Then try a single public JSON
-      try {
-        const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
-        if (res.ok) {
-          const data = await res.json() as SerializedPattern;
-          this.benchmarkPattern = this.deserializePattern(data);
-          this.isInitialized = true;
-          console.log('Loaded benchmark pattern from /benchmarkPattern.json');
-          return true;
-        }
-      } catch (e) {
-        console.warn('No public benchmarkPattern.json found or failed to load', e);
       }
 
       // Finally, try cached pattern in localStorage
@@ -542,16 +542,19 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private calculateOverallSimilarity(): number {
-    // If multiple benchmarks loaded, take the best match
-    if (this.benchmarkPatterns.length > 0) {
-      let best = 0;
-      for (const p of this.benchmarkPatterns) {
-        best = Math.max(best, this.calculateOverallSimilarityAgainst(p));
-      }
-      return best;
+    // Use single benchmark pattern if available (most consistent)
+    if (this.benchmarkPattern) {
+      return this.calculateOverallSimilarityAgainst(this.benchmarkPattern);
     }
-    if (!this.benchmarkPattern) return 0;
-    return this.calculateOverallSimilarityAgainst(this.benchmarkPattern);
+    // Fallback to average of multiple patterns if single pattern not available
+    if (this.benchmarkPatterns.length > 0) {
+      let totalSimilarity = 0;
+      for (const p of this.benchmarkPatterns) {
+        totalSimilarity += this.calculateOverallSimilarityAgainst(p);
+      }
+      return totalSimilarity / this.benchmarkPatterns.length;
+    }
+    return 0;
   }
 
   private getWeights() {
@@ -741,14 +744,8 @@ export class BenchmarkComparisonAnalyzer {
     const candidates = this.benchmarkPatterns.length > 0 ? this.benchmarkPatterns : (this.benchmarkPattern ? [this.benchmarkPattern] : []);
     if (candidates.length === 0) return null;
 
-    // Pick best benchmark for detailed comparison
-    let bestIdx = 0;
-    let bestScore = -1;
-    for (let i = 0; i < candidates.length; i++) {
-      const s = this.calculateOverallSimilarityAgainst(candidates[i]);
-      if (s > bestScore) { bestScore = s; bestIdx = i; }
-    }
-    const bench = candidates[bestIdx];
+    // Use first benchmark for consistent detailed comparison
+    const bench = candidates[0];
 
     const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, bench.armSwingVelocities);
     const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, bench.bodyMovementVelocities);
@@ -765,7 +762,7 @@ export class BenchmarkComparisonAnalyzer {
     const deliverySim = this.comparePhasesAgainst(bench, 'delivery');
     const followThroughSim = this.comparePhasesAgainst(bench, 'followThrough');
 
-    const overallSimilarity = bestScore;
+    const overallSimilarity = this.calculateOverallSimilarity();
 
     // Generate recommendations
     const recommendations: string[] = [];
