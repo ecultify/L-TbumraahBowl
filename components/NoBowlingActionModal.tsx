@@ -146,7 +146,7 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
           {/* Action Buttons */}
           <div className="flex flex-col gap-3">
             {/* Primary Button - Upload New Video */}
-            <Link href="/" onClick={handleTryAgain}>
+            <Link href="/record-upload" onClick={handleTryAgain}>
               <button 
                 className="w-full inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
                 style={{
@@ -165,7 +165,7 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
             </Link>
             
             {/* Secondary Button - Record Again */}
-            <Link href="/" onClick={handleTryAgain}>
+            <Link href="/record-upload" onClick={handleTryAgain}>
               <button 
                 className="w-full inline-flex items-center justify-center font-bold transition-all duration-300 transform hover:scale-105 backdrop-blur-sm border border-white/20"
                 style={{
