@@ -1,17 +1,19 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
 import { useRouter } from 'next/navigation';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
 import { intensityToKmh } from '@/lib/utils/normalize';
+import { NoBowlingActionModal } from '@/components/NoBowlingActionModal';
+import { BackButton } from '@/components/BackButton';
 
 function AnalyzingContent() {
   const { state } = useAnalysis();
   const router = useRouter();
+  const [showNoBowlingActionModal, setShowNoBowlingActionModal] = useState(false);
 
   // Intersection observers for animations
   const titleSection = useIntersectionObserver({ threshold: 0.1, freezeOnceVisible: true });
@@ -19,12 +21,28 @@ function AnalyzingContent() {
 
   const hasCompleted = state.progress === 100 && !!state.speedClass;
   const hasResults = state.finalIntensity > 0 && !!state.speedClass;
+  const noBowlingActionDetected = state.progress === 100 && state.finalIntensity === 0;
   // Use exact same logic as desktop analyze page
   const effectiveIntensity = state.finalIntensity;
   const similarityPercent = Math.round(effectiveIntensity || 0);
   const predictedKmh = hasResults ? intensityToKmh(state.finalIntensity) : null;
 
   const canContinue = hasCompleted;
+
+  // Check for no bowling action detected flag
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const noBowlingActionFlag = window.sessionStorage.getItem('noBowlingActionDetected');
+      if (noBowlingActionFlag === 'true') {
+        // Show modal after a short delay to let the page load
+        setTimeout(() => {
+          setShowNoBowlingActionModal(true);
+        }, 2000);
+        // Clear the flag
+        window.sessionStorage.removeItem('noBowlingActionDetected');
+      }
+    }
+  }, []);
 
   return (
     <div 
@@ -50,13 +68,7 @@ function AnalyzingContent() {
 
         {/* Header with Back Button */}
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/video-preview"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}
@@ -73,7 +85,7 @@ function AnalyzingContent() {
                 lineHeight: '1.2'
               }}
             >
-              Analyzing...
+              {noBowlingActionDetected ? 'No Bowling Action Detected' : 'Analyzing...'}
             </h1>
             <p 
               className={`animate-fadeInUp animate-delay-200 ${titleSection.isIntersecting ? 'animate-on-scroll' : ''}`}
@@ -85,7 +97,10 @@ function AnalyzingContent() {
                 lineHeight: '1.3'
               }}
             >
-              Review your submission
+              {noBowlingActionDetected 
+                ? 'Please record a video with actual bowling movements'
+                : 'Review your submission'
+              }
             </p>
           </div>
 
@@ -112,7 +127,7 @@ function AnalyzingContent() {
                     letterSpacing: '0.2em'
                   }}
                 >
-                  Similarity
+                  {noBowlingActionDetected ? 'No Action' : 'Similarity'}
                 </p>
                 <p
                   className="text-white"
@@ -123,7 +138,7 @@ function AnalyzingContent() {
                     lineHeight: '1'
                   }}
                 >
-                  {similarityPercent}%
+                  {noBowlingActionDetected ? '--' : `${similarityPercent}%`}
                 </p>
               </div>
             </div>
@@ -242,13 +257,7 @@ function AnalyzingContent() {
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/video-preview"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}
@@ -265,7 +274,7 @@ function AnalyzingContent() {
                 lineHeight: '1.2'
               }}
             >
-              Analyzing...
+              {noBowlingActionDetected ? 'No Bowling Action Detected' : 'Analyzing...'}
             </h1>
             <p 
               style={{
@@ -276,7 +285,10 @@ function AnalyzingContent() {
                 lineHeight: '1.3'
               }}
             >
-              Your bowling performance is being analyzed
+              {noBowlingActionDetected 
+                ? 'Please upload a video with actual bowling movements'
+                : 'Your bowling performance is being analyzed'
+              }
             </p>
           </div>
 
@@ -298,7 +310,7 @@ function AnalyzingContent() {
                       letterSpacing: '0.2em'
                     }}
                   >
-                    Similarity
+                    {noBowlingActionDetected ? 'No Action' : 'Similarity'}
                   </p>
                   <p
                     className="text-white"
@@ -309,7 +321,7 @@ function AnalyzingContent() {
                       lineHeight: '1'
                     }}
                   >
-                    {similarityPercent}%
+                    {noBowlingActionDetected ? '--' : `${similarityPercent}%`}
                   </p>
                 </div>
               </div>
@@ -450,6 +462,11 @@ function AnalyzingContent() {
         </footer>
       </div>
 
+      {/* No Bowling Action Modal */}
+      <NoBowlingActionModal 
+        open={showNoBowlingActionModal}
+        onOpenChange={setShowNoBowlingActionModal}
+      />
     </div>
   );
 }

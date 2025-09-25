@@ -496,6 +496,33 @@ export class BenchmarkComparisonAnalyzer {
       return 0;
     }
 
+    // Check for minimum movement threshold to filter out static videos
+    const avgArmSwingVelocity = this.inputPattern.armSwingVelocities.length > 0 
+      ? this.inputPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / this.inputPattern.armSwingVelocities.length 
+      : 0;
+    const maxArmSwingVelocity = this.inputPattern.armSwingVelocities.length > 0 
+      ? Math.max(...this.inputPattern.armSwingVelocities) 
+      : 0;
+    
+    const avgOverallIntensity = this.inputPattern.overallIntensities.length > 0
+      ? this.inputPattern.overallIntensities.reduce((a, b) => a + b, 0) / this.inputPattern.overallIntensities.length
+      : 0;
+    const maxOverallIntensity = this.inputPattern.overallIntensities.length > 0
+      ? Math.max(...this.inputPattern.overallIntensities)
+      : 0;
+
+    // Minimum thresholds for bowling action detection
+    const MIN_ARM_SWING_VELOCITY = 0.5; // Adjust based on your data
+    const MIN_OVERALL_INTENSITY = 1.0;
+    const MIN_MAX_INTENSITY = 2.0;
+
+    if (maxArmSwingVelocity < MIN_ARM_SWING_VELOCITY || 
+        avgOverallIntensity < MIN_OVERALL_INTENSITY || 
+        maxOverallIntensity < MIN_MAX_INTENSITY) {
+      console.log(`Insufficient movement detected - avgArmSwing: ${avgArmSwingVelocity.toFixed(3)}, maxArmSwing: ${maxArmSwingVelocity.toFixed(3)}, avgOverall: ${avgOverallIntensity.toFixed(3)}, maxOverall: ${maxOverallIntensity.toFixed(3)}`);
+      return 0; // No similarity score for static/minimal movement videos
+    }
+
     // Complete input pattern analysis
     this.analyzeActionPhases(this.inputPattern);
     

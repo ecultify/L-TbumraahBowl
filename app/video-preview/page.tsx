@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
+import { BackButton } from '@/components/BackButton';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
@@ -157,6 +157,30 @@ function VideoPreviewContent() {
       const finalIntensity = Math.max(0, Math.min(100, rawFinalIntensity));
       const speedResult = classifySpeed(finalIntensity);
 
+      // Check if no bowling action was detected
+      if (finalIntensity === 0) {
+        console.log('🚫 No bowling action detected');
+        // Store a flag indicating no bowling action was detected
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('noBowlingActionDetected', 'true');
+        }
+        
+        dispatch({
+          type: 'COMPLETE_ANALYSIS',
+          payload: {
+            finalIntensity: 0,
+            speedClass: 'No Action' as any,
+            confidence: 0,
+          }
+        });
+
+        // Navigate to analyzing page to show the error
+        setTimeout(() => {
+          router.push('/analyzing');
+        }, 1000);
+        return;
+      }
+
       // Get detailed analysis data
       console.log('📊 Getting detailed analysis data in video-preview...');
       const detailedAnalysis = analyzer.getDetailedAnalysis();
@@ -262,13 +286,7 @@ function VideoPreviewContent() {
         
         {/* Header with Back Button */}
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/record-upload"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}
@@ -559,13 +577,7 @@ function VideoPreviewContent() {
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/record-upload"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}

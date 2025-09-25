@@ -2,7 +2,8 @@
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Settings2, Play, RotateCcw } from 'lucide-react';
+import { Settings2, Play, RotateCcw } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
 import { useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { SpeedMeter } from '@/components/SpeedMeter';
 import { VideoRecorder } from '@/components/VideoRecorder';
@@ -1102,13 +1103,7 @@ function AnalyzeContent() {
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link
-            href="/quick-analysis"
-            className="inline-flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         <div className="relative flex-1 px-4 pt-20 pb-12 space-y-8">
@@ -1403,13 +1398,7 @@ function AnalyzeContent() {
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/quick-analysis"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}

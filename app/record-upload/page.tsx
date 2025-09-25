@@ -2,8 +2,8 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { VideoRecorder } from '@/components/VideoRecorder';
+import { BackButton } from '@/components/BackButton';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function RecordUploadPage() {
@@ -207,13 +207,7 @@ export default function RecordUploadPage() {
         </div>
       {/* Header with Back Button */}
       <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-        <Link 
-          href="/instructions"
-          className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-        >
-          <ArrowLeft className="w-5 h-5" />
-          <span className="text-sm font-medium">Back</span>
-        </Link>
+        <BackButton />
       </div>
 
       {/* Main Content */}
@@ -877,13 +871,7 @@ export default function RecordUploadPage() {
               </Link>
             </div>
             <div className="absolute left-8 flex items-center gap-4">
-              <Link 
-                href="/instructions"
-                className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                <span className="text-lg font-medium">Back</span>
-              </Link>
+              <BackButton />
             </div>
           </div>
         </header>

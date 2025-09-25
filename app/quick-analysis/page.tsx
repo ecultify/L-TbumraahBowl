@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft } from 'lucide-react';
 import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
+import { BackButton } from '@/components/BackButton';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { intensityToKmh } from '@/lib/utils/normalize';
 
@@ -67,13 +67,7 @@ function QuickAnalysisContent() {
         </div>
         {/* Header with Back Button */}
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/analyzing"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}
@@ -361,13 +355,7 @@ function QuickAnalysisContent() {
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-          <Link 
-            href="/analyzing"
-            className="flex items-center gap-2 text-white hover:text-gray-200 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span className="text-sm font-medium">Back</span>
-          </Link>
+          <BackButton />
         </div>
 
         {/* Main Content */}
