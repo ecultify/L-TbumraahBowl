@@ -40,6 +40,28 @@ export function clearAnalysisSessionStorage(): void {
 }
 
 /**
+ * Force page reload for complete fresh start
+ * More thorough than just clearing session storage
+ */
+export function reloadPageForFreshStart(): void {
+  if (typeof window === 'undefined') return;
+  
+  console.log('🔄 Reloading page for complete fresh start');
+  window.location.reload();
+}
+
+/**
+ * Navigate to URL with forced reload (no SPA navigation)
+ * Ensures complete state reset
+ */
+export function navigateWithReload(url: string): void {
+  if (typeof window === 'undefined') return;
+  
+  console.log(`🔄 Navigating to ${url} with full reload`);
+  window.location.href = url;
+}
+
+/**
  * Clear specific keys related to video upload/recording
  * Used when starting a new video upload/recording process
  */

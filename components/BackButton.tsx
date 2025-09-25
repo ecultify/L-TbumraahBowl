@@ -4,7 +4,7 @@ import React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { useBackNavigation, getBackRoute } from '@/hooks/use-back-navigation';
 import { usePathname } from 'next/navigation';
-import { clearAnalysisSessionStorage } from '@/lib/utils/sessionCleanup';
+import { navigateWithReload } from '@/lib/utils/sessionCleanup';
 
 interface BackButtonProps {
   /** Custom fallback route if provided */
@@ -30,15 +30,14 @@ export function BackButton({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     
-    // Clear session storage when navigating back from analysis-related pages
+    // Use page reload when navigating back from analysis-related pages
     const analysisPages = ['/analyze', '/video-preview', '/analyzing', '/leaderboard'];
-    const shouldClearSession = analysisPages.some(page => pathname.startsWith(page));
+    const shouldReload = analysisPages.some(page => pathname.startsWith(page));
     
-    if (shouldClearSession) {
-      clearAnalysisSessionStorage();
-    }
-    
-    if (onClick) {
+    if (shouldReload) {
+      const backRoute = getBackRoute(pathname);
+      navigateWithReload(backRoute);
+    } else if (onClick) {
       onClick();
     } else {
       goBack();

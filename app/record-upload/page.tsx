@@ -21,9 +21,6 @@ export default function RecordUploadPage() {
 
   // Check URL parameters and device type on component mount
   useEffect(() => {
-    // Clear all analysis-related session storage for fresh start
-    clearAnalysisSessionStorage();
-    
     const mode = searchParams.get('mode');
     if (mode === 'record') {
       setActiveMode('record');

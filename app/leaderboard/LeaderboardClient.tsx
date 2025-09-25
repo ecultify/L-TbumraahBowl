@@ -8,7 +8,7 @@ import styles from './index.module.css';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
 import { useToast } from '@/components/Toast';
-import { clearAnalysisSessionStorage } from '@/lib/utils/sessionCleanup';
+import { navigateWithReload } from '@/lib/utils/sessionCleanup';
 
 const VIDEO_INTENSITY_THRESHOLD = 85;
 const isEligibleForVideo = (value?: number | null) =>
@@ -437,11 +437,10 @@ export default function LeaderboardClient() {
             />
             View Gallery
           </Link>
-          <Link 
-            href="/record-upload?mode=record" 
+          <button 
             className={styles.ctaSecondary}
-            onClick={(e) => {
-              clearAnalysisSessionStorage();
+            onClick={() => {
+              navigateWithReload('/record-upload?mode=record');
             }}
           >
             <Image
@@ -451,7 +450,7 @@ export default function LeaderboardClient() {
               height={20}
             />
             Retry Analysis
-          </Link>
+          </button>
           {/* Verify & Submit Details button removed - now handled in analyze page */}
           {/* Video Generation for High Performance Users */}
           {videoData && isEligibleForVideo(videoData.similarity || videoData.intensity) && (

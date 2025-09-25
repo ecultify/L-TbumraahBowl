@@ -2,15 +2,8 @@
 
 import Link from 'next/link';
 import { useIntersectionObserver } from '../hooks/use-intersection-observer';
-import { useEffect } from 'react';
-import { clearAnalysisSessionStorage } from '@/lib/utils/sessionCleanup';
 
 export default function Home() {
-  // Clear analysis session storage when visiting homepage for fresh start
-  useEffect(() => {
-    clearAnalysisSessionStorage();
-  }, []);
-
   // Intersection observers for each section
   const heroSection = useIntersectionObserver({ threshold: 0.3, freezeOnceVisible: true });
   const secondSection = useIntersectionObserver({ threshold: 0.5, freezeOnceVisible: true });

@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle, Camera, Upload, X } from 'lucide-react';
 import Link from 'next/link';
-import { clearAnalysisSessionStorage } from '@/lib/utils/sessionCleanup';
+import { navigateWithReload } from '@/lib/utils/sessionCleanup';
 
 interface NoBowlingActionModalProps {
   open: boolean;
@@ -15,10 +15,14 @@ interface NoBowlingActionModalProps {
 }
 
 export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModalProps) {
-  const handleTryAgain = () => {
+  const handleUploadNewVideo = () => {
     onOpenChange(false);
-    // Clear all analysis-related session storage for fresh start
-    clearAnalysisSessionStorage();
+    navigateWithReload('/record-upload?mode=upload');
+  };
+
+  const handleRecordAgain = () => {
+    onOpenChange(false);
+    navigateWithReload('/record-upload?mode=record');
   };
 
   return (
@@ -140,42 +144,40 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
           {/* Action Buttons */}
           <div className="flex flex-col gap-3">
             {/* Primary Button - Upload New Video */}
-            <Link href="/record-upload?mode=record" onClick={handleTryAgain}>
-              <button 
-                className="w-full inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
-                style={{
-                  backgroundColor: '#FFC315',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'black',
-                  height: '41px'
-                }}
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Upload New Video
-              </button>
-            </Link>
+            <button 
+              onClick={handleUploadNewVideo}
+              className="w-full inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
+              style={{
+                backgroundColor: '#FFC315',
+                borderRadius: '25.62px',
+                fontFamily: 'Frutiger, Inter, sans-serif',
+                fontWeight: '700',
+                fontSize: '14px',
+                color: 'black',
+                height: '41px'
+              }}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Upload New Video
+            </button>
             
             {/* Secondary Button - Record Again */}
-            <Link href="/record-upload?mode=record" onClick={handleTryAgain}>
-              <button 
-                className="w-full inline-flex items-center justify-center font-bold transition-all duration-300 transform hover:scale-105 backdrop-blur-sm border border-white/20"
-                style={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'white',
-                  height: '41px'
-                }}
-              >
-                <Camera className="w-4 h-4 mr-2" />
-                Record Again
-              </button>
-            </Link>
+            <button 
+              onClick={handleRecordAgain}
+              className="w-full inline-flex items-center justify-center font-bold transition-all duration-300 transform hover:scale-105 backdrop-blur-sm border border-white/20"
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                borderRadius: '25.62px',
+                fontFamily: 'Frutiger, Inter, sans-serif',
+                fontWeight: '700',
+                fontSize: '14px',
+                color: 'white',
+                height: '41px'
+              }}
+            >
+              <Camera className="w-4 h-4 mr-2" />
+              Record Again
+            </button>
           </div>
         </div>
       </AlertDialogContent>
