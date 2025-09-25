@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle, Camera, Upload, X } from 'lucide-react';
 import Link from 'next/link';
+import { clearAnalysisSessionStorage } from '@/lib/utils/sessionCleanup';
 
 interface NoBowlingActionModalProps {
   open: boolean;
@@ -16,15 +17,8 @@ interface NoBowlingActionModalProps {
 export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModalProps) {
   const handleTryAgain = () => {
     onOpenChange(false);
-    // Clear any stored analysis data
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem('analysisVideoData');
-      window.sessionStorage.removeItem('benchmarkDetailedData');
-      window.sessionStorage.removeItem('pendingLeaderboardEntry');
-      window.sessionStorage.removeItem('uploadedVideoUrl');
-      window.sessionStorage.removeItem('uploadedFileName');
-      window.sessionStorage.removeItem('uploadedSource');
-    }
+    // Clear all analysis-related session storage for fresh start
+    clearAnalysisSessionStorage();
   };
 
   return (

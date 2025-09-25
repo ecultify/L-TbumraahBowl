@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { VideoRecorder } from '@/components/VideoRecorder';
 import { BackButton } from '@/components/BackButton';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { clearAnalysisSessionStorage, clearVideoSessionStorage } from '@/lib/utils/sessionCleanup';
 
 export default function RecordUploadPage() {
   const [activeMode, setActiveMode] = useState<'none' | 'record' | 'upload'>('none');
@@ -20,6 +21,9 @@ export default function RecordUploadPage() {
 
   // Check URL parameters and device type on component mount
   useEffect(() => {
+    // Clear all analysis-related session storage for fresh start
+    clearAnalysisSessionStorage();
+    
     const mode = searchParams.get('mode');
     if (mode === 'record') {
       setActiveMode('record');

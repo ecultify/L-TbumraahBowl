@@ -826,5 +826,16 @@ export class BenchmarkComparisonAnalyzer {
 
   reset(): void {
     this.inputPattern = this.createEmptyPattern();
+    
+    // Clear session storage to ensure fresh start
+    if (typeof window !== 'undefined') {
+      console.log('🔄 Analyzer reset - clearing session storage');
+      const keys = ['analysisVideoData', 'benchmarkDetailedData'];
+      keys.forEach(key => {
+        if (window.sessionStorage.getItem(key)) {
+          window.sessionStorage.removeItem(key);
+        }
+      });
+    }
   }
 }

@@ -8,6 +8,7 @@ import styles from './index.module.css';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
 import { useToast } from '@/components/Toast';
+import { clearAnalysisSessionStorage } from '@/lib/utils/sessionCleanup';
 
 const VIDEO_INTENSITY_THRESHOLD = 85;
 const isEligibleForVideo = (value?: number | null) =>
@@ -436,7 +437,13 @@ export default function LeaderboardClient() {
             />
             View Gallery
           </Link>
-          <Link href="/record-upload?mode=record" className={styles.ctaSecondary}>
+          <Link 
+            href="/record-upload?mode=record" 
+            className={styles.ctaSecondary}
+            onClick={(e) => {
+              clearAnalysisSessionStorage();
+            }}
+          >
             <Image
               src="/frontend-images/homepage/icons/ri_reset-left-line.svg"
               alt="Retry icon"
