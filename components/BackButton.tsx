@@ -30,12 +30,13 @@ export function BackButton({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     
-    // Use page reload when navigating back from analysis-related pages
-    const analysisPages = ['/analyze', '/video-preview', '/analyzing', '/leaderboard'];
+    // ALWAYS use page reload for analysis-related pages to clear console and memory
+    const analysisPages = ['/analyze', '/video-preview', '/analyzing', '/leaderboard', '/quick-analysis'];
     const shouldReload = analysisPages.some(page => pathname.startsWith(page));
     
     if (shouldReload) {
       const backRoute = getBackRoute(pathname);
+      console.log(`🔄 BackButton: Reloading from ${pathname} to ${backRoute}`);
       navigateWithReload(backRoute);
     } else if (onClick) {
       onClick();

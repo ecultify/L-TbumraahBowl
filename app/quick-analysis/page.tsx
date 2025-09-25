@@ -6,6 +6,7 @@ import { useIntersectionObserver } from '../../hooks/use-intersection-observer';
 import { BackButton } from '@/components/BackButton';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { intensityToKmh } from '@/lib/utils/normalize';
+import { LogoLink } from '@/components/LogoLink';
 
 function QuickAnalysisContent() {
   const { state } = useAnalysis();
@@ -58,11 +59,11 @@ function QuickAnalysisContent() {
     >
       {/* Mobile View */}
       <div className="md:hidden min-h-screen flex flex-col">
-        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-          <img
-            src="/frontend-images/homepage/justzoom logo.png"
-            alt="JustZoom logo"
+        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
+          <LogoLink 
             className="h-12 w-auto"
+            height={48}
+            width={120}
           />
         </div>
         {/* Header with Back Button */}
@@ -345,13 +346,11 @@ function QuickAnalysisContent() {
       {/* Desktop View */}
       <div className="hidden md:block min-h-screen">
         <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
-          <Link href="/">
-            <img
-              src="/frontend-images/homepage/justzoom logo.png"
-              alt="JustZoom logo"
-              className="h-12 w-auto"
-            />
-          </Link>
+          <LogoLink 
+            className="h-12 w-auto"
+            height={48}
+            width={120}
+          />
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">

@@ -21,6 +21,7 @@ import LeaderboardModal from '@/components/LeaderboardModal';
 import ReportPreview from '@/components/ReportPreview';
 import { LeaderboardDetailsOverlay } from '@/components/LeaderboardDetailsOverlay';
 import type { DetailsCardSubmitPayload } from '@/components/DetailsCard';
+import { LogoLink } from '@/components/LogoLink';
 
 function AnalyzeContent() {
   const { state, dispatch } = useAnalysis();
@@ -1093,13 +1094,11 @@ function AnalyzeContent() {
         }}
       >
         <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
-          <Link href="/">
-            <img
-              src="/frontend-images/homepage/justzoom logo.png"
-              alt="JustZoom logo"
-              className="h-12 w-auto"
-            />
-          </Link>
+          <LogoLink 
+            className="h-12 w-auto"
+            height={48}
+            width={120}
+          />
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">

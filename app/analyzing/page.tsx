@@ -9,6 +9,7 @@ import { SpeedMeter } from '@/components/SpeedMeter';
 import { intensityToKmh } from '@/lib/utils/normalize';
 import { NoBowlingActionModal } from '@/components/NoBowlingActionModal';
 import { BackButton } from '@/components/BackButton';
+import { LogoLink } from '@/components/LogoLink';
 
 function AnalyzingContent() {
   const { state } = useAnalysis();
@@ -57,13 +58,11 @@ function AnalyzingContent() {
       {/* Mobile View */}
       <div className="md:hidden min-h-screen flex flex-col">
         <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
-          <Link href="/">
-            <img
-              src="/frontend-images/homepage/justzoom logo.png"
-              alt="JustZoom logo"
-              className="h-12 w-auto cursor-pointer"
-            />
-          </Link>
+          <LogoLink 
+            className="h-12 w-auto"
+            height={48}
+            width={120}
+          />
         </div>
 
         {/* Header with Back Button */}
@@ -247,13 +246,11 @@ function AnalyzingContent() {
       {/* Desktop View */}
       <div className="hidden md:block min-h-screen">
         <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
-          <Link href="/">
-            <img
-              src="/frontend-images/homepage/justzoom logo.png"
-              alt="JustZoom logo"
-              className="h-12 w-auto"
-            />
-          </Link>
+          <LogoLink 
+            className="h-12 w-auto"
+            height={48}
+            width={120}
+          />
         </div>
 
         <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
