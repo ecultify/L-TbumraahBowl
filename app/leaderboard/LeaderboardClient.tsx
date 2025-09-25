@@ -436,7 +436,7 @@ export default function LeaderboardClient() {
             />
             View Gallery
           </Link>
-          <Link href="/record-upload" className={styles.ctaSecondary}>
+          <Link href="/record-upload?mode=record" className={styles.ctaSecondary}>
             <Image
               src="/frontend-images/homepage/icons/ri_reset-left-line.svg"
               alt="Retry icon"
