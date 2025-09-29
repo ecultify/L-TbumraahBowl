@@ -279,8 +279,8 @@ export default function SimplifiedAnalyzePage() {
             
             {/* Loan Approved Decoration */}
             <img
-              src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-              alt="Bumrah Ball in Hand"
+              src="/images/instructions/loanapproved.png"
+              alt="Loan Approved"
               style={{ 
                 position: "absolute", 
                 top: -170, 

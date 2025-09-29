@@ -103,8 +103,8 @@ export default function LeaderboardClient() {
 
           <div style={{ position: "relative", width: "100%" }}>
             <img
-              src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-              alt="Bumrah Ball in Hand"
+              src="/images/instructions/loanapproved.png"
+              alt="Loan Approved"
               style={{ position: "absolute", top: -170, right: -8, width: 150, height: "auto", zIndex: 1, pointerEvents: "none" }}
             />
 

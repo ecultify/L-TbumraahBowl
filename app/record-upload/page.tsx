@@ -793,10 +793,10 @@ export default function RecordUploadPage() {
             </div>
 
             <div style={{ position: "relative", width: "100%" }}>
-              {/* Bumrah Ball in Hand Decoration */}
+              {/* Loan Approved Decoration */}
               <img
-                src="/images/newhomepage/Bumrah Ball in Hand 1.png"
-                alt="Bumrah Ball in Hand"
+                src="/images/instructions/loanapproved.png"
+                alt="Loan Approved"
                 style={{ 
                   position: "absolute", 
                   top: -170, 

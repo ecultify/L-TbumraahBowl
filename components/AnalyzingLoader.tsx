@@ -169,8 +169,9 @@ export function AnalyzingLoader({ stateOverride, forceNoBowlingAction = false }:
 
             {/* Continue Button */}
             <div className="flex justify-center">
+              {/* DEMO MODE: Analysis functionality commented out */}
               <Link
-                href="/analyze"
+                href="/leaderboard"
                 aria-disabled={!canContinue}
                 className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform ${canContinue ? 'hover:scale-105 animate-bounceIn animate-delay-500' : 'pointer-events-none opacity-60'} ${contentSection.isIntersecting ? 'animate-on-scroll' : ''}`}
                 style={{
@@ -184,7 +185,7 @@ export function AnalyzingLoader({ stateOverride, forceNoBowlingAction = false }:
                   height: '41px'
                 }}
               >
-                {canContinue ? 'Continue' : 'Analyzing...'}
+                {canContinue ? 'View Leaderboard' : 'Analyzing...'}
               </Link>
             </div>
           </div>
@@ -366,8 +367,9 @@ export function AnalyzingLoader({ stateOverride, forceNoBowlingAction = false }:
 
             {/* Continue Button */}
             <div className="flex justify-center mb-8">
+              {/* DEMO MODE: Analysis functionality commented out */}
               <Link
-                href="/analyze"
+                href="/leaderboard"
                 aria-disabled={!canContinue}
                 className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform ${canContinue ? 'hover:scale-105' : 'pointer-events-none opacity-60'}`}
                 style={{
@@ -381,7 +383,7 @@ export function AnalyzingLoader({ stateOverride, forceNoBowlingAction = false }:
                   height: '41px'
                 }}
               >
-                {canContinue ? 'Continue' : 'Analyzing...'}
+                {canContinue ? 'View Leaderboard' : 'Analyzing...'}
               </Link>
             </div>
 

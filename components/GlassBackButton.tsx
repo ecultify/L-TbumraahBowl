@@ -29,8 +29,8 @@ export function GlassBackButton({ onClick, className = '' }: GlassBackButtonProp
         width: "30px",
         height: "30px",
         border: "1px solid white",
-        borderRadius: "4px",
-        backgroundColor: "rgba(0,0,0,0.1)",
+        borderRadius: "10px",
+        backgroundColor: "#0095D7",
         backdropFilter: "blur(8px)",
         WebkitBackdropFilter: "blur(8px)",
         display: "flex",
@@ -41,10 +41,10 @@ export function GlassBackButton({ onClick, className = '' }: GlassBackButtonProp
         transition: "all 0.2s ease"
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.2)";
+        e.currentTarget.style.backgroundColor = "#007BB3";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.1)";
+        e.currentTarget.style.backgroundColor = "#0095D7";
       }}
     >
       {/* Left Arrow Icon */}

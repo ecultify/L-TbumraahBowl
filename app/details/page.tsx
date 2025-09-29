@@ -500,9 +500,14 @@ export default function DetailsPage() {
           }
         });
 
+        // DEMO MODE: Analysis functionality commented out
         // Navigate to analyze page to show no bowling action detected message
+        // setTimeout(() => {
+        //   router.push('/analyze');
+        // }, 1000);
+        console.log('Analysis functionality disabled for demo mode');
         setTimeout(() => {
-          router.push('/analyze');
+          router.push('/leaderboard');
         }, 1000);
         return;
       }
@@ -604,9 +609,14 @@ export default function DetailsPage() {
         window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
       }
 
+      // DEMO MODE: Analysis functionality commented out
       // Navigate to analyze page to show results
+      // setTimeout(() => {
+      //   router.push('/analyze');
+      // }, 1000);
+      console.log('Analysis functionality disabled for demo mode');
       setTimeout(() => {
-        router.push('/analyze');
+        router.push('/leaderboard');
       }, 1000);
 
     } catch (error) {
@@ -830,8 +840,8 @@ export default function DetailsPage() {
 
             <div style={{ position: "relative", width: "100%" }}>
               <img
-                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-                alt="Bumrah Ball in Hand"
+                src="/images/instructions/loanapproved.png"
+                alt="Loan Approved"
                 style={{ position: "absolute", top: -170, right: -8, width: 150, height: "auto", zIndex: 1, pointerEvents: "none" }}
               />
 

@@ -258,8 +258,9 @@ function QuickAnalysisContent() {
 
         {/* View Analysis Button */}
         <div className="flex justify-center">
+          {/* DEMO MODE: Analysis functionality commented out */}
           <Link 
-            href="/analyze"
+            href="/leaderboard"
             className={`inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 animate-bounceIn animate-delay-400 ${resultSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             style={{
               backgroundColor: '#FFC315',
@@ -272,7 +273,7 @@ function QuickAnalysisContent() {
               height: '41px'
             }}
           >
-            View Analysis
+            View Leaderboard
           </Link>
         </div>
         </div>
@@ -521,8 +522,9 @@ function QuickAnalysisContent() {
 
             {/* View Analysis Button */}
             <div className="flex justify-center mb-8">
+              {/* DEMO MODE: Analysis functionality commented out */}
               <Link 
-                href="/analyze"
+                href="/leaderboard"
                 className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
                 style={{
                   backgroundColor: '#FFC315',

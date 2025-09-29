@@ -814,8 +814,9 @@ export default function VideoPreviewPage() {
                       Retry
                     </Link>
 
+                    {/* DEMO MODE: Analysis functionality commented out */}
                     <Link
-                      href="/details"
+                      href="/leaderboard"
                       className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                       style={{
                         backgroundColor: '#FFCA04',
@@ -829,7 +830,7 @@ export default function VideoPreviewPage() {
                         padding: '0 12px'
                       }}
                     >
-                      Continue to Details
+                      View Leaderboard
                     </Link>
                   </div>
                 </div>
@@ -895,8 +896,8 @@ export default function VideoPreviewPage() {
 
             <div style={{ position: "relative", width: "100%" }}>
               <img
-                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-                alt="Bumrah Ball in Hand"
+                src="/images/instructions/loanapproved.png"
+                alt="Loan Approved"
                 style={{ position: "absolute", top: -170, right: -8, width: 150, height: "auto", zIndex: 1, pointerEvents: "none" }}
               />
 
@@ -1131,8 +1132,9 @@ export default function VideoPreviewPage() {
                     Retry
                   </Link>
 
+                  {/* DEMO MODE: Analysis functionality commented out */}
                   <Link
-                    href="/details"
+                    href="/leaderboard"
                     className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                     style={{
                       backgroundColor: '#FFCA04',
@@ -1147,7 +1149,7 @@ export default function VideoPreviewPage() {
                       padding: '0 16px'
                     }}
                   >
-                    Continue to Details
+                    View Leaderboard
                   </Link>
                 </div>
               </div>

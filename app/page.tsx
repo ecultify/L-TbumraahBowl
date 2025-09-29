@@ -179,11 +179,11 @@ export default function Home() {
             >
               <div style={{ transform: 'rotate(-3.48deg)', transformOrigin: 'center' }}>
                 <span>
-                  Show off your Bumrah-style bowling,
+                  Bring Your Best Bowling –
                 </span>
                 <br />
                 <span>
-                  share your video, and&nbsp;win signed merch, vouchers &amp; more!
+                  Get a Chance to Meet Me!
                 </span>
               </div>
             </div>
@@ -192,8 +192,8 @@ export default function Home() {
               className={`animate-scaleIn animate-delay-400 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             >
               <img
-                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-                alt="Bumrah ball in hand"
+                src="/images/instructions/loanapproved.png"
+                alt="Loan approved"
                 style={{
                   position: 'absolute',
                   left: '50%',
@@ -235,6 +235,21 @@ export default function Home() {
                 }}
               />
               WIN
+            </div>
+            
+            {/* Additional text after WIN */}
+            <div 
+              style={{
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontWeight: 400,
+                fontSize: 'clamp(10px, 2.5vw, 12px)',
+                color: '#FFFFFF',
+                lineHeight: 1.2,
+                textAlign: 'center',
+                marginTop: 8
+              }}
+            >
+              Signed Merchandises and vouchers
             </div>
           </div>
         </div>
@@ -356,8 +371,8 @@ export default function Home() {
                       transformOrigin: 'center'
                     }}
                   >
-                    Show off your Bumrah-style bowling,<br />
-                    share your video, and win signed merch, vouchers & more!
+                    Bring Your Best Bowling –<br />
+                    Get a Chance to Meet Me!
                   </div>
                 </div>
 
@@ -417,6 +432,19 @@ export default function Home() {
                     WIN
                   </div>
 
+                  {/* Additional text after WIN */}
+                  <div 
+                    style={{
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: 400,
+                      fontSize: '14px',
+                      color: '#FFFFFF',
+                      lineHeight: 1.2
+                    }}
+                  >
+                    Signed Merchandises and vouchers
+                  </div>
+
                   {/* Gratifications image */}
                   <img
                     src="/images/newhomepage/Gratifications%203%20(1).png"
@@ -445,8 +473,8 @@ export default function Home() {
                   }}
                 >
                   <img
-                    src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-                    alt="Bumrah ball in hand"
+                    src="/images/instructions/loanapproved.png"
+                    alt="Loan approved"
                     style={{
                       position: 'absolute',
                       left: '50%',
@@ -626,7 +654,7 @@ export default function Home() {
                   )}
                   {n === 3 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
-                      <div style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', lineHeight: 1.2 }}>Share with #BumrahKiSpeedPar,</div>
+                      <div style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', lineHeight: 1.2 }}>Share with <span style={{ color: '#FFC315', fontWeight: 700 }}>#BumrahKiSpeedPar</span>,</div>
                       <div style={{ fontSize: 'clamp(7px, 1.8vw, 8px)', lineHeight: 1.2 }}>
                         tag &amp; follow <span style={{ fontWeight: 700 }}>@LNTFinance</span> to join the leaderboard!
                       </div>
@@ -642,19 +670,19 @@ export default function Home() {
         {/* Report card carousel */}
         <div className="mx-auto w-full max-w-sm md:max-w-md lg:max-w-lg">
           <Carousel
-            opts={{ align: 'start', loop: true, skipSnaps: false }}
+            opts={{ align: 'center', loop: true, skipSnaps: false }}
             setApi={setCarouselApi}
             className="w-full"
           >
-            <CarouselContent>
-              {Array.from({ length: 5 }).map((_, i) => (
-                <CarouselItem key={i} className="basis-1/2">
-                  <div className="p-1 flex items-center justify-center">
+            <CarouselContent className="-ml-2 md:-ml-4">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <CarouselItem key={i} className="pl-2 md:pl-4 basis-1/2">
+                  <div className="flex items-center justify-center">
                     <img
-                      src="/images/newhomepage/reportcard.png"
+                      src="/images/Report Card.png"
                       alt={`Report card ${i + 1}`}
-                      className="w-full h-auto object-cover rounded-xl"
-                      style={{ maxWidth: 185, aspectRatio: '185/325' }}
+                      className="w-full h-auto object-contain rounded-xl"
+                      style={{ maxWidth: 220, aspectRatio: '185/325' }}
                     />
                   </div>
                 </CarouselItem>
@@ -665,7 +693,7 @@ export default function Home() {
             <CarouselNext className="hidden" />
           </Carousel>
           <div className="mt-3 flex justify-center gap-2">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 2 }).map((_, i) => (
               <span
                 key={i}
                 style={{
@@ -1399,7 +1427,7 @@ export default function Home() {
               }}
             >
               Climb the leaderboard by sharing your video,<br/>tagging & following L&T Finance on Instagram with{' '}
-              <span style={{ color: '#FFC315' }}>#BumrahKiSpeedPar</span>.
+              <span style={{ color: '#FFC315', fontWeight: 700 }}>#BumrahKiSpeedPar</span>.
             </p>
             
             {/* Fourth paragraph - Win prizes */}
