@@ -192,8 +192,8 @@ export default function Home() {
               className={`animate-scaleIn animate-delay-400 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             >
               <img
-                src="/images/instructions/loanapproved.png"
-                alt="Loan approved"
+                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
+                alt="Bumrah ball in hand"
                 style={{
                   position: 'absolute',
                   left: '50%',
@@ -473,8 +473,8 @@ export default function Home() {
                   }}
                 >
                   <img
-                    src="/images/instructions/loanapproved.png"
-                    alt="Loan approved"
+                    src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
+                    alt="Bumrah ball in hand"
                     style={{
                       position: 'absolute',
                       left: '50%',
