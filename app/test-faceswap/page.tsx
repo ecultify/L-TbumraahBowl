@@ -1718,7 +1718,7 @@ export default function FaceSwapTestPage() {
       <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
         <Link href="/">
           <img
-            src="/frontend-images/homepage/justzoom logo.png"
+            src="/images/newhomepage/Bowling%20Campaign%20Logo.png"
             alt="JustZoom logo"
             className="h-12 w-auto"
           />

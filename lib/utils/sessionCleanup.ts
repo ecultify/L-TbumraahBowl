@@ -17,7 +17,10 @@ const ANALYSIS_STORAGE_KEYS = [
   'analysisPlayerPhone',
   'analysisVideoData_backup',
   'analysisVideoData_timestamp',
-  'noBowlingActionDetected'
+  'noBowlingActionDetected',
+  'playerName',
+  'playerPhone',
+  'detailsCompleted'
 ];
 
 /**

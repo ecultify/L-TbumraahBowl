@@ -7,6 +7,11 @@ export function normalizeIntensity(intensity: number, min: number, max: number):
 // By default, 100% corresponds to 153.26 km/h.
 export const MAX_KMH = 153.26;
 export function intensityToKmh(percent: number, maxKmh: number = MAX_KMH): number {
+  // Handle NaN and invalid values
+  if (isNaN(percent) || !isFinite(percent)) {
+    console.log('⚠️ intensityToKmh received invalid percent:', percent);
+    percent = 0;
+  }
   const p = Math.max(0, Math.min(100, percent || 0));
   return (p / 100) * maxKmh;
 }
@@ -16,6 +21,12 @@ export function classifySpeed(similarity: number): {
   confidence: number;
   message: string;
 } {
+  // Handle NaN and invalid values
+  if (isNaN(similarity) || !isFinite(similarity)) {
+    console.log('⚠️ classifySpeed received invalid similarity:', similarity);
+    similarity = 0;
+  }
+  
   let speedClass: 'Slow' | 'Fast' | 'Zooooom';
   let confidence: number;
   let message: string;

@@ -26,9 +26,8 @@ The mobile back buttons across all pages were using hardcoded `href` values that
 Intelligent route mapping based on typical user journey:
 ```typescript
 const navigationFlow = {
-  '/participate': '/',
   '/instructions': '/',
-  '/record-upload': '/participate',
+  '/record-upload': '/instructions',
   '/video-preview': '/record-upload',
   '/analyzing': '/video-preview',
   '/quick-analysis': '/analyzing',
@@ -43,11 +42,10 @@ const navigationFlow = {
 
 ### ✅ **Mobile + Desktop Views Fixed:**
 1. **`/analyzing`** - Both mobile and desktop back buttons
-2. **`/video-preview`** - Both mobile and desktop back buttons  
+2. **`/video-preview`** - Both mobile and desktop back buttons
 3. **`/quick-analysis`** - Both mobile and desktop back buttons
-4. **`/participate`** - Both mobile and desktop back buttons
-5. **`/record-upload`** - Both mobile and desktop back buttons
-6. **`/instructions`** - Both mobile and desktop back buttons
+4. **`/record-upload`** - Both mobile and desktop back buttons
+5. **`/instructions`** - Both mobile and desktop back buttons
 7. **`/analyze`** - Both mobile and desktop back buttons
 
 ### 🔄 **Before vs After:**

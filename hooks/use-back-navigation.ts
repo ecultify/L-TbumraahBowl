@@ -46,13 +46,11 @@ export function useBackNavigation(fallbackRoute: string = '/') {
 export function getBackRoute(currentPath: string): string {
   // Define the navigation flow
   const navigationFlow: Record<string, string> = {
-    '/participate': '/',
     '/instructions': '/',
-    '/record-upload': '/participate',
+    '/record-upload': '/instructions',
     '/video-preview': '/record-upload',
-    '/analyzing': '/video-preview',
-    '/quick-analysis': '/analyzing',
-    '/analyze': '/analyzing',
+    '/quick-analysis': '/video-preview',
+    '/analyze': '/video-preview',
     '/details': '/',
     '/about': '/',
     '/leaderboard': '/',

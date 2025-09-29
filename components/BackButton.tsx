@@ -24,19 +24,20 @@ export function BackButton({
   onClick 
 }: BackButtonProps) {
   const pathname = usePathname();
-  const defaultFallbackRoute = fallbackRoute || getBackRoute(pathname);
+  const defaultFallbackRoute = fallbackRoute || getBackRoute(pathname || '/');
   const { goBack } = useBackNavigation(defaultFallbackRoute);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     
     // ALWAYS use page reload for analysis-related pages to clear console and memory
-    const analysisPages = ['/analyze', '/video-preview', '/analyzing', '/leaderboard', '/quick-analysis'];
-    const shouldReload = analysisPages.some(page => pathname.startsWith(page));
+    const analysisPages = ['/analyze', '/video-preview', '/leaderboard', '/quick-analysis'];
+    const currentPath = pathname || '/';
+    const shouldReload = analysisPages.some(page => currentPath.startsWith(page));
     
     if (shouldReload) {
-      const backRoute = getBackRoute(pathname);
-      console.log(`🔄 BackButton: Reloading from ${pathname} to ${backRoute}`);
+      const backRoute = getBackRoute(currentPath);
+      console.log(`🔄 BackButton: Reloading from ${currentPath} to ${backRoute}`);
       navigateWithReload(backRoute);
     } else if (onClick) {
       onClick();

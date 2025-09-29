@@ -3,32 +3,38 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { VideoRecorder } from '@/components/VideoRecorder';
-import { BackButton } from '@/components/BackButton';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { clearAnalysisSessionStorage, clearVideoSessionStorage } from '@/lib/utils/sessionCleanup';
+import { AnalysisLoader } from '@/components/AnalysisLoader';
+import { GlassBackButton } from '@/components/GlassBackButton';
 
 export default function RecordUploadPage() {
-  const [activeMode, setActiveMode] = useState<'none' | 'record' | 'upload'>('none');
+  const [activeMode, setActiveMode] = useState<'none' | 'record' | 'upload'>('record');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const [isClient, setIsClient] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
   const [isRecorderOpen, setIsRecorderOpen] = useState(false);
 
+  // Analysis state
+  const [state, setState] = useState({
+    isAnalyzing: false,
+    progress: 0
+  });
+
   // Check URL parameters and device type on component mount
   useEffect(() => {
-    const mode = searchParams.get('mode');
+    const mode = searchParams?.get('mode');
     if (mode === 'record') {
       setActiveMode('record');
     } else if (mode === 'upload') {
       setActiveMode('upload');
     }
-    // Note: For desktop, we keep 'none' as default to show the choice screen
-    // The desktop layout handles the 'none' state by showing record/upload options
   }, [searchParams]);
 
   useEffect(() => {
@@ -75,6 +81,14 @@ export default function RecordUploadPage() {
 
   const handleRecordingComplete = useCallback(({ url, mimeType, blob, extension }: { url: string; mimeType: string; blob: Blob; extension: string; }) => {
     if (typeof window !== 'undefined') {
+      // Clear any existing analysis data to ensure fresh analysis
+      console.log('🧹 Clearing old analysis data for fresh recording...');
+      sessionStorage.removeItem('analysisVideoData');
+      sessionStorage.removeItem('benchmarkDetailedData');
+      sessionStorage.removeItem('detailsCompleted');
+      sessionStorage.removeItem('noBowlingActionDetected');
+      sessionStorage.removeItem('pendingLeaderboardEntry');
+      
       const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '');
       const generatedName = `recording-${timestamp}.${extension}`;
 
@@ -83,6 +97,26 @@ export default function RecordUploadPage() {
       sessionStorage.setItem('uploadedSource', 'record');
       sessionStorage.setItem('uploadedMimeType', mimeType);
       sessionStorage.setItem('uploadedFileSize', blob.size.toString());
+      
+      // Store the video data for persistence - handle storage quota errors
+      try {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            const base64Data = e.target.result as string;
+            try {
+              sessionStorage.setItem('uploadedVideoData', base64Data);
+              console.log('✅ Recorded video data stored in sessionStorage');
+            } catch (storageError) {
+              console.warn('⚠️ SessionStorage quota exceeded, video will use blob URL only:', storageError);
+              // Video will still work through the blob URL stored above
+            }
+          }
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error('❌ Error reading recorded video data:', error);
+      }
     }
   }, []);
 
@@ -107,7 +141,17 @@ export default function RecordUploadPage() {
     }
   };
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = async (file: File) => {
+    // Clear any existing analysis data to ensure fresh analysis
+    if (typeof window !== 'undefined') {
+      console.log('🧹 Clearing old analysis data for fresh upload...');
+      sessionStorage.removeItem('analysisVideoData');
+      sessionStorage.removeItem('benchmarkDetailedData');
+      sessionStorage.removeItem('detailsCompleted');
+      sessionStorage.removeItem('noBowlingActionDetected');
+      sessionStorage.removeItem('pendingLeaderboardEntry');
+    }
+
     // Validate file type
     const validTypes = ['video/mp4', 'video/mov', 'video/avi', 'video/quicktime'];
     if (!validTypes.includes(file.type)) {
@@ -127,19 +171,51 @@ export default function RecordUploadPage() {
     // Create a URL for the uploaded video
     const videoUrl = URL.createObjectURL(file);
     setUploadedVideoUrl(videoUrl);
+
+    // Store the file reference immediately for better persistence
+    if (typeof window !== 'undefined') {
+      // Clear any existing temp file
+      if ((window as any).tempVideoFile) {
+        delete (window as any).tempVideoFile;
+      }
+      // Store the new file reference
+      (window as any).tempVideoFile = file;
+      console.log('✅ File reference stored for persistence');
+    }
+
+    // Store the file data in sessionStorage for persistence across navigation
+    try {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target?.result) {
+          const base64Data = e.target.result as string;
+          try {
+            sessionStorage.setItem('uploadedVideoData', base64Data);
+            console.log('✅ Video file data stored in sessionStorage');
+          } catch (storageError) {
+            console.warn('⚠️ SessionStorage quota exceeded, using file reference:', storageError);
+            // Store a flag indicating we have a file reference
+            sessionStorage.setItem('uploadedVideoData', 'file-reference-available');
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('❌ Error reading video data:', error);
+    }
   };
 
   const handleBrowseFiles = () => {
-    // Use the hidden file input for mobile
-    const fileInput = document.getElementById('file-input') as HTMLInputElement;
-    if (fileInput) {
-      fileInput.click();
+    // First try to use the ref-based input (more reliable)
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
       return;
     }
     
-    // Fallback to ref for desktop
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+    // Fallback to ID-based input for mobile compatibility
+    const fileInput = document.getElementById('file-input') as HTMLInputElement;
+    if (fileInput) {
+      fileInput.click();
     }
   };
 
@@ -163,17 +239,59 @@ export default function RecordUploadPage() {
     }
   };
 
-  const handleContinueWithUpload = () => {
+  const handleContinueWithUpload = async () => {
     if (uploadedVideoUrl && uploadedFile) {
-      // Store video data in sessionStorage for the preview page
-      sessionStorage.setItem('uploadedVideoUrl', uploadedVideoUrl);
+      console.log('🚀 Preparing video data for navigation...');
+      
+      // Store metadata
       sessionStorage.setItem('uploadedFileName', uploadedFile.name);
       sessionStorage.setItem('uploadedSource', 'upload');
       sessionStorage.setItem('uploadedMimeType', uploadedFile.type || 'video/mp4');
       sessionStorage.setItem('uploadedFileSize', uploadedFile.size.toString());
       
-      // Navigate to video preview page
-      router.push('/video-preview');
+      // Skip heavy base64 storage for faster navigation - use file reference instead
+      try {
+        // Only store a lightweight reference instead of full base64 data
+        sessionStorage.setItem('uploadedVideoData', 'file-reference-available');
+        console.log('✅ Video file reference stored (fast method)');
+      } catch (error) {
+        console.error('❌ Error storing video reference:', error);
+      }
+      
+      // Store the actual file object reference for immediate use
+      // This is the most reliable method for same-session navigation
+      if (typeof window !== 'undefined') {
+        // Clear any existing temp file
+        if ((window as any).tempVideoFile) {
+          delete (window as any).tempVideoFile;
+        }
+        // Store the new file reference
+        (window as any).tempVideoFile = uploadedFile;
+        console.log('✅ Temporary file reference stored in window object');
+      }
+      
+      // Store a fresh blob URL as backup
+      const freshBlobUrl = URL.createObjectURL(uploadedFile);
+      sessionStorage.setItem('uploadedVideoUrl', freshBlobUrl);
+      console.log('✅ Fresh blob URL created and stored');
+      
+      // Additional validation to ensure data was stored correctly
+      const testVideoUrl = sessionStorage.getItem('uploadedVideoUrl');
+      const testVideoData = sessionStorage.getItem('uploadedVideoData');
+      const testTempFile = (window as any).tempVideoFile;
+      
+      if (!testVideoUrl && !testVideoData && !testTempFile) {
+        console.error('❌ Failed to store video data properly. Retrying...');
+        alert('Error storing video data. Please try again.');
+        return;
+      }
+      
+      console.log('✅ Video data storage validated successfully');
+      
+      // Navigate to video-preview page (non-blocking)
+      setTimeout(() => {
+        router.push('/video-preview');
+      }, 50); // Small delay ensures storage operations complete without blocking UI
     }
   };
 
@@ -186,1151 +304,939 @@ export default function RecordUploadPage() {
   };
 
   return (
-    <div>
-      {/* Mobile View */}
-      <div 
-        className="md:hidden min-h-screen flex flex-col" 
-        style={{ 
-          backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        }}
-      >
-        <div className="absolute top-4 left-0 right-0 z-20 flex justify-center">
-          <Link href="/">
+    <div
+      className="min-h-screen flex flex-col relative"
+      style={{
+        backgroundImage: "url(/images/instructions/Instructions%20bg.jpg)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat",
+      }}
+    >
+      {/* Desktop Layout */}
+      <div className="hidden md:flex flex-col min-h-screen" style={{
+        backgroundImage: "url(/images/Desktop.png)",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        backgroundRepeat: "no-repeat"
+      }}>
+        {/* Logo in top left corner */}
+        <div className="absolute top-6 left-6 z-20">
+          <div
+            onClick={() => {
+              // Clear all session data and reload page
+              console.log('🏠 Homepage logo clicked - clearing session data and reloading...');
+              if (typeof window !== 'undefined') {
+                sessionStorage.clear();
+                window.location.href = '/';
+              }
+            }}
+          >
             <img
-              src="/frontend-images/homepage/justzoom logo.png"
-              alt="JustZoom logo"
-              className="h-12 w-auto cursor-pointer"
+              src="/images/newhomepage/Bowling%20Campaign%20Logo.png"
+              alt="Bowling Campaign Logo"
+              className="w-64 lg:w-72"
+              style={{ height: "auto", cursor: "pointer" }}
             />
-          </Link>
-        </div>
-      {/* Header with Back Button */}
-      <div className="absolute top-0 left-0 right-0 z-10 pt-6 px-4">
-        <BackButton />
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 pt-20 pb-12 px-4">
-        {/* Title Section */}
-        <div className="text-center mb-8">
-          <h1 
-            className="mb-2"
-            style={{
-              fontFamily: 'Frutiger, Inter, sans-serif',
-              fontWeight: '700',
-              fontSize: '24px',
-              color: '#FDC217',
-              lineHeight: '1.2'
-            }}
-          >
-            Record or Upload
-          </h1>
-          <p 
-            style={{
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: '400',
-              fontSize: '12px',
-              color: 'white',
-              lineHeight: '1.3'
-            }}
-          >
-            Choose how you want to submit your bowling video
-          </p>
-        </div>
-
-        {/* Main Action Buttons Container */}
-        <div className="flex justify-center mb-8">
-          <div 
-            className="backdrop-blur-md border border-white/20 flex overflow-hidden relative"
-            style={{
-              width: '353px',
-              height: '46px',
-              borderRadius: '25.62px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
-            }}
-          >
-            {/* Yellow highlight container for Record */}
-            {activeMode === 'record' && (
-              <div 
-                className="absolute left-1 top-1/2 transform -translate-y-1/2"
-                style={{
-                  width: '169px',
-                  height: '41px',
-                  backgroundColor: '#FDC217',
-                  borderRadius: '25.62px',
-                  zIndex: 1
-                }}
-              />
-            )}
-
-            {/* Yellow highlight container for Upload */}
-            {activeMode === 'upload' && (
-              <div 
-                className="absolute right-1 top-1/2 transform -translate-y-1/2"
-                style={{
-                  width: '169px',
-                  height: '41px',
-                  backgroundColor: '#FDC217',
-                  borderRadius: '25.62px',
-                  zIndex: 1
-                }}
-              />
-            )}
-
-            {/* Record Button */}
-            <button
-              onClick={handleRecordClick}
-              className="flex-1 flex items-center justify-center gap-2 transition-all duration-300 hover:brightness-110 relative z-10"
-              style={{
-                backgroundColor: 'transparent',
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '500',
-                fontSize: '14px',
-                color: activeMode === 'record' ? 'black' : 'white',
-                border: 'none'
-              }}
-            >
-              <img 
-                src="/frontend-images/homepage/icons/mynaui_video-solid.svg" 
-                alt="Record"
-                className="w-5 h-5"
-                style={{
-                  filter: activeMode === 'record' ? 'brightness(0)' : 'brightness(0) invert(1)'
-                }}
-              />
-              Record
-            </button>
-
-            {/* Upload Button */}
-            <button
-              onClick={handleUploadClick}
-              className="flex-1 flex items-center justify-center gap-2 transition-all duration-300 hover:brightness-110 relative z-10"
-              style={{
-                backgroundColor: 'transparent',
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '500',
-                fontSize: '14px',
-                color: activeMode === 'upload' ? 'black' : 'white',
-                border: 'none'
-              }}
-            >
-              <img 
-                src="/frontend-images/homepage/icons/Vector (1).svg" 
-                alt="Upload"
-                className="w-4 h-4"
-                style={{
-                  filter: activeMode === 'upload' ? 'brightness(0)' : 'brightness(0) invert(1)'
-                }}
-              />
-              Upload
-            </button>
           </div>
         </div>
 
-        {/* Camera Recording Section */}
-        {activeMode === 'none' && (
-          <div className="max-w-sm mx-auto mb-8">
-            <div 
-              className="backdrop-blur-md border border-white/20 p-6 text-center"
-              style={{
-                borderRadius: '20px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
+        {/* Main content area */}
+        <div className="flex-1 flex items-stretch px-8 relative">
+          {/* Left side - Bumrah Image */}
+          <div className="flex-1 relative">
+            <img
+              src="/images/Bumrah%205.png"
+              alt="Bumrah"
+              style={{ 
+                position: 'absolute',
+                bottom: 0,
+                left: '60%',
+                transform: 'translateX(-50%)',
+                width: '500px', 
+                height: '600px', 
+                margin: 0,
+                padding: 0,
+                display: 'block',
+                objectFit: 'contain',
+                zIndex: 10
               }}
-            >
-              {/* Camera Icon */}
-              <div className="flex justify-center mb-4">
-                <img 
-                  src="/frontend-images/homepage/icons/fluent_video-recording-20-filled.svg" 
-                  alt="Camera"
-                  className="w-12 h-12"
-                />
-              </div>
-
-              {/* Text */}
-              <p 
-                className="mb-2"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                Start Recording
-              </p>
-              <p 
-                className="mb-6"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '12px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                Use your device camera to record bowling action
-              </p>
-
-              {/* Start Camera Button */}
-              <button
-                onClick={handleStartCamera}
-                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                style={{
-                  backgroundColor: '#FDC217',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'black',
-                  padding: '10px 24px',
-                  border: 'none'
-                }}
-              >
-                Start Camera
-              </button>
-            </div>
+            />
           </div>
-        )}
 
-        {/* Upload Mode Default Interface */}
-        {activeMode === 'upload' && !uploadedFile && (
-          <div className="max-w-sm mx-auto mb-8">
-            <div 
-              className={`backdrop-blur-md border transition-all duration-300 p-6 text-center ${
-                isDragOver 
-                  ? 'border-yellow-400 bg-yellow-400/10' 
-                  : 'border-white/20'
-              }`}
-              style={{
-                borderRadius: '20px',
-                backgroundColor: isDragOver 
-                  ? 'rgba(255, 195, 21, 0.1)' 
-                  : 'rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
-              }}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              {/* Upload Icon */}
-              <div className="flex justify-center mb-4">
-                <img 
-                  src="/frontend-images/homepage/icons/mynaui_video-solid.svg" 
-                  alt="Upload"
-                  className="w-12 h-12"
-                />
-              </div>
-
-              {/* Text */}
-              <p 
-                className="mb-2"
+          {/* Right side - Glass Box Content */}
+          <div className="flex-1 flex justify-center items-center py-16" style={{ marginTop: '50px' }}>
+            <div className="relative" style={{ maxWidth: 500 }}>
+              <div
+                className="w-full"
                 style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: isDragOver ? '#FDC217' : 'white',
-                  lineHeight: '1.4'
+                  position: "relative",
+                  borderRadius: 18,
+                  backgroundColor: "#FFFFFF80",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  boxShadow: "inset 0 0 0 1px #FFFFFF",
+                  padding: 20,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
+                  zIndex: 2,
                 }}
               >
-                {isDragOver ? 'Drop video here' : 'Drop video here'}
-              </p>
-              <p 
-                className="mb-6"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '12px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                or click to browse files
-              </p>
+                {/* Universal Back Arrow Box - Top Left */}
+                <GlassBackButton />
 
-              {/* Browse Files Button */}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleBrowseFiles();
-                }}
-                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                style={{
-                  backgroundColor: '#FDC217',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'black',
-                  padding: '10px 24px',
-                  border: 'none'
-                }}
-              >
-                Browse Files
-              </button>
+                {/* Desktop Record Upload Content */}
+                <div className="w-full">
+                  {/* Headline */}
+                  <div className="mb-4 text-center">
+                    <div
+                      style={{
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: 800,
+                        fontStyle: "italic",
+                        fontSize: 18,
+                        color: "#000000",
+                        lineHeight: 1.1,
+                        marginBottom: 4,
+                      }}
+                    >
+                      LIGHTS, CAMERA, BOWL!
+                    </div>
+                    <p
+                      style={{
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: 400,
+                        fontSize: 12,
+                        color: "#000000",
+                        lineHeight: 1.3,
+                        margin: 0
+                      }}
+                    >
+                      Capture your action or upload your video now.
+                    </p>
+                  </div>
 
-              {/* Hidden file input */}
-              <input
-                id="file-input"
-                type="file"
-                accept="video/mp4,video/mov,video/avi,video/quicktime"
-                onChange={handleFileSelect}
-                style={{ display: 'none' }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Upload Mode - File Selected Interface */}
-        {activeMode === 'upload' && uploadedFile && (
-          <div className="max-w-sm mx-auto mb-8">
-            <div 
-              className="backdrop-blur-md border border-white/20 p-6"
-              style={{
-                borderRadius: '20px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
-              }}
-            >
-              {/* Video Preview */}
-              <div className="mb-4">
-                <video
-                  src={uploadedVideoUrl}
-                  controls
-                  className="w-full rounded-lg"
-                  style={{ maxHeight: '200px' }}
-                />
-              </div>
-
-              {/* File Info */}
-              <div className="mb-4 text-left">
-                <p 
-                  className="text-white text-sm mb-1"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700'
-                  }}
-                >
-                  {uploadedFile.name}
-                </p>
-                <p 
-                  className="text-white text-xs"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '400'
-                  }}
-                >
-                  Size: {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
-                </p>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                <button
-                  onClick={handleContinueWithUpload}
-                  className="flex-1 transition-all duration-300 hover:brightness-110 hover:scale-105"
-                  style={{
-                    backgroundColor: '#FDC217',
-                    borderRadius: '20px',
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '14px',
-                    color: 'black',
-                    padding: '10px 16px',
-                    border: 'none'
-                  }}
-                >
-                  Continue
-                </button>
-                <button
-                  onClick={handleRemoveFile}
-                  className="px-4 py-2 text-white border border-white/30 rounded-lg transition-all duration-300 hover:bg-white/10"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '14px',
-                    backgroundColor: 'transparent'
-                  }}
-                >
-                  Remove
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Active Recording Interface */}
-        {activeMode === 'record' && (
-          <div className="max-w-sm mx-auto mb-8">
-            <div 
-              className="backdrop-blur-md border border-white/20 p-6 text-center"
-              style={{
-                borderRadius: '20px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
-              }}
-            >
-              {/* Camera Icon */}
-              <div className="flex justify-center mb-4">
-                <img 
-                  src="/frontend-images/homepage/icons/fluent_video-recording-20-filled.svg" 
-                  alt="Camera"
-                  className="w-12 h-12"
-                />
-              </div>
-
-              {/* Text */}
-              <p 
-                className="mb-2"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                Start Recording
-              </p>
-              <p 
-                className="mb-6"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '12px',
-                  color: 'white',
-                  lineHeight: '1.4'
-                }}
-              >
-                Use your device camera to record bowling action
-              </p>
-
-              {/* Start Camera Button */}
-              <button
-                onClick={handleStartCamera}
-                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                style={{
-                  backgroundColor: '#FDC217',
-                  borderRadius: '25.62px',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'black',
-                  padding: '10px 24px',
-                  border: 'none'
-                }}
-              >
-                Start Camera
-              </button>
-            </div>
-          </div>
-        )}
-
-
-        {/* Reference Examples Section */}
-        {(activeMode === 'none' || activeMode === 'upload' || activeMode === 'record') && (
-          <div className={activeMode === 'upload' ? 'mb-4' : 'mb-8'}>
-            <h3 
-              className="mb-4 text-left"
-              style={{
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '400',
-                fontSize: '16px',
-                color: 'white',
-                lineHeight: '1.4'
-              }}
-            >
-              Reference Examples
-            </h3>
-
-            {/* Video Container */}
-            <div className="max-w-md mx-auto mb-6">
-              <div 
-                className="relative overflow-hidden"
-                style={{
-                  borderRadius: '20px',
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  aspectRatio: '16/9'
-                }}
-              >
-                <video
-                  src="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742"
-                  controls
-                  preload="metadata"
-                  className="w-full h-full object-cover"
-                  poster="https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4/ik-thumbnail.jpg"
-                  style={{ borderRadius: '20px' }}
-                />
-              </div>
-            </div>
-
-            {/* File Format Info - Only show in upload mode */}
-            {activeMode === 'upload' && (
-              <div className="flex justify-center">
-                <div 
-                  className="flex items-center gap-3 px-4 py-3"
-                  style={{
-                    width: '352px',
-                    height: '60px',
-                    borderRadius: '16px',
-                    backgroundColor: '#FDC217',
-                    boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
-                  }}
-                >
-                  {/* File Icon */}
-                  <img 
-                    src="/frontend-images/homepage/icons/file.svg" 
-                    alt="File"
-                    className="w-6 h-6 flex-shrink-0"
+                  {/* Mode Selection Buttons */}
+                  <div 
+                    className="relative mb-6 mx-auto" 
                     style={{
-                      filter: 'brightness(0)'
+                      width: '350px',
+                      height: '45px',
+                      borderRadius: '25px',
+                      backgroundColor: '#FFFFFF99',
+                      padding: '3px'
                     }}
-                  />
-                  
-                  {/* Text */}
-                  <div>
-                    <p 
-                      style={{
-                        fontFamily: 'Frutiger, Inter, sans-serif',
-                        fontWeight: '700',
-                        fontSize: '14px',
-                        color: 'black',
-                        lineHeight: '1.4',
-                        margin: 0
-                      }}
-                    >
-                      Supported formats:
-                    </p>
-                    <p 
-                      style={{
-                        fontFamily: 'Frutiger, Inter, sans-serif',
-                        fontWeight: '700',
-                        fontSize: '12px',
-                        color: 'black',
-                        lineHeight: '1.4',
-                        margin: 0
-                      }}
-                    >
-                      MP4, MOV, AVI (Max 50MB)
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Bottom Container Styling (if needed for additional elements) */}
-        {activeMode === 'none' && (
-          <div className="flex justify-center">
-            <div 
-              className="backdrop-blur-md border border-white/20 flex overflow-hidden"
-              style={{
-                width: '353px',
-                height: '46px',
-                borderRadius: '25.62px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
-                opacity: '0.5' // Just for visual reference, remove if not needed
-              }}
-            >
-              {/* This matches the design from the image */}
-              <div className="flex-1 flex items-center justify-center">
-                <span className="text-white text-sm">Record & Upload Interface</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {isClient && isMobileView && isRecorderOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 px-4">
-          <div className="w-full max-w-md">
-            <div className="mb-4 flex justify-end">
-              <button
-                onClick={() => setIsRecorderOpen(false)}
-                className="text-white text-sm uppercase tracking-wide"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  letterSpacing: '0.08em'
-                }}
-              >
-                Close
-              </button>
-            </div>
-            <div className="bg-black rounded-3xl p-4 border border-white/20">
-              <VideoRecorder
-                orientation="portrait"
-                autoSubmitOnStop
-                onRecordingComplete={handleRecordingComplete}
-                onVideoReady={handleRecorderReady}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      <footer className="w-full bg-black px-4 py-6">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 max-w-6xl mx-auto">
-          {/* Copyright Text */}
-          <div className="text-left">
-            <p 
-              className="text-white text-xs"
-              style={{
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '400',
-                fontSize: '10px',
-                lineHeight: '1.4'
-              }}
-            >
-              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
-            </p>
-          </div>
-          
-          {/* Social Media Icons */}
-          <div className="flex items-center gap-3">
-            <span 
-              className="text-white text-xs mr-2"
-              style={{
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontWeight: '400',
-                fontSize: '10px'
-              }}
-            >
-              Connect with us
-            </span>
-            
-            {/* Social Icons */}
-            <div className="flex gap-3">
-              {/* Facebook */}
-              <div className="w-8 h-8 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-              </div>
-              
-              {/* Instagram */}
-              <div className="w-8 h-8 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.40s-.644-1.44-1.439-1.44z"/>
-                </svg>
-              </div>
-              
-              {/* Twitter */}
-              <div className="w-8 h-8 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                </svg>
-              </div>
-              
-              {/* YouTube */}
-              <div className="w-8 h-8 flex items-center justify-center">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                  <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-      </footer>
-      </div>
-
-      {/* Desktop View */}
-      <div className="hidden md:flex md:flex-col md:min-h-screen" style={{ backgroundColor: '#032743' }}>
-        {/* Desktop Header */}
-        <header 
-          className="relative overflow-hidden"
-          style={{
-            backgroundImage: 'url(/frontend-images/homepage/bumrah 1.jpg)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
-          }}
-        >
-          <div 
-            className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(90deg, #0084B7 0%, #004E87 100%)',
-              opacity: '0.85'
-            }}
-          />
-          
-          <div className="relative z-10 flex items-center justify-center max-w-7xl mx-auto px-8 py-6">
-            <div className="flex items-center">
-              <Link href="/">
-                <img 
-                  src="/frontend-images/homepage/justzoom logo.png" 
-                  alt="JustZoom Logo" 
-                  className="h-16 w-auto cursor-pointer"
-                />
-              </Link>
-            </div>
-            <div className="absolute left-8 flex items-center gap-4">
-              <BackButton />
-            </div>
-          </div>
-        </header>
-
-        {/* Desktop Main Content */}
-        <div className="flex-1 max-w-7xl mx-auto px-8 py-16">
-          {activeMode === 'none' && (
-            <div className="text-center mb-16">
-              <h1 
-                className="text-white mb-6"
-                style={{
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontWeight: '700',
-                  fontSize: '3rem',
-                  color: '#FDC217',
-                  lineHeight: '1.2'
-                }}
-              >
-                Record or Upload
-              </h1>
-              
-              <p 
-                className="text-white text-xl max-w-3xl mx-auto mb-12"
-                style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: '400',
-                  fontSize: '18px',
-                  lineHeight: '1.6'
-                }}
-              >
-                Choose how you'd like to capture your bowling action for analysis
-              </p>
-
-              {/* Mode Selection Cards */}
-              <div className="grid lg:grid-cols-2 gap-12 max-w-4xl mx-auto">
-                {/* Record Mode */}
-                <div 
-                  className="relative group cursor-pointer"
-                  onClick={handleRecordClick}
-                >
-                  <div 
-                    className="p-8 rounded-3xl border-2 border-yellow-400/30 group-hover:border-yellow-400 transition-all duration-300 group-hover:scale-105"
-                    style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
                   >
+                    {/* Sliding Highlight */}
                     <div 
-                      className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: '#FFC315' }}
-                    >
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                        <circle cx="12" cy="12" r="10" stroke="black" strokeWidth="2"/>
-                        <circle cx="12" cy="12" r="3" fill="black"/>
-                      </svg>
-                    </div>
-                    <h3 className="text-white font-bold text-2xl mb-4">Record with Camera</h3>
-                    <p className="text-white/80 text-lg leading-relaxed">
-                      Use your device camera to record your bowling action live
-                    </p>
-                  </div>
-                </div>
-
-                {/* Upload Mode */}
-                <div 
-                  className="relative group cursor-pointer"
-                  onClick={handleUploadClick}
-                >
-                  <div 
-                    className="p-8 rounded-3xl border-2 border-yellow-400/30 group-hover:border-yellow-400 transition-all duration-300 group-hover:scale-105"
-                    style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
-                  >
-                    <div 
-                      className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: '#FFC315' }}
-                    >
-                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <polyline points="7,10 12,15 17,10" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <line x1="12" y1="15" x2="12" y2="3" stroke="black" strokeWidth="2" strokeLinecap="round"/>
-                      </svg>
-                    </div>
-                    <h3 className="text-white font-bold text-2xl mb-4">Upload Video</h3>
-                    <p className="text-white/80 text-lg leading-relaxed">
-                      Upload an existing video file of your bowling action
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Record Mode Desktop */}
-          {activeMode === 'record' && (
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 
-                  className="text-white mb-4"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '2.5rem',
-                    color: '#FDC217',
-                    lineHeight: '1.2'
-                  }}
-                >
-                  Record Your Bowling
-                </h1>
-                
-                <p 
-                  className="text-white text-lg"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '400',
-                    lineHeight: '1.6'
-                  }}
-                >
-                  Position yourself and start recording when ready
-                </p>
-              </div>
-
-              <div className="bg-white/5 rounded-3xl p-8 backdrop-blur-sm border border-white/10">
-                {isClient && !isMobileView ? (
-                  <VideoRecorder
-                    autoSubmitOnStop
-                    onRecordingComplete={handleRecordingComplete}
-                    onVideoReady={handleVideoReady}
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center text-white/80 py-20">
-                    <p
+                      className="absolute transition-all duration-300 ease-in-out"
                       style={{
-                        fontFamily: 'Frutiger, Inter, sans-serif',
-                        fontWeight: '700',
-                        fontSize: '20px',
-                        lineHeight: '1.4'
+                        width: '170px',
+                        height: '39px',
+                        borderRadius: '22px',
+                        backgroundColor: '#FFCA04',
+                        top: '3px',
+                        left: activeMode === 'record' ? '3px' : '177px'
                       }}
-                    >
-                      Preparing camera...
-                    </p>
-                    <p
-                      style={{
-                        fontFamily: 'Inter, sans-serif',
-                        fontWeight: '400',
-                        fontSize: '14px',
-                        lineHeight: '1.6',
-                        maxWidth: '420px',
-                        textAlign: 'center',
-                        marginTop: '12px'
-                      }}
-                    >
-                      Please allow camera permissions when prompted. If the camera does not start, refresh the page and try again.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex justify-center mt-8">
-                <button
-                  onClick={() => setActiveMode('none')}
-                  className="px-8 py-3 text-white/80 hover:text-white transition-colors"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '500'
-                  }}
-                >
-                  ← Back to options
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Upload Mode Desktop */}
-          {activeMode === 'upload' && !uploadedFile && (
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 
-                  className="text-white mb-4"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '2.5rem',
-                    color: '#FDC217',
-                    lineHeight: '1.2'
-                  }}
-                >
-                  Upload Your Video
-                </h1>
-                
-                <p 
-                  className="text-white text-lg"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '400',
-                    lineHeight: '1.6'
-                  }}
-                >
-                  Select a video file from your device
-                </p>
-              </div>
-
-              {/* Upload Area */}
-              <div 
-                className={`relative border-2 border-dashed rounded-3xl p-12 text-center transition-all duration-300 ${
-                  isDragOver 
-                    ? 'border-yellow-400 bg-yellow-400/10' 
-                    : 'border-white/30 bg-white/5'
-                }`}
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-              >
-                <div 
-                  className="w-24 h-24 mx-auto mb-6 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: '#FFC315' }}
-                >
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <polyline points="7,10 12,15 17,10" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                    <line x1="12" y1="15" x2="12" y2="3" stroke="black" strokeWidth="2" strokeLinecap="round"/>
-                  </svg>
-                </div>
-
-                <h3 className="text-white font-bold text-2xl mb-4">
-                  Drag & Drop Your Video
-                </h3>
-                
-                <p className="text-white/80 text-lg mb-6">
-                  or click to browse files
-                </p>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleBrowseFiles();
-                  }}
-                  className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
-                  style={{
-                    backgroundColor: '#FFC315',
-                    borderRadius: '25px',
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '18px',
-                    color: 'black',
-                    padding: '16px 32px'
-                  }}
-                >
-                  Browse Files
-                </button>
-
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-
-                <p className="text-white/60 text-sm mt-6">
-                  Supports MP4, MOV, AVI files up to 100MB
-                </p>
-              </div>
-
-              <div className="flex justify-center mt-8">
-                <button
-                  onClick={() => setActiveMode('none')}
-                  className="px-8 py-3 text-white/80 hover:text-white transition-colors"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '500'
-                  }}
-                >
-                  ← Back to options
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Upload Mode with Selected File Desktop */}
-          {activeMode === 'upload' && uploadedFile && (
-            <div className="max-w-4xl mx-auto">
-              <div className="text-center mb-8">
-                <h1 
-                  className="text-white mb-4"
-                  style={{
-                    fontFamily: 'Frutiger, Inter, sans-serif',
-                    fontWeight: '700',
-                    fontSize: '2.5rem',
-                    color: '#FDC217',
-                    lineHeight: '1.2'
-                  }}
-                >
-                  Video Preview
-                </h1>
-                
-                <p 
-                  className="text-white text-lg"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '400',
-                    lineHeight: '1.6'
-                  }}
-                >
-                  Review your uploaded video before analysis
-                </p>
-              </div>
-
-              <div className="grid lg:grid-cols-2 gap-12 items-start">
-                {/* Video Preview */}
-                <div className="space-y-6">
-                  <div className="relative rounded-3xl overflow-hidden bg-black/50">
-                    <video
-                      src={uploadedVideoUrl}
-                      controls
-                      preload="metadata"
-                      className="w-full h-auto max-h-96 object-contain"
-                    >
-                      Your browser does not support the video tag.
-                    </video>
-                  </div>
-
-                  {/* File Info */}
-                  <div 
-                    className="p-6 rounded-2xl"
-                    style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
-                  >
-                    <h3 className="text-white font-bold text-lg mb-2">File Information</h3>
-                    <p className="text-white/80">
-                      <span className="font-medium">Name:</span> {uploadedFile.name}
-                    </p>
-                    <p className="text-white/80">
-                      <span className="font-medium">Size:</span> {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
-                    </p>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="space-y-6">
-                  <div 
-                    className="p-8 rounded-3xl text-center"
-                    style={{ backgroundColor: 'rgba(255, 195, 21, 0.1)' }}
-                  >
-                    <div 
-                      className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
-                      style={{ backgroundColor: '#FFC315' }}
-                    >
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-                        <path d="M9 12l2 2 4-4" stroke="black" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <circle cx="12" cy="12" r="10" stroke="black" strokeWidth="2"/>
-                      </svg>
-                    </div>
+                    />
                     
-                    <h3 className="text-white font-bold text-xl mb-4">Ready for Analysis</h3>
-                    <p className="text-white/80 mb-6">
-                      Your video looks good! Click continue to start the AI analysis.
-                    </p>
+                    {/* Record Button */}
+                    <button
+                      onClick={handleRecordClick}
+                      className="absolute flex items-center justify-center transition-all duration-300"
+                      style={{
+                        left: '3px',
+                        top: '3px',
+                        width: '170px',
+                        height: '39px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderRadius: '22px',
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        color: activeMode === 'record' ? '#000' : '#666',
+                        zIndex: 2
+                      }}
+                    >
+                      <svg 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        className="mr-2"
+                      >
+                        <path d="M23 7L16 12L23 17V7Z" fill={activeMode === 'record' ? '#000' : '#666'}/>
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke={activeMode === 'record' ? '#000' : '#666'} strokeWidth="2" fill="none"/>
+                      </svg>
+                      Record
+                    </button>
+                    
+                    {/* Upload Button */}
+                    <button
+                      onClick={handleUploadClick}
+                      className="absolute flex items-center justify-center transition-all duration-300"
+                      style={{
+                        right: '3px',
+                        top: '3px',
+                        width: '170px',
+                        height: '39px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderRadius: '22px',
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: 600,
+                        fontSize: '14px',
+                        color: activeMode === 'upload' ? '#000' : '#666',
+                        zIndex: 2
+                      }}
+                    >
+                      <svg 
+                        width="16" 
+                        height="16" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        className="mr-2"
+                      >
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke={activeMode === 'upload' ? '#000' : '#666'} strokeWidth="2"/>
+                        <polyline points="7,10 12,15 17,10" stroke={activeMode === 'upload' ? '#000' : '#666'} strokeWidth="2"/>
+                        <line x1="12" y1="15" x2="12" y2="3" stroke={activeMode === 'upload' ? '#000' : '#666'} strokeWidth="2"/>
+                      </svg>
+                      Upload
+                    </button>
+                  </div>
 
-                    <div className="space-y-4">
-                      <button
-                        onClick={handleContinueWithUpload}
-                        className="w-full inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 hover:shadow-xl"
+                  {/* Record Mode Content */}
+                  {activeMode === 'record' && (
+                    <div className="flex justify-center">
+                      <div 
+                        className="flex items-center justify-center border-2 border-dashed"
                         style={{
-                          backgroundColor: '#FFC315',
-                          borderRadius: '25px',
-                          fontFamily: 'Frutiger, Inter, sans-serif',
-                          fontWeight: '700',
-                          fontSize: '18px',
-                          color: 'black',
-                          padding: '16px 32px'
+                          width: '400px',
+                          height: '240px',
+                          borderRadius: '20px',
+                          borderWidth: '2px',
+                          borderColor: '#3B82F6',
+                          borderStyle: 'dashed',
+                          backgroundColor: '#F8FAFF',
+                          padding: '30px'
                         }}
                       >
-                        Continue to Analysis
-                      </button>
-
-                      <button
-                        onClick={handleRemoveFile}
-                        className="w-full px-8 py-3 text-white/80 hover:text-white transition-colors border border-white/30 rounded-2xl hover:border-white/50"
-                        style={{
-                          fontFamily: 'Inter, sans-serif',
-                          fontWeight: '500'
-                        }}
-                      >
-                        Remove & Select Another
-                      </button>
+                        <div className="text-center flex flex-col items-center">
+                          <div className="mb-4">
+                            <img 
+                              src="/frontend-images/homepage/icons/fluent_video-recording-20-filled.svg" 
+                              alt="Video Recording" 
+                              width="48" 
+                              height="48"
+                              style={{ filter: 'brightness(0) saturate(100%)' }}
+                            />
+                          </div>
+                          <h3 
+                            className="font-semibold mb-3"
+                            style={{
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 600,
+                              fontSize: '20px',
+                              color: '#000000',
+                              lineHeight: 1.2
+                            }}
+                          >
+                            Start Recording
+                          </h3>
+                          <p 
+                            className="mb-5"
+                            style={{
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 400,
+                              fontSize: '13px',
+                              color: '#666666',
+                              lineHeight: 1.3,
+                              textAlign: 'center',
+                              maxWidth: '280px'
+                            }}
+                          >
+                            Use your device camera to record bowling action
+                          </p>
+                          <button
+                            onClick={handleStartCamera}
+                            style={{
+                              backgroundColor: "#FFC315",
+                              borderRadius: '25px',
+                              padding: "12px 28px",
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 700,
+                              fontSize: '14px',
+                              color: "black",
+                              border: "none",
+                              cursor: "pointer",
+                              minWidth: '160px'
+                            }}
+                          >
+                            Start Camera
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                  )}
+
+                  {/* Upload Mode Content */}
+                  {activeMode === 'upload' && (
+                    <div className="flex justify-center">
+                      {!uploadedFile ? (
+                        <div
+                          onDrop={handleDrop}
+                          onDragOver={handleDragOver}
+                          onDragLeave={handleDragLeave}
+                          onClick={handleBrowseFiles}
+                          className="border-2 border-dashed transition-colors duration-300 flex items-center justify-center cursor-pointer"
+                          style={{
+                            width: '400px',
+                            height: '240px',
+                            borderRadius: '20px',
+                            borderWidth: '2px',
+                            borderColor: isDragOver ? '#3B82F6' : '#9CA3AF',
+                            borderStyle: 'dashed',
+                            backgroundColor: isDragOver ? '#EFF6FF' : '#F9FAFB',
+                            padding: '30px'
+                          }}
+                        >
+                          <div className="text-center flex flex-col items-center">
+                            <div className="mb-4">
+                              <img 
+                                src="/frontend-images/homepage/icons/uplaod.svg" 
+                                alt="Upload" 
+                                width="48" 
+                                height="48"
+                                style={{ filter: 'brightness(0) saturate(100%)' }}
+                              />
+                            </div>
+                            <h3 
+                              className="font-semibold mb-3"
+                              style={{
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: 600,
+                                fontSize: '20px',
+                                color: '#000000',
+                                lineHeight: 1.2
+                              }}
+                            >
+                              Drop video here
+                            </h3>
+                            <p 
+                              className="mb-5"
+                              style={{
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: 400,
+                                fontSize: '13px',
+                                color: '#666666',
+                                lineHeight: 1.3,
+                                textAlign: 'center',
+                                maxWidth: '280px'
+                              }}
+                            >
+                              or click to browse files
+                            </p>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation(); // Prevent event bubbling
+                                handleBrowseFiles();
+                              }}
+                              style={{
+                                backgroundColor: "#FFC315",
+                                borderRadius: '25px',
+                                padding: "12px 28px",
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: 700,
+                                fontSize: '14px',
+                                color: "black",
+                                border: "none",
+                                cursor: "pointer",
+                                minWidth: '160px'
+                              }}
+                            >
+                              Choose File
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center space-y-4">
+                          <div className="relative">
+                            <video
+                              ref={videoRef}
+                              src={uploadedVideoUrl}
+                              controls
+                              className="object-cover rounded-lg bg-black"
+                              style={{
+                                width: '400px',
+                                height: '240px',
+                                borderRadius: '20px'
+                              }}
+                            />
+                            <button
+                              onClick={handleRemoveFile}
+                              className="absolute top-3 right-3 w-10 h-10 bg-red-500 text-white rounded-full flex items-center justify-center text-lg hover:bg-red-600 transition-colors duration-300"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <div className="text-center">
+                            <p 
+                              className="mb-4"
+                              style={{
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: 400,
+                                fontSize: '14px',
+                                color: '#666666'
+                              }}
+                            >
+                              <strong>{uploadedFile.name}</strong>
+                              <br />
+                              {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
+                            </p>
+                            <button
+                              onClick={handleContinueWithUpload}
+                              style={{
+                                backgroundColor: "#FFC315",
+                                borderRadius: '25px',
+                                padding: "12px 28px",
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: 700,
+                                fontSize: '14px',
+                                color: "black",
+                                border: "none",
+                                cursor: "pointer",
+                                minWidth: '180px'
+                              }}
+                            >
+                              Continue with this video
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Supported Formats Text */}
+                  <div className="text-center mt-4">
+                    <p
+                      style={{
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: 400,
+                        fontSize: '11px',
+                        color: "#000000",
+                        lineHeight: 1.3,
+                        margin: 0,
+                      }}
+                    >
+                      Supported formats: MP4, MOV, AVI (Max 50MB)
+                    </p>
                   </div>
                 </div>
               </div>
-
-              <div className="flex justify-center mt-8">
-                <button
-                  onClick={() => setActiveMode('none')}
-                  className="px-8 py-3 text-white/80 hover:text-white transition-colors"
-                  style={{
-                    fontFamily: 'Inter, sans-serif',
-                    fontWeight: '500'
-                  }}
-                >
-                  ← Back to options
-                </button>
-              </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Desktop Footer */}
-        <footer className="w-full bg-black px-8 py-8 mt-auto">
-          <div className="flex flex-col lg:flex-row justify-between items-center gap-6 max-w-7xl mx-auto">
+        <footer className="w-full bg-black py-6 px-6 relative z-20">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
             <div className="text-left">
-              <p 
-                className="text-white text-sm"
-                style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: '400',
-                  lineHeight: '1.4'
-                }}
-              >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
+              <p className="text-white text-xs" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10, lineHeight: 1.4 }}>
+                Copyright L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
               </p>
             </div>
-            
-            <div className="flex items-center gap-6">
-              <span 
-                className="text-white text-sm"
-                style={{
-                  fontFamily: 'Inter, sans-serif',
-                  fontWeight: '400'
-                }}
-              >
+            <div className="flex items-center gap-3">
+              <span className="text-white text-xs mr-2" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10 }}>
                 Connect with us
               </span>
-              
-              <div className="flex gap-4">
-                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                  </svg>
+              <div className="flex gap-3">
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
                 </div>
-                
-                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.40s-.644-1.44-1.439-1.40z"/>
-                  </svg>
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
                 </div>
-                
-                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
-                  </svg>
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>
                 </div>
-                
-                <div className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
-                  </svg>
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
                 </div>
               </div>
             </div>
           </div>
         </footer>
       </div>
+
+      {/* Mobile Layout */}
+      <div className="md:hidden min-h-screen flex flex-col">
+        <main className="flex-1 px-6 pt-20 pb-8 flex justify-center relative z-10">
+          <div className="relative mx-auto" style={{ width: "100%", maxWidth: 400, marginTop: 4 }}>
+            {/* Mobile Logo */}
+            <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 16, paddingLeft: 4 }}>
+              <div onClick={() => {
+                console.log('🏠 Homepage logo clicked - clearing session data and reloading...');
+                if (typeof window !== 'undefined') {
+                  sessionStorage.clear();
+                  window.location.href = '/';
+                }
+              }}>
+                <img
+                  src="/images/newhomepage/Bowling%20Campaign%20Logo.png"
+                  alt="Bowling Campaign Logo"
+                  style={{ width: 208, height: "auto", cursor: "pointer" }}
+                />
+              </div>
+            </div>
+
+            <div style={{ position: "relative", width: "100%" }}>
+              {/* Bumrah Ball in Hand Decoration */}
+              <img
+                src="/images/Bumrah Ball in Hand 1.png"
+                alt="Bumrah Ball in Hand"
+                style={{ 
+                  position: "absolute", 
+                  top: -170, 
+                  right: -8, 
+                  width: 150, 
+                  height: "auto", 
+                  zIndex: 1, 
+                  pointerEvents: "none" 
+                }}
+              />
+
+              {/* Glass Box Container */}
+              <div
+                className="w-full max-w-sm mx-auto"
+                style={{
+                  position: "relative",
+                  borderRadius: 18,
+                  backgroundColor: "#FFFFFF80",
+                  backdropFilter: "blur(12px)",
+                  WebkitBackdropFilter: "blur(12px)",
+                  boxShadow: "inset 0 0 0 1px #FFFFFF",
+                  padding: 18,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
+                  zIndex: 2,
+                  marginTop: 20,
+                }}
+              >
+                {/* Universal Back Arrow Box - Top Left */}
+                <GlassBackButton />
+
+                {/* Headline */}
+                <div className="mb-3 text-center">
+                  <div
+                    style={{
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: 800,
+                      fontStyle: "italic",
+                      fontSize: "clamp(16px, 4vw, 19.65px)",
+                      color: "#000000",
+                      lineHeight: 1.1,
+                      marginBottom: 2,
+                    }}
+                  >
+                    LIGHTS, CAMERA, BOWL!
+                  </div>
+                  <p
+                    style={{
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: 400,
+                      fontSize: "clamp(11px, 2.5vw, 12px)",
+                      color: "#000000",
+                      lineHeight: 1.3,
+                      margin: 0,
+                    }}
+                  >
+                    Capture your action or upload your video now.
+                  </p>
+                </div>
+
+                {/* Mode Selection Buttons */}
+                <div 
+                  className="relative mb-4 w-full" 
+                  style={{
+                    width: '273.23px',
+                    height: '35.61px',
+                    borderRadius: '23.22px',
+                    backgroundColor: '#FFFFFF99',
+                    padding: '2px'
+                  }}
+                >
+                  {/* Sliding Highlight */}
+                  <div 
+                    className="absolute transition-all duration-300 ease-in-out"
+                    style={{
+                      width: '130.81px',
+                      height: '31.73px',
+                      borderRadius: '19.83px',
+                      backgroundColor: '#FFCA04',
+                      top: '2px',
+                      left: activeMode === 'record' ? '2px' : '138.42px'
+                    }}
+                  />
+                  
+                  {/* Record Button */}
+                  <button
+                    onClick={handleRecordClick}
+                    className="absolute flex items-center justify-center transition-all duration-300"
+                    style={{
+                      left: '2px',
+                      top: '2px',
+                      width: '130.81px',
+                      height: '31.73px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: '19.83px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      color: activeMode === 'record' ? '#000' : '#666',
+                      zIndex: 2
+                    }}
+                  >
+                    <svg 
+                      width="14" 
+                      height="14" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      className="mr-1"
+                    >
+                      <path d="M23 7L16 12L23 17V7Z" fill={activeMode === 'record' ? '#000' : '#666'}/>
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" stroke={activeMode === 'record' ? '#000' : '#666'} strokeWidth="2" fill="none"/>
+                    </svg>
+                    Record
+                  </button>
+                  
+                  {/* Upload Button */}
+                  <button
+                    onClick={handleUploadClick}
+                    className="absolute flex items-center justify-center transition-all duration-300"
+                    style={{
+                      right: '2px',
+                      top: '2px',
+                      width: '130.81px',
+                      height: '31.73px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderRadius: '19.83px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: 600,
+                      fontSize: '12px',
+                      color: activeMode === 'upload' ? '#000' : '#666',
+                      zIndex: 2
+                    }}
+                  >
+                    <svg 
+                      width="14" 
+                      height="14" 
+                      viewBox="0 0 24 24" 
+                      fill="none" 
+                      className="mr-1"
+                    >
+                      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke={activeMode === 'upload' ? '#000' : '#666'} strokeWidth="2"/>
+                      <polyline points="7,10 12,15 17,10" stroke={activeMode === 'upload' ? '#000' : '#666'} strokeWidth="2"/>
+                      <line x1="12" y1="15" x2="12" y2="3" stroke={activeMode === 'upload' ? '#000' : '#666'} strokeWidth="2"/>
+                    </svg>
+                    Upload
+                  </button>
+                </div>
+
+                {/* Record Mode Content */}
+                {activeMode === 'record' && (
+                  <div className="w-full flex justify-center">
+                    <div 
+                      className="flex items-center justify-center border-2 border-dashed"
+                      style={{
+                        width: '315.37px',
+                        height: '185.83px',
+                        borderRadius: '17.87px',
+                        borderWidth: '1.79px',
+                        borderColor: '#3B82F6',
+                        borderStyle: 'dashed',
+                        backgroundColor: '#F8FAFF',
+                        padding: '20px'
+                      }}
+                    >
+                      <div className="text-center flex flex-col items-center">
+                        <div className="mb-3">
+                          <img 
+                            src="/frontend-images/homepage/icons/fluent_video-recording-20-filled.svg" 
+                            alt="Video Recording" 
+                            width="40" 
+                            height="40"
+                            style={{ filter: 'brightness(0) saturate(100%)' }}
+                          />
+                        </div>
+                        <h3 
+                          className="font-semibold mb-2"
+                          style={{
+                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                            fontWeight: 600,
+                            fontSize: '16px',
+                            color: '#000000',
+                            lineHeight: 1.2
+                          }}
+                        >
+                          Start Recording
+                        </h3>
+                        <p 
+                          className="mb-3"
+                          style={{
+                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                            fontWeight: 400,
+                            fontSize: '11px',
+                            color: '#666666',
+                            lineHeight: 1.3,
+                            textAlign: 'center',
+                            maxWidth: '200px'
+                          }}
+                        >
+                          Use your device camera to record bowling action
+                        </p>
+                        <button
+                          onClick={handleStartCamera}
+                          style={{
+                            backgroundColor: "#FFC315",
+                            borderRadius: '20px',
+                            padding: "8px 20px",
+                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                            fontWeight: 700,
+                            fontSize: '12px',
+                            color: "black",
+                            border: "none",
+                            cursor: "pointer",
+                            minWidth: '120px'
+                          }}
+                        >
+                          Start Camera
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Upload Mode Content */}
+                {activeMode === 'upload' && (
+                  <div className="w-full flex justify-center">
+                    {!uploadedFile ? (
+                      <div
+                        onDrop={handleDrop}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onClick={handleBrowseFiles}
+                        className="border-2 border-dashed transition-colors duration-300 flex items-center justify-center cursor-pointer"
+                        style={{
+                          width: '315.37px',
+                          height: '185.83px',
+                          borderRadius: '17.87px',
+                          borderWidth: '1.79px',
+                          borderColor: isDragOver ? '#3B82F6' : '#9CA3AF',
+                          borderStyle: 'dashed',
+                          backgroundColor: isDragOver ? '#EFF6FF' : '#F9FAFB',
+                          padding: '20px'
+                        }}
+                      >
+                        <div className="text-center flex flex-col items-center">
+                          <div className="mb-3">
+                            <img 
+                              src="/frontend-images/homepage/icons/uplaod.svg" 
+                              alt="Upload" 
+                              width="40" 
+                              height="40"
+                              style={{ filter: 'brightness(0) saturate(100%)' }}
+                            />
+                          </div>
+                          <h3 
+                            className="font-semibold mb-2"
+                            style={{
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 600,
+                              fontSize: '16px',
+                              color: '#000000',
+                              lineHeight: 1.2
+                            }}
+                          >
+                            Drop video here
+                          </h3>
+                          <p 
+                            className="mb-3"
+                            style={{
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 400,
+                              fontSize: '11px',
+                              color: '#666666',
+                              lineHeight: 1.3,
+                              textAlign: 'center',
+                              maxWidth: '200px'
+                            }}
+                          >
+                            or click to browse files
+                          </p>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation(); // Prevent event bubbling
+                              handleBrowseFiles();
+                            }}
+                            style={{
+                              backgroundColor: "#FFC315",
+                              borderRadius: '20px',
+                              padding: "8px 20px",
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              color: "black",
+                              border: "none",
+                              cursor: "pointer",
+                              minWidth: '120px'
+                            }}
+                          >
+                            Choose File
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center space-y-3">
+                        <div className="relative">
+                          <video
+                            ref={videoRef}
+                            src={uploadedVideoUrl}
+                            controls
+                            className="object-cover rounded-lg bg-black"
+                            style={{
+                              width: '315.37px',
+                              height: '185px',
+                              borderRadius: '17.87px'
+                            }}
+                          />
+                          <button
+                            onClick={handleRemoveFile}
+                            className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center text-sm hover:bg-red-600 transition-colors duration-300"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="text-center">
+                          <p 
+                            className="mb-3"
+                            style={{
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 400,
+                              fontSize: '12px',
+                              color: '#666666'
+                            }}
+                          >
+                            <strong>{uploadedFile.name}</strong>
+                            <br />
+                            {(uploadedFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                          <button
+                            onClick={handleContinueWithUpload}
+                            style={{
+                              backgroundColor: "#FFC315",
+                              borderRadius: '20px',
+                              padding: "8px 20px",
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              color: "black",
+                              border: "none",
+                              cursor: "pointer",
+                              minWidth: '140px'
+                            }}
+                          >
+                            Continue with this video
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Supported Formats Text */}
+              <div className="text-center mt-3">
+                <p
+                  style={{
+                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                    fontWeight: 400,
+                    fontSize: "clamp(10px, 2vw, 11px)",
+                    color: "#FFFFFF",
+                    lineHeight: 1.3,
+                    margin: 0,
+                  }}
+                >
+                  Supported formats: MP4, MOV, AVI (Max 50MB)
+                </p>
+              </div>
+            </div>
+          </div>
+        </main>
+
+        {/* Mobile Footer */}
+        <footer className="mt-auto w-full bg-black py-6 px-6">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 w-full">
+            <div className="text-left">
+              <p className="text-white text-xs" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10, lineHeight: 1.4 }}>
+                Copyright L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-white text-xs mr-2" style={{ fontFamily: "Inter, sans-serif", fontWeight: 400, fontSize: 10 }}>
+                Connect with us
+              </span>
+              <div className="flex gap-3">
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                </div>
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.40s-.644-1.44-1.439-1.40z"/></svg>
+                </div>
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>
+                </div>
+                <div className="w-8 h-8 flex items-center justify-center">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        id="file-input"
+        className="hidden"
+        accept="video/mp4,video/mov,video/avi,video/quicktime"
+        onChange={handleFileSelect}
+      />
+
+      {/* Video Recorder Overlay */}
+      {isRecorderOpen && (
+        <VideoRecorder
+          onRecordingComplete={handleRecordingComplete}
+          onVideoReady={handleRecorderReady}
+          autoSubmitOnStop={true}
+        />
+      )}
+
+      {/* Analysis Loader Overlay */}
+      {state.isAnalyzing && (
+        <AnalysisLoader
+          progress={state.progress}
+          isVisible={state.isAnalyzing}
+        />
+      )}
     </div>
   );
 }

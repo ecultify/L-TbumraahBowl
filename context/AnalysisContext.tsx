@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 
-export type SpeedClass = 'Slow' | 'Fast' | 'Zooooom';
+export type SpeedClass = 'Slow' | 'Fast' | 'Zooooom' | 'No Action';
 export type AnalyzerMode = 'pose' | 'benchmark';
 
 export interface FrameIntensity {
@@ -13,6 +13,7 @@ export interface FrameIntensity {
 export interface AnalysisState {
   isAnalyzing: boolean;
   currentVideo: string | null;
+  videoUrl: string | null; // Added for compatibility
   frameIntensities: FrameIntensity[];
   finalIntensity: number;
   speedClass: SpeedClass | null;
@@ -33,6 +34,7 @@ type AnalysisAction =
 const initialState: AnalysisState = {
   isAnalyzing: false,
   currentVideo: null,
+  videoUrl: null,
   frameIntensities: [],
   finalIntensity: 0,
   speedClass: null,
@@ -44,7 +46,7 @@ const initialState: AnalysisState = {
 function analysisReducer(state: AnalysisState, action: AnalysisAction): AnalysisState {
   switch (action.type) {
     case 'SET_VIDEO':
-      return { ...state, currentVideo: action.payload };
+      return { ...state, currentVideo: action.payload, videoUrl: action.payload };
     case 'START_ANALYSIS':
       return { 
         ...state, 
@@ -80,7 +82,8 @@ function analysisReducer(state: AnalysisState, action: AnalysisAction): Analysis
         speedClass: null, 
         confidence: 0,
         progress: 0,
-        currentVideo: null 
+        currentVideo: null,
+        videoUrl: null 
       };
     case 'SET_ANALYZER_MODE':
       return { ...state, analyzerMode: action.payload };

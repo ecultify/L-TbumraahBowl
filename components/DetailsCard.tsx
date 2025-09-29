@@ -22,7 +22,7 @@ interface DetailsCardProps {
 const OTP_BOX_COUNT = 6;
 
 export function DetailsCard({
-  submitLabel = 'Submit',
+  submitLabel = 'View Analysis',
   submitHref,
   onSubmit,
   loading = false,
@@ -131,15 +131,15 @@ export function DetailsCard({
       return (
         <button
           type="submit"
-          className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-60"
+          className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-60 w-full max-w-xs md:max-w-sm"
           style={{
-            width: '261px',
             height: '41px',
             backgroundColor: '#FFC315',
             borderRadius: '20px',
-            fontFamily: 'Frutiger, Inter, sans-serif',
-            fontSize: '16px',
-            color: 'black'
+            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+            fontWeight: '700',
+            fontSize: 'clamp(14px, 3vw, 16px)',
+            color: 'black',
           }}
           disabled={isSubmitDisabled}
         >
@@ -152,15 +152,15 @@ export function DetailsCard({
       return (
         <Link
           href={submitHref}
-          className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105"
+          className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 w-full max-w-xs md:max-w-sm"
           style={{
-            width: '261px',
             height: '41px',
             backgroundColor: '#FFC315',
             borderRadius: '20px',
-            fontFamily: 'Frutiger, Inter, sans-serif',
-            fontSize: '16px',
-            color: 'black'
+            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+            fontWeight: '700',
+            fontSize: 'clamp(14px, 3vw, 16px)',
+            color: 'black',
           }}
         >
           {submitLabel}
@@ -174,40 +174,66 @@ export function DetailsCard({
   const CardContent = (
     <>
       <div className="mb-6 text-center">
-        <h1
-          className="text-white mb-1"
+        {/* ALMOST THERE headline with woosh */}
+        <div
           style={{
-            fontFamily: 'Frutiger, Inter, sans-serif',
-            fontWeight: '700',
-            fontSize: '24px',
-            lineHeight: '1.2'
+            position: "relative",
+            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+            fontWeight: 800,
+            fontStyle: "italic",
+            fontSize: "clamp(16px, 4vw, 19.65px)",
+            color: "#000000",
+            lineHeight: 1.1,
+            marginBottom: 6,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px"
           }}
         >
-          Your details
-        </h1>
+          <span style={{ position: "relative" }}>
+            <img
+              src="/images/newhomepage/woosh.svg"
+              alt=""
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: -22,
+                top: "40%",
+                transform: "translateY(-50%)",
+                height: 18,
+                filter: "brightness(0) saturate(100%)"
+              }}
+            />
+            ALMOST
+          </span>
+          <span>THERE</span>
+        </div>
+
+        {/* Subtitle */}
         <p
-          className="text-white"
           style={{
-            fontFamily: 'Inter, sans-serif',
-            fontWeight: '700',
-            fontSize: '12px',
-            lineHeight: '1.3'
+            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+            fontWeight: 400,
+            fontStyle: "normal",
+            fontSize: "clamp(11px, 2.5vw, 12px)",
+            lineHeight: "14px",
+            color: "#000000",
           }}
         >
-          Complete your submission
+          Fill in your details so we can send you your personalised bowling analysis.
         </p>
       </div>
 
       <div className="mb-4 flex justify-center">
         <div
-          className="relative"
+          className="relative w-full max-w-xs md:max-w-sm"
           style={{
-            width: '308px',
             height: '40px'
           }}
         >
           <User
-            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+            className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black"
             size={20}
           />
           <input
@@ -215,11 +241,13 @@ export function DetailsCard({
             placeholder="Full Name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            className="w-full h-full pl-12 pr-4 text-black placeholder-gray-500 bg-white border border-gray-400 focus:border-blue-500 focus:outline-none"
+            className="w-full h-full pl-12 pr-4 text-black placeholder-black bg-white border border-gray-400 focus:border-blue-500 focus:outline-none"
             style={{
               borderRadius: '20px',
-              fontFamily: 'Frutiger, Inter, sans-serif',
-              fontSize: '14px'
+              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+              fontWeight: '400',
+              fontSize: 'clamp(12px, 2.5vw, 14px)',
+              color: 'black'
             }}
             disabled={isSubmitDisabled && !!onSubmit}
             required={!!onSubmit}
@@ -228,16 +256,15 @@ export function DetailsCard({
       </div>
 
       <div className="mb-4 flex justify-center">
-        <div className="flex gap-2">
+        <div className="w-full max-w-xs md:max-w-sm flex gap-2">
           <div
-            className="relative"
+            className="relative flex-1"
             style={{
-              width: '223px',
               height: '40px'
             }}
           >
             <Phone
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-black"
               size={20}
             />
             <input
@@ -245,11 +272,13 @@ export function DetailsCard({
               placeholder="Phone Number"
               value={phone}
               onChange={(event) => setPhone(event.target.value)}
-              className="w-full h-full pl-12 pr-4 text-black placeholder-gray-500 bg-white border border-gray-400 focus:border-blue-500 focus:outline-none"
+              className="w-full h-full pl-12 pr-4 text-black placeholder-black bg-white border border-gray-400 focus:border-blue-500 focus:outline-none"
               style={{
                 borderRadius: '20px',
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontSize: '14px'
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontWeight: '400',
+                fontSize: 'clamp(12px, 2.5vw, 14px)',
+                color: 'black'
               }}
               disabled={isSubmitDisabled && !!onSubmit}
             />
@@ -259,16 +288,17 @@ export function DetailsCard({
             type="button"
             onClick={handleGetOtp}
             disabled={(showOtpBoxes && isTimerActive) || (isSubmitDisabled && !!onSubmit)}
-            className="text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             style={{
-              width: '82px',
+              minWidth: '70px',
               height: '40px',
               backgroundColor: '#FFC315',
               borderRadius: '20px',
-              fontFamily: 'Frutiger, Inter, sans-serif',
+              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
               fontWeight: '700',
-              fontSize: '12px',
-              color: 'black'
+              fontSize: 'clamp(10px, 2vw, 12px)',
+              color: 'black',
+              padding: '0 12px'
             }}
           >
             {showOtpBoxes && isTimerActive ? 'OTP Sent' : 'Get OTP'}
@@ -293,21 +323,24 @@ export function DetailsCard({
                   height: '34.06px',
                   borderRadius: '7.57px',
                   backgroundColor: 'white',
-                  fontFamily: 'Frutiger, Inter, sans-serif',
-                  fontSize: '16px'
+                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                  fontWeight: '400',
+                  fontSize: 'clamp(14px, 3vw, 16px)',
+                  color: 'black'
                 }}
                 disabled={isSubmitDisabled && !!onSubmit}
               />
             ))}
           </div>
 
-          <div className="flex justify-between items-center text-white text-xs" style={{ fontFamily: 'Inter, sans-serif' }}>
+          <div className="flex justify-between items-center text-black text-xs" style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: '400', color: 'black' }}>
             <span>Remaining time: {remainingTime}s</span>
             <button
               type="button"
               onClick={handleResend}
               disabled={isTimerActive || (isSubmitDisabled && !!onSubmit)}
-              className="text-white underline disabled:opacity-50 disabled:cursor-not-allowed hover:text-gray-300"
+              className="text-black underline disabled:opacity-50 disabled:cursor-not-allowed hover:text-gray-600"
+              style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: '400', color: 'black' }}
             >
               Didn't get the code? Resend
             </button>
@@ -316,7 +349,7 @@ export function DetailsCard({
       )}
 
       <div className="mb-6 flex justify-center">
-        <div style={{ width: '308px' }}>
+        <div className="w-full max-w-xs md:max-w-sm">
           <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
@@ -326,11 +359,13 @@ export function DetailsCard({
               disabled={isSubmitDisabled && !!onSubmit}
             />
             <span
-              className="text-white text-sm leading-relaxed"
+              className="text-black text-sm leading-relaxed"
               style={{
-                fontFamily: 'Frutiger, Inter, sans-serif',
-                fontSize: '12px',
-                lineHeight: '1.5'
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontWeight: '400',
+                fontSize: 'clamp(10px, 2.5vw, 12px)',
+                lineHeight: '1.5',
+                color: 'black'
               }}
             >
               I agree to the terms and conditions and privacy policy. I consent to receive communications about this service.
@@ -340,7 +375,7 @@ export function DetailsCard({
       </div>
 
       {error && (
-        <p className="text-sm text-red-300 text-center mb-4" style={{ fontFamily: 'Inter, sans-serif' }}>
+        <p className="text-sm text-red-600 text-center mb-4" style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: '400', color: 'black' }}>
           {error}
         </p>
       )}
@@ -352,15 +387,7 @@ export function DetailsCard({
   );
 
   return (
-    <div
-      className={`${className} p-6 backdrop-blur-md relative overflow-hidden`}
-      style={{
-        borderRadius: '20px',
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        border: '1px solid rgba(255, 255, 255, 0.2)',
-        boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)'
-      }}
-    >
+    <div className={`${className} p-6 relative overflow-hidden`}>
       {onSubmit ? (
         <form onSubmit={handleSubmit} noValidate>
           {CardContent}

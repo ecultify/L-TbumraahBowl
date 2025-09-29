@@ -8,10 +8,10 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="first-frame"
         component={FirstFrame}
-        durationInFrames={600}
+        durationInFrames={720}
         fps={30}
         width={1080}
-        height={1920}
+        height={1440}
         defaultProps={{
           analysisData: {
             intensity: 86,

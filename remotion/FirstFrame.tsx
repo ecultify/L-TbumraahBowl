@@ -1,9 +1,10 @@
 "use client";
 
 import React from 'react';
-import {interpolate, staticFile, useCurrentFrame, useVideoConfig, Sequence} from 'remotion';
+import {interpolate, staticFile, useCurrentFrame, useVideoConfig, Sequence, Video, delayRender, continueRender} from 'remotion';
+import {loadFont} from '@remotion/google-fonts/RobotoCondensed';
+import {getVideoMetadata} from '@remotion/media-utils';
 import {SpeedMeter} from './SpeedMeter';
-import {SparklineWrapper} from './SparklineWrapper';
 
 interface FrameIntensity {
   timestamp: number;
@@ -34,6 +35,55 @@ interface AnalysisData {
 interface FirstFrameProps {
   analysisData?: AnalysisData;
 }
+
+const {fontFamily: condensedFontFamily} = loadFont();
+
+type VideoMetadata = Awaited<ReturnType<typeof getVideoMetadata>>;
+
+const useVideoMetadataCompat = (src: string | null) => {
+  const handleRef = React.useRef<number | null>(null);
+  const [metadata, setMetadata] = React.useState<VideoMetadata | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    if (!src) {
+      setMetadata(null);
+      return;
+    }
+
+    const handle = delayRender(`metadata-${src}`);
+    handleRef.current = handle;
+
+    getVideoMetadata(src)
+      .then((meta) => {
+        if (!cancelled) {
+          setMetadata(meta);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMetadata(null);
+        }
+      })
+      .then(() => {
+        if (handleRef.current !== null) {
+          continueRender(handleRef.current);
+          handleRef.current = null;
+        }
+      });
+
+    return () => {
+      cancelled = true;
+      if (handleRef.current !== null) {
+        continueRender(handleRef.current);
+        handleRef.current = null;
+      }
+    };
+  }, [src]);
+
+  return metadata;
+};
 
 export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
   // Use dynamic data or fallback to static values
@@ -97,15 +147,18 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
   const frame = useCurrentFrame();
   const {fps, height, width} = useVideoConfig();
 
-  // Horizontal-only entrance (no vertical rise)
-  const rise = 0;
-
   // Slide in from the right and fade in over ~1s
   const slide = interpolate(frame, [0, fps], [140, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
   const fade = interpolate(frame, [0, fps * 0.9], [0, 1], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+
+  // Phone hero scale-down effect (starts oversize and eases to 1)
+  const phoneScale = interpolate(frame, [0, fps * 0.6], [1.3, 1], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -163,32 +216,97 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
     extrapolateRight: 'clamp',
   });
 
-  // Rounded box specs
-  const BOX_W = 957;
-  const BOX_H = 757;
-  const boxLeft = (width - BOX_W) / 2;
-  const boxTop = (height - BOX_H) / 2;
-  const boxRight = boxLeft + BOX_W;
+  const portraitVideoGap = 0; // No gap between videos
+  const maxPortraitWidth = (width * 0.6) / 2; // Reduce total width to 60% of screen
+  const maxPortraitHeight = height * 0.70;
+  const portraitVideoWidth = Math.min(maxPortraitWidth, maxPortraitHeight * (9 / 16));
+  const portraitVideoHeight = portraitVideoWidth * (16 / 9);
+  const videoRowWidth = portraitVideoWidth * 2 + portraitVideoGap;
+  const videoRowLeft = (width - videoRowWidth) / 2;
+  const videoRowTop = (height - portraitVideoHeight) / 2;
 
-  // Top view image emerges near the top-right of the box but stays in-frame
-  const TOP_VIEW_W = 460;
-  const TOP_VIEW_SRC = staticFile('images/bumraahtopview.png');
-  // Base left so the image sits just inside the box initially, towards top-right
-  const topViewBaseLeft = Math.min(
-    Math.max(boxRight - TOP_VIEW_W + 20, 20),
-    width - TOP_VIEW_W - 20
-  );
+  const CARD_STACK_WIDTH = Math.min(800, width - 120);
+  const cardStackLeft = (width - CARD_STACK_WIDTH) / 2;
+  const cardStackTop = height * 0.05;
+  const CARD_GAP = 20;
 
-  // Horizontal reveal from behind the box to outside
-  const topViewSlideX = interpolate(intoSecond, [0, fps], [-60, 0], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
-  const topViewSlideY = 0;
-  const topViewFade = interpolate(intoSecond, [0, fps * 0.4], [0, 1], {
-    extrapolateLeft: 'clamp',
-    extrapolateRight: 'clamp',
-  });
+  const cardImageBorderRadius = 32;
+
+  const userVideoSrc = staticFile('VID-20250923-WA0000.mp4');
+  const benchmarkVideoSrc = staticFile('bumrah bowling action (1).mp4');
+  const cardTopSrc = staticFile('Card 2.png');
+  const cardBaseSrc = staticFile('Cards.png');
+  const sponsoredVideoSrc = staticFile('L&T Finanace 6sec CLEAN 9x16.mp4');
+
+  const userVideoMetadata = useVideoMetadataCompat(userVideoSrc);
+  const clipDurationSeconds = 2;
+  const userClip = React.useMemo(() => {
+    if (!userVideoMetadata || !userVideoMetadata.durationInSeconds || 
+        isNaN(userVideoMetadata.durationInSeconds) || 
+        userVideoMetadata.durationInSeconds <= 0) {
+      return {startFrom: 0, endAt: undefined};
+    }
+    // Use default fps if not available
+    const fps = 30; // Default fps value
+    const totalFrames = Math.max(0, Math.round(userVideoMetadata.durationInSeconds * fps));
+    if (totalFrames === 0 || isNaN(totalFrames)) {
+      return {startFrom: 0, endAt: undefined};
+    }
+    const desiredFrames = Math.max(1, Math.round(clipDurationSeconds * fps));
+    const clipFrames = Math.min(totalFrames, desiredFrames);
+    const startFrom = Math.max(0, Math.floor((totalFrames - clipFrames) / 2));
+    
+    // Ensure values are valid numbers
+    if (isNaN(startFrom) || !isFinite(startFrom) || startFrom < 0) {
+      return {startFrom: 0, endAt: undefined};
+    }
+    const endAt = startFrom + clipFrames;
+    if (isNaN(endAt) || !isFinite(endAt) || endAt < 0) {
+      return {startFrom: 0, endAt: undefined};
+    }
+    
+    return {startFrom, endAt};
+  }, [userVideoMetadata]);
+
+  const playerClipOwner = data.playerName ?? 'Player';
+  const comparisonVideos = [
+    {
+      key: 'user',
+      src: userVideoSrc,
+      title: `${playerClipOwner}'s Clip`,
+      caption: 'Middle 2s highlight',
+      startFrom: (userClip.startFrom != null && !isNaN(userClip.startFrom) && isFinite(userClip.startFrom) && userClip.startFrom >= 0) ? userClip.startFrom : 0,
+      endAt: (userClip.endAt != null && !isNaN(userClip.endAt) && isFinite(userClip.endAt) && userClip.endAt >= 0) ? userClip.endAt : undefined,
+    },
+    {
+      key: 'benchmark',
+      src: benchmarkVideoSrc,
+      title: 'Benchmark Clip',
+      caption: 'Bumrah bowling action',
+      startFrom: 0,
+      endAt: undefined,
+    },
+  ];
+
+  const phases = [
+    {label: 'Run-up', value: Math.round(data.phases.runUp)},
+    {label: 'Delivery', value: Math.round(data.phases.delivery)},
+    {label: 'Follow-through', value: Math.round(data.phases.followThrough)},
+  ];
+
+  const technicalRows = [
+    {label: 'Arm Swing', value: data.technicalMetrics.armSwing, scheme: 'blue'},
+    {label: 'Body Movement', value: data.technicalMetrics.bodyMovement, scheme: 'yellow'},
+    {label: 'Rhythm', value: data.technicalMetrics.rhythm, scheme: 'blue'},
+    {label: 'Release Point', value: data.technicalMetrics.releasePoint, scheme: 'yellow'},
+  ];
+
+  const recommendationsText = data.recommendations?.[0] ?? 'Focus on arm swing technique and timing';
+
+  const similarityValue = Math.round(data.similarity);
+  const topSpeedValue = Math.round(data.kmh);
+
+  const shineCycleDuration = Math.max(1, Math.round(fps * 1.8));
 
   // Third frame timing
   const THIRD_START = fps * 8; // start ~8s in
@@ -197,6 +315,16 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+  const thirdShineTranslate = interpolate(
+    (intoThird % shineCycleDuration),
+    [0, shineCycleDuration],
+    [-200, 200],
+    {
+      extrapolateLeft: 'clamp',
+      extrapolateRight: 'clamp',
+    }
+  );
+  const thirdMetricProgress = Math.min(1, intoThird / (fps * 1.2));
   const secondFadeOut = interpolate(
     frame,
     [THIRD_START - Math.round(fps * 0.6), THIRD_START],
@@ -211,6 +339,8 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+  const fourthMetricProgress = Math.min(1, intoFourth / (fps * 1.1));
+  const animatedTopSpeed = Math.round(topSpeedValue * fourthMetricProgress);
   const thirdFadeOut2 = interpolate(
     frame,
     [FOURTH_START - Math.round(fps * 0.6), FOURTH_START],
@@ -225,6 +355,11 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
+  const topCardScaleInFifth = interpolate(intoFifth, [0, Math.round(fps * 0.6)], [1, 1.12], {
+    extrapolateLeft: 'clamp',
+    extrapolateRight: 'clamp',
+  });
+  const recommendationsLift = Math.min(1, intoFifth / (fps * 0.8));
   const fourthFadeOut2 = interpolate(
     frame,
     [FIFTH_START - Math.round(fps * 0.6), FIFTH_START],
@@ -232,7 +367,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
     {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
   );
 
-  // Sixth frame timing
+  // Final frames timing
   const SIXTH_START = fps * 17; // start ~17s in
   const intoSixth = Math.max(0, frame - SIXTH_START);
   const sixthAppear = interpolate(intoSixth, [0, Math.round(fps * 0.6)], [0, 1], {
@@ -256,42 +391,30 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
         backgroundColor: '#000',
       }}
     >
-      {/* Background image */}
-      <img
-        src={staticFile('images/videobg.png')}
-        alt="background"
+      {/* Background video */}
+      <Video
+        src={staticFile('BG.mp4')}
         style={{
           position: 'absolute',
           inset: 0,
           width: '100%',
           height: '100%',
-          objectFit: 'cover',
+          objectFit: 'contain',
+          backgroundColor: '#000',
         }}
-      />
-
-      {/* Linear color overlay */}
-      <img
-        src={staticFile('images/linearcoloroverlay.png')}
-        alt="overlay"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          objectFit: 'cover',
-          pointerEvents: 'none',
-        }}
+        muted
+        loop
       />
 
       {/* Top-left Zoom logo (bigger) */}
       <img
-        src={staticFile('images/zoomlogo.png')}
-        alt="Zoom logo"
+        src={staticFile('images/newhomepage/Bowling Campaign Logo.png')}
+        alt="Bowling Campaign Logo"
         style={{
           position: 'absolute',
-          top: 40,
-          left: 40,
-          width: 360,
+          top: 70,
+          left: 80,
+          width: 240,
           height: 'auto',
           opacity: topLeftLogoFade,
           transform: `translateY(${topLeftLogoSlideY}px)`
@@ -300,14 +423,15 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
 
       {/* Phone image bottom-right, fades out to the right before scene 2 */}
       <img
-        src={staticFile('images/bumraahphonepic.png')}
+        src={staticFile('images/bumraahnewpic.png')}
         alt="Phone"
         style={{
           position: 'absolute',
           right: 0,
-          bottom: 0,
-          transform: `translateX(${slide + slideOut}px)`,
-          width: Math.min(940, width * 0.85),
+          bottom: 30,
+          transform: `scale(${phoneScale * 0.85})`,
+          transformOrigin: '100% 100%',
+          width: Math.min(650, width * 0.6),
           height: 'auto',
           opacity: fade * fadeOut,
           zIndex: 1, // Behind the bar
@@ -318,9 +442,9 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
       <div
         style={{
           position: 'absolute',
-          left: 80, // Push a little bit more to the right
-          bottom: height * 0.55, // Move up significantly
-          transform: `translateX(${-slide - slideOut}px)`, // Slide in from left (opposite of phone)
+          left: 60,
+          bottom: height * 0.45 + 40, // Adjust for new height
+          transform: `translateX(${-slide - slideOut}px)`,
           opacity: fade * fadeOut,
           zIndex: 2,
           textAlign: 'left',
@@ -329,18 +453,15 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
         {/* Player name and "Bowling Analysis with" */}
         <div
           style={{
-            fontFamily: 'Poppins, Arial, Helvetica, sans-serif',
-            fontSize: 72,
+            fontFamily: condensedFontFamily,
+            fontSize: 75,
             fontWeight: 400,
+            fontStyle: 'italic',
             color: 'white',
             textShadow: '3px 3px 6px #FFCB03',
-            lineHeight: 0.9,
-            marginBottom: 10, // Reduced from 20 to 10
-            width: 750, // Increased from 649 to 750 for longer names
-            height: 200,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
+            lineHeight: 0.92,
+            marginBottom: 4,
+            width: 600,
           }}
         >
           {data.playerName}'s Bowling
@@ -353,28 +474,11 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
           src={staticFile('images/justzoom.png')}
           alt="Just Zoom"
           style={{
-            width: 422,
-            height: 93,
-            marginBottom: 12, // Reduced from 24 to 12
+            width: 400,
+            height: 88,
+            marginBottom: 4,
           }}
         />
-
-        {/* "Your Results Are In..." */}
-        <div
-          style={{
-            fontFamily: 'Poppins, Arial, Helvetica, sans-serif',
-            fontSize: 55,
-            fontWeight: 400,
-            color: 'white',
-            lineHeight: 1.2,
-            width: 600, // Increased from 534 to 600 for better spacing
-            height: 83,
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          Your Results Are In…
-        </div>
       </div>
 
       {/* Bottom bar cluster (full-bleed portrait, touching bottom) */}
@@ -387,7 +491,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
           width: BAR_WIDTH,
           height: BAR_HEIGHT,
           zIndex: 5,
-          opacity: barFade,
+          opacity: barFade * Math.max(0, Math.min(1, fifthFadeOut3)),
           transform: `translateY(${barSlideY}px)`
         }}
       >
@@ -407,14 +511,14 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
 
         {/* Zoom logo at left edge on top of bar */}
         <img
-          src={staticFile('images/zoomlogo.png')}
-          alt="Zoom on bar left"
+          src={staticFile('images/newhomepage/Bowling Campaign Logo.png')}
+          alt="Bowling Campaign Logo"
           style={{
             position: 'absolute',
             left: 20,
-            top: 'calc(50% - 50px)',
+            top: 'calc(50% - 65px)',
             transform: `translateY(-50%) translateX(${barLogoSlideX}px)`,
-            width: 220,
+            width: 180,
             height: 'auto',
             zIndex: 3,
             opacity: barItemsFade,
@@ -428,9 +532,9 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
           style={{
             position: 'absolute',
             right: 20,
-            top: 'calc(50% - 95px)',
+            top: 'calc(50% - 75px)',
             transform: `translateY(-50%) translateX(${barBikeSlideX}px)`,
-            width: 260,
+            width: 200,
             height: 'auto',
             zIndex: 3,
             opacity: barItemsFade,
@@ -438,576 +542,434 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
         />
       </div>
 
-      {/* Second frame additions */}
+      {/* Second frame: Dual video comparison */}
       <Sequence from={SECOND_START}>
-        {/* Box image (replaces coded blur box) */}
-        <img
-          src={staticFile('images/thebox.png')}
-          alt="Box"
+        <div
           style={{
             position: 'absolute',
-            left: boxLeft,
-            top: boxTop,
-            width: BOX_W,
-            height: BOX_H,
-            borderRadius: 30,
-            objectFit: 'cover',
-            opacity: secondAppear,
+            left: videoRowLeft,
+            top: videoRowTop,
+            width: videoRowWidth,
+            height: portraitVideoHeight,
+            display: 'flex',
+            gap: portraitVideoGap,
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            opacity: secondAppear * secondFadeOut,
             zIndex: 6,
           }}
-        />
-
-        {/* Content inside the box */}
-        <div
-          style={{
-            position: 'absolute',
-            left: boxLeft,
-            top: boxTop,
-            width: BOX_W,
-            height: BOX_H,
-            borderRadius: 30,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'flex-start',
-            paddingTop: 56,
-            gap: 36,
-            opacity: secondAppear * secondFadeOut,
-            zIndex: 7,
-            pointerEvents: 'none',
-          }}
         >
-          <div
-            style={{
-              fontFamily: 'Frutiger, Poppins, Arial, Helvetica, sans-serif',
-              fontWeight: 700,
-              fontSize: 50,
-              letterSpacing: 1.5,
-              textTransform: 'uppercase',
-              color: '#225884',
-              textAlign: 'center',
-            }}
-          >
-            SPEED METER ANALYSIS
-          </div>
-
-          <div
-            style={{
-              width: 490,
-              height: 103,
-              borderRadius: 20,
-              background: 'linear-gradient(90deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px 24px',
-              boxShadow: 'none',
-              marginTop: 16,
-            }}
-          >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'baseline',
-              gap: 12,
-              fontFamily: 'Poppins, Arial, Helvetica, sans-serif',
-              color: '#0A0A0A',
-            }}
-          >
-            <span style={{fontWeight: 500, fontSize: 27}}>Percentage:</span>
-            <span style={{fontWeight: 600, fontSize: 60}}>{Math.round(data.similarity)}%</span>
-          </div>
-          </div>
-
-          {/* Speed meter graphic below the percentage box */}
-          <div style={{width: 560, height: 300, position: 'relative', marginTop: 64}}>
-            <SpeedMeter 
-              intensity={data.intensity}
-              speedClass={data.speedClass}
-              animated={true}
-            />
-          </div>
-        </div>
-
-        {/* Pitch to Road image to the left of Bumraah top-view */}
-        <img
-          src={staticFile('images/pitchtoroad.png')}
-          alt="Pitch to Road"
-          style={{
-            position: 'absolute',
-            left: Math.max(20, topViewBaseLeft - 480 - 70), // Push 70px further left
-            top: boxTop - 150, // Move up by 150px
-            transform: `translateY(-100%)`,
-            width: 520, // Increased from 460 to 520
-            height: 'auto',
-            opacity: topViewFade, // Same fade timing as top view
-            zIndex: 5,
-          }}
-        />
-
-        {/* Bumraah top-view above the box at top-right (bottom touches box top, emerges from behind) */}
-        <img
-          src={TOP_VIEW_SRC}
-          alt="Bumraah top view"
-          style={{
-            position: 'absolute',
-            left: topViewBaseLeft,
-            top: boxTop,
-            // Align bottom to box top, then slide horizontally
-            transform: `translateY(-100%) translateX(${topViewSlideX}px)`,
-            width: TOP_VIEW_W,
-            height: 'auto',
-            opacity: topViewFade,
-            zIndex: 5, // Behind the box so it emerges from behind
-          }}
-        />
-      </Sequence>
-
-      {/* Fifth frame: Technical Breakdown with animated bars */}
-      <Sequence from={FIFTH_START}>
-        {/* Pitch to Road image for frame 5 */}
-        <img
-          src={staticFile('images/pitchtoroad.png')}
-          alt="Pitch to Road"
-          style={{
-            position: 'absolute',
-            left: Math.max(20, topViewBaseLeft - 480 - 70), // Push 70px further left
-            top: boxTop - 150, // Move up by 150px
-            transform: `translateY(-100%)`,
-            width: 520, // Increased from 460 to 520
-            height: 'auto',
-            opacity: fifthAppear * fifthFadeOut3,
-            zIndex: 5,
-          }}
-        />
-
-        {/* Bumraah top-view for frame 5 */}
-        <img
-          src={TOP_VIEW_SRC}
-          alt="Bumraah top view"
-          style={{
-            position: 'absolute',
-            left: topViewBaseLeft,
-            top: boxTop,
-            transform: `translateY(-100%)`,
-            width: TOP_VIEW_W,
-            height: 'auto',
-            opacity: fifthAppear * fifthFadeOut3,
-            zIndex: 5,
-          }}
-        />
-
-        <div
-          style={{
-            position: 'absolute',
-            left: boxLeft,
-            top: boxTop,
-            width: BOX_W,
-            height: BOX_H,
-            borderRadius: 30,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '32px 24px',
-            gap: 20,
-            opacity: fifthAppear * fifthFadeOut3,
-            zIndex: 7,
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'Frutiger, Poppins, Arial, Helvetica, sans-serif',
-              fontWeight: 700,
-              fontSize: 52,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: '#225884',
-              textAlign: 'center',
-            }}
-          >
-            TECHNICAL BREAKDOWN
-          </div>
-
-          {[
-            {label: 'Arm Swing', target: data.technicalMetrics.armSwing, scheme: 'blue'},
-            {label: 'Body Movement', target: data.technicalMetrics.bodyMovement, scheme: 'yellow'},
-            {label: 'Rhythm', target: data.technicalMetrics.rhythm, scheme: 'blue'},
-            {label: 'Release Point', target: data.technicalMetrics.releasePoint, scheme: 'yellow'},
-          ].map((row, i) => {
-            const anim = Math.min(1, intoFifth / (fps * 1.2));
-            const fillPct = (row.target / 100) * anim;
-            const number = Math.round(row.target * anim);
-            const trackColor = 'rgba(255,255,255,0.45)';
-            const fillGradient =
-              row.scheme === 'blue'
-                ? 'linear-gradient(90deg, #0F62B0 0%, #1178D9 100%)'
-                : 'linear-gradient(90deg, #F9B233 0%, #FFD180 100%)';
-            return (
-              <div
-                key={row.label}
+          {comparisonVideos.map((video) => (
+            <div
+              key={video.key}
+              style={{
+                position: 'relative',
+                width: portraitVideoWidth,
+                height: portraitVideoHeight,
+                borderRadius: cardImageBorderRadius,
+                overflow: 'hidden',
+                background: 'linear-gradient(180deg, rgba(14,26,42,0.9) 0%, rgba(14,26,42,0.4) 100%)',
+                boxShadow: '0 35px 90px rgba(0,0,0,0.55)',
+              }}
+            >
+              <Video
+                src={video.src}
+                muted
+                playsInline
+                loop
+                startFrom={video.startFrom}
+                endAt={video.endAt}
                 style={{
-                  width: BOX_W - 80,
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  padding: '16px 20px',
+                  background: 'linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.75) 100%)',
+                  color: '#fff',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 10,
-                  paddingLeft: 24,
-                  paddingRight: 24,
+                  gap: 4,
+                  fontFamily: condensedFontFamily,
                 }}
               >
-                <div style={{color: '#225884', fontFamily: 'Poppins, Arial, Helvetica, sans-serif', fontWeight: 500, fontSize: 28, textAlign: 'left'}}>
-                  {row.label}
-                </div>
-                <div style={{width: '100%', display: 'flex', alignItems: 'center', gap: 24}}>
-                  <div style={{flex: 1, height: 26, borderRadius: 14, background: trackColor, overflow: 'hidden'}}>
-                    <div style={{width: `${Math.max(0, Math.min(100, fillPct * 100))}%`, height: '100%', background: fillGradient, borderRadius: 12}} />
-                  </div>
-                  <div style={{width: 110, textAlign: 'right', color: '#225884', fontFamily: 'Poppins, Arial, Helvetica, sans-serif', fontWeight: 700, fontSize: 36}}>
-                    {number}%
-                  </div>
-                </div>
+                <span style={{fontWeight: 700, fontSize: 26, letterSpacing: 0.5}}>{video.title}</span>
+                <span style={{fontWeight: 400, fontSize: 16, opacity: 0.75}}>{video.caption}</span>
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </Sequence>
 
-      {/* Sixth frame: Recommendations */}
-      <Sequence from={SIXTH_START}>
-        {/* Pitch to Road image for frame 6 */}
-        <img
-          src={staticFile('images/pitchtoroad.png')}
-          alt="Pitch to Road"
-          style={{
-            position: 'absolute',
-            left: Math.max(20, topViewBaseLeft - 480 - 70), // Push 70px further left
-            top: boxTop - 150, // Move up by 150px
-            transform: `translateY(-100%)`,
-            width: 520, // Increased from 460 to 520
-            height: 'auto',
-            opacity: sixthAppear,
-            zIndex: 5,
-          }}
-        />
-
-        {/* Bumraah top-view for frame 6 */}
-        <img
-          src={TOP_VIEW_SRC}
-          alt="Bumraah top view"
-          style={{
-            position: 'absolute',
-            left: topViewBaseLeft,
-            top: boxTop,
-            transform: `translateY(-100%)`,
-            width: TOP_VIEW_W,
-            height: 'auto',
-            opacity: sixthAppear,
-            zIndex: 5,
-          }}
-        />
-
-        <div
-          style={{
-            position: 'absolute',
-            left: boxLeft,
-            top: boxTop,
-            width: BOX_W,
-            height: BOX_H,
-            borderRadius: 30,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'space-evenly',
-            paddingTop: 32,
-            gap: 16,
-            opacity: sixthAppear,
-            zIndex: 7,
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            style={{
-              fontFamily: 'Frutiger, Poppins, Arial, Helvetica, sans-serif',
-              fontWeight: 700,
-              fontSize: 52,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: '#225884',
-              textAlign: 'center',
-            }}
-          >
-            RECOMMENDATIONS
-          </div>
-
-          <div
-            style={{
-              width: 620,
-              minHeight: 220,
-              borderRadius: 24,
-              background: 'linear-gradient(90deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px 24px',
-              textAlign: 'center',
-              marginTop: -100, // Move even closer to recommendations title
-            }}
-          >
-            <span
-              style={{
-                fontFamily: 'Poppins, Arial, Helvetica, sans-serif',
-                color: '#225884',
-                fontWeight: 600,
-                fontSize: 38,
-                lineHeight: 1.4,
-              }}
-            >
-              {data.recommendations[0] || 'Focus on arm swing technique and timing'}
-            </span>
-          </div>
-        </div>
-      </Sequence>
-      {/* Third frame additions: Change box content only */}
+      {/* Third frame: Detailed analysis & technical breakdown */}
       <Sequence from={THIRD_START}>
-        {/* Pitch to Road image for frame 3 */}
-        <img
-          src={staticFile('images/pitchtoroad.png')}
-          alt="Pitch to Road"
-          style={{
-            position: 'absolute',
-            left: Math.max(20, topViewBaseLeft - 480 - 70), // Push 70px further left
-            top: boxTop - 150, // Move up by 150px
-            transform: `translateY(-100%)`,
-            width: 520, // Increased from 460 to 520
-            height: 'auto',
-            opacity: thirdAppear * thirdFadeOut2,
-            zIndex: 5,
-          }}
-        />
-
-        {/* Bumraah top-view for frame 3 */}
-        <img
-          src={TOP_VIEW_SRC}
-          alt="Bumraah top view"
-          style={{
-            position: 'absolute',
-            left: topViewBaseLeft,
-            top: boxTop,
-            transform: `translateY(-100%)`,
-            width: TOP_VIEW_W,
-            height: 'auto',
-            opacity: thirdAppear * thirdFadeOut2,
-            zIndex: 5,
-          }}
-        />
-
-        {/* Title inside the box */}
         <div
           style={{
             position: 'absolute',
-            left: boxLeft,
-            top: boxTop,
-            width: BOX_W,
-            height: BOX_H,
-            borderRadius: 30,
+            left: cardStackLeft,
+            top: cardStackTop,
+            width: CARD_STACK_WIDTH,
             display: 'flex',
             flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '32px 24px',
-            gap: 48,
+            gap: CARD_GAP,
             opacity: thirdAppear * thirdFadeOut2,
-            zIndex: 7,
             pointerEvents: 'none',
+            alignItems: 'center',
           }}
         >
           <div
             style={{
-              fontFamily: 'Frutiger, Poppins, Arial, Helvetica, sans-serif',
-              fontWeight: 700,
-              fontSize: 48,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: '#225884',
-              textAlign: 'center',
+              position: 'relative',
+              width: '35%',
+              maxWidth: '300px',
+              alignSelf: 'center',
             }}
           >
-            YOUR TOP SPEED
+            <img
+              src={cardTopSrc}
+              alt="Analysis headline"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
           </div>
 
-
-          {/* Speed readout box (km/h) */}
-          <div
-            style={{
-              width: 640,
-              height: 200,
-              borderRadius: 20,
-              background:
-                'linear-gradient(90deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px 24px',
-              marginTop: 12,
-            }}
-          >
-            <span
+          {/* First Cards.png - Detailed Analysis */}
+          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+            <img
+              src={cardBaseSrc}
+              alt="Detailed analysis card"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+            {/* Content overlay directly on image */}
+            <div
               style={{
-                fontFamily: 'Poppins, Arial, Helvetica, sans-serif',
+                position: 'absolute',
+                inset: 0,
+                padding: '36px 42px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 22,
                 color: '#225884',
-                fontWeight: 600,
-                fontSize: 60,
+                fontFamily: condensedFontFamily,
+                pointerEvents: 'none',
               }}
             >
-              {Math.round(data.kmh)} kmph
-            </span>
-          </div>
-        </div>
-      </Sequence>
-
-      {/* Fourth frame additions: Detailed analysis + phases */}
-      <Sequence from={FOURTH_START}>
-        {/* Pitch to Road image for frame 4 */}
-        <img
-          src={staticFile('images/pitchtoroad.png')}
-          alt="Pitch to Road"
-          style={{
-            position: 'absolute',
-            left: Math.max(20, topViewBaseLeft - 480 - 70), // Push 70px further left
-            top: boxTop - 150, // Move up by 150px
-            transform: `translateY(-100%)`,
-            width: 520, // Increased from 460 to 520
-            height: 'auto',
-            opacity: fourthAppear * fourthFadeOut2,
-            zIndex: 5,
-          }}
-        />
-
-        {/* Bumraah top-view for frame 4 */}
-        <img
-          src={TOP_VIEW_SRC}
-          alt="Bumraah top view"
-          style={{
-            position: 'absolute',
-            left: topViewBaseLeft,
-            top: boxTop,
-            transform: `translateY(-100%)`,
-            width: TOP_VIEW_W,
-            height: 'auto',
-            opacity: fourthAppear * fourthFadeOut2,
-            zIndex: 5,
-          }}
-        />
-
-          <div
-            style={{
-              position: 'absolute',
-              left: boxLeft,
-              top: boxTop,
-              width: BOX_W,
-              height: BOX_H,
-              borderRadius: 30,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              paddingTop: 80,
-              paddingLeft: 24,
-              paddingRight: 24,
-              paddingBottom: 24,
-              gap: 24,
-            opacity: fourthAppear * fourthFadeOut2,
-              zIndex: 7,
-              pointerEvents: 'none',
-            }}
-          >
-          {/* Title */}
-          <div
-            style={{
-              fontFamily: 'Frutiger, Poppins, Arial, Helvetica, sans-serif',
-              fontWeight: 700,
-              fontSize: 44,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: '#225884',
-              textAlign: 'center',
-            }}
-          >
-            DETAILED ANALYSIS
-          </div>
-
-          {/* Overall similarity pill */}
-          <div
-            style={{
-              marginTop: 8,
-              width: 540,
-              height: 120,
-              borderRadius: 20,
-              background: 'linear-gradient(90deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '16px 24px',
-            }}
-          >
-            <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6}}>
-              <span style={{fontFamily: 'Poppins, Arial, Helvetica, sans-serif', color: '#225884', fontWeight: 700, fontSize: 64}}>{Math.round(data.similarity)}%</span>
-              <span style={{fontFamily: 'Poppins, Arial, Helvetica, sans-serif', color: '#225884', fontWeight: 500, fontSize: 20}}>Overall Similarity to Benchmark</span>
+              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase', textAlign: 'left'}}>Detailed Analysis</div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
+                <span style={{fontWeight: 700, fontSize: 52}}>{similarityValue}%</span>
+                <span style={{fontWeight: 500, fontSize: 18, opacity: 0.85}}>Overall similarity to benchmark</span>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  gap: 14,
+                  justifyContent: 'space-between',
+                  width: '100%',
+                }}
+              >
+                {phases.map((phase) => (
+                  <div
+                    key={phase.label}
+                    style={{
+                      flex: 1,
+                      padding: '14px 10px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 4,
+                    }}
+                  >
+                    <span style={{fontWeight: 700, fontSize: 32}}>{phase.value}%</span>
+                    <span style={{fontWeight: 500, fontSize: 15, opacity: 0.9, textAlign: 'center'}}>{phase.label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Shine effect directly on image */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: 'none',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-40%',
+                  bottom: '-40%',
+                  width: '45%',
+                  background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)',
+                  transform: `translateX(${thirdShineTranslate}%) rotate(18deg)`,
+                  opacity: 0.55,
+                }}
+              />
             </div>
           </div>
 
-          {/* Phases heading */}
-          <div
-            style={{
-              marginTop: 32,
-              fontFamily: 'Frutiger, Poppins, Arial, Helvetica, sans-serif',
-              fontWeight: 700,
-              fontSize: 44,
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-              color: '#225884',
-            }}
-          >
-            BOWLING PHASES
-          </div>
-
-          {/* Phase cards row */}
-          <div
-            style={{
-              width: 860,
-              display: 'flex',
-              justifyContent: 'space-between',
-              marginTop: 12,
-              gap: 20,
-            }}
-          >
-            {[
-              {p: `${Math.round(data.phases.runUp)}%`, l: 'Run - up'}, 
-              {p: `${Math.round(data.phases.delivery)}%`, l: 'Delivery'}, 
-              {p: `${Math.round(data.phases.followThrough)}%`, l: 'Follow - through'}
-            ].map((ph, idx) => (
-              <div
-                key={idx}
-                style={{
-                  flex: '0 0 272px',
-                  height: 120,
-                  borderRadius: 20,
-                  background: 'linear-gradient(90deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.1) 100%)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '16px 24px',
-                }}
-              >
-                <div style={{fontFamily: 'Poppins, Arial, Helvetica, sans-serif', color: '#225884', fontWeight: 700, fontSize: 64}}>{ph.p}</div>
-                <div style={{fontFamily: 'Poppins, Arial, Helvetica, sans-serif', color: '#225884', fontWeight: 500, fontSize: 20}}>{ph.l}</div>
+          {/* Second Cards.png - Technical Breakdown */}
+          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+            <img
+              src={cardBaseSrc}
+              alt="Technical breakdown card"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+            {/* Content overlay directly on image */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                padding: '36px 42px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 20,
+                color: '#225884',
+                fontFamily: condensedFontFamily,
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Technical Breakdown</div>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
+                {technicalRows.map((row) => {
+                  const barFill = Math.min(100, Math.max(0, row.value * thirdMetricProgress));
+                  const currentValue = Math.round(row.value * thirdMetricProgress);
+                  const gradient = row.scheme === 'blue'
+                    ? 'linear-gradient(90deg, #0F62B0 0%, #1178D9 100%)'
+                    : 'linear-gradient(90deg, #F9B233 0%, #FFD180 100%)';
+                  return (
+                    <div key={row.label} style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: 500, fontSize: 18}}>
+                        <span>{row.label}</span>
+                        <span>{currentValue}%</span>
+                      </div>
+                      <div style={{width: '100%', height: 18, borderRadius: 10, border: '2px solid rgba(255,255,255,0.3)', overflow: 'hidden'}}>
+                        <div style={{width: `${barFill}%`, height: '100%', background: gradient}} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+            {/* Shine effect directly on image */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                pointerEvents: 'none',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '-40%',
+                  bottom: '-40%',
+                  width: '45%',
+                  background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0) 100%)',
+                  transform: `translateX(${thirdShineTranslate + 80}%) rotate(18deg)`,
+                  opacity: 0.5,
+                }}
+              />
+            </div>
           </div>
         </div>
       </Sequence>
+
+      {/* Fourth frame: Speed insights */}
+      <Sequence from={FOURTH_START}>
+        <div
+          style={{
+            position: 'absolute',
+            left: cardStackLeft,
+            top: cardStackTop,
+            width: CARD_STACK_WIDTH,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: CARD_GAP,
+            opacity: fourthAppear * fourthFadeOut2,
+            pointerEvents: 'none',
+            alignItems: 'center',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '35%',
+              maxWidth: '300px',
+              alignSelf: 'center',
+            }}
+          >
+            <img
+              src={cardTopSrc}
+              alt="Speed insights headline"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+          </div>
+
+          {/* Speed Meter Analysis - Direct Cards.png */}
+          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+            <img
+              src={cardBaseSrc}
+              alt="Speed meter analysis"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+            {/* Content overlay directly on image */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                padding: '36px 42px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 24,
+                color: '#225884',
+                fontFamily: condensedFontFamily,
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Speed Meter Analysis</div>
+              <div style={{display: 'flex', justifyContent: 'center'}}>
+                <div style={{width: '75%', maxWidth: 350}}>
+                  <SpeedMeter intensity={data.intensity} speedClass={data.speedClass} animated />
+                </div>
+              </div>
+              <div style={{fontWeight: 500, fontSize: 20, textAlign: 'center'}}>Current pace: {data.speedClass}</div>
+            </div>
+          </div>
+
+          {/* Top Speed - Direct Cards.png */}
+          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+            <img
+              src={cardBaseSrc}
+              alt="Top speed card"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+            {/* Content overlay directly on image */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                padding: '36px 42px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                gap: 16,
+                color: '#225884',
+                fontFamily: condensedFontFamily,
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Top Speed</div>
+              <div style={{fontWeight: 700, fontSize: 72}}>{animatedTopSpeed} km/h</div>
+            </div>
+          </div>
+        </div>
+      </Sequence>
+
+      {/* Fifth frame: Recommendations focus */}
+      <Sequence from={FIFTH_START}>
+        <div
+          style={{
+            position: 'absolute',
+            left: cardStackLeft,
+            top: cardStackTop,
+            width: CARD_STACK_WIDTH,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: CARD_GAP,
+            opacity: fifthAppear * fifthFadeOut3,
+            pointerEvents: 'none',
+            alignItems: 'center',
+          }}
+        >
+          <div
+            style={{
+              position: 'relative',
+              width: '35%',
+              maxWidth: '300px',
+              alignSelf: 'center',
+              transform: `scale(${topCardScaleInFifth})`,
+              transformOrigin: 'center top',
+            }}
+          >
+            <img
+              src={cardTopSrc}
+              alt="Recommendations headline"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+          </div>
+
+          {/* Recommendations - Direct Cards.png */}
+          <div
+            style={{
+              position: 'relative',
+              width: '85%',
+              alignSelf: 'center',
+              transform: `translateY(${(1 - recommendationsLift) * 40}px)`,
+            }}
+          >
+            <img
+              src={cardBaseSrc}
+              alt="Recommendations card"
+              style={{width: '100%', height: 'auto', display: 'block'}}
+            />
+            {/* Content overlay directly on image */}
+            <div
+              style={{
+                position: 'absolute',
+                inset: 0,
+                padding: '36px 42px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                textAlign: 'center',
+                gap: 18,
+                color: '#225884',
+                fontFamily: condensedFontFamily,
+                pointerEvents: 'none',
+              }}
+            >
+              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Recommendations</div>
+              <span style={{fontWeight: 500, fontSize: 26, lineHeight: 1.35}}>{recommendationsText}</span>
+            </div>
+          </div>
+        </div>
+      </Sequence>
+
+      {/* Final frame: Sponsored clip */}
+      <Sequence from={SIXTH_START}>
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            width: '100%',
+            height: '100%',
+            opacity: sixthAppear,
+            zIndex: 10,
+          }}
+        >
+          <Video
+            src={sponsoredVideoSrc}
+            muted
+            playsInline
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+            }}
+          />
+        </div>
+      </Sequence>
+
     </div>
   );
 };

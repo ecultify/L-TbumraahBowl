@@ -45,6 +45,97 @@ body {
   padding: 0;
 }
 
+/* Frutiger LT Pro (Black Italic 800) from public/fonts */
+@font-face {
+  font-family: 'FrutigerLT Pro';
+  src: url("/fonts/frutiger-lt-pro-cdnfonts/Linotype  FrutigerLTProBlackItalic.otf") format("opentype");
+  font-weight: 800;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Frutiger LT Pro (Bold Italic 700) */
+@font-face {
+  font-family: 'FrutigerLT Pro';
+  src: url("/fonts/frutiger-lt-pro-cdnfonts/Linotype  FrutigerLTProBoldItalic.otf") format("opentype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Frutiger LT Pro (Light 300) */
+@font-face {
+  font-family: 'FrutigerLT Pro';
+  src: url("/fonts/frutiger-lt-pro-cdnfonts/Linotype  FrutigerLTProLight.otf") format("opentype");
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Frutiger LT Pro (Roman 400) */
+@font-face {
+  font-family: 'FrutigerLT Pro';
+  src: url("/fonts/frutiger-lt-pro-cdnfonts/Linotype  FrutigerLTProRoman.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Frutiger LT Pro (Bold 700) */
+@font-face {
+  font-family: 'FrutigerLT Pro';
+  src: url("/fonts/frutiger-lt-pro-cdnfonts/Linotype  FrutigerLTProBold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Helvetica Condensed Font Face Declarations */
+/* Helvetica Condensed Regular (400) */
+@font-face {
+  font-family: 'Helvetica Condensed';
+  src: url("/fonts/Helvetica Condensed/Helvetica Condensed Regular/Helvetica Condensed Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Helvetica Condensed Medium (500) */
+@font-face {
+  font-family: 'Helvetica Condensed';
+  src: url("/fonts/Helvetica Condensed/Helvetica Condensed Medium/Helvetica Condensed Medium.otf") format("opentype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Helvetica Condensed Bold (700) */
+@font-face {
+  font-family: 'Helvetica Condensed';
+  src: url("/fonts/Helvetica Condensed/Helvetica Condensed Bold/Helvetica Condensed Bold.otf") format("opentype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Helvetica Condensed Italic (400) */
+@font-face {
+  font-family: 'Helvetica Condensed';
+  src: url("/fonts/Helvetica Condensed/Helvetica Condensed Italic/Helvetica Condensed Italic.ttf") format("truetype");
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* Helvetica Condensed Bold Oblique (700 italic) */
+@font-face {
+  font-family: 'Helvetica Condensed';
+  src: url("/fonts/Helvetica Condensed/Helvetica Condensed Bold Oblique/Helvetica Condensed Bold Oblique.otf") format("opentype");
+  font-weight: 700;
+  font-style: italic;
+  font-display: swap;
+}
+
 /* Additional mobile-specific fixes */
 .min-h-screen {
   overflow-x: hidden;
