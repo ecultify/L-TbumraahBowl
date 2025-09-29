@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Upload, Play, Download, Camera } from 'lucide-react';
+import { ArrowLeft, Upload, Play, Download, Camera, Wand2, Image as ImageIcon } from 'lucide-react';
+import { GeminiTorsoService, TorsoGenerationRequest, TorsoGenerationResult } from '@/lib/utils/geminiService';
 
 // Types
 interface DetectedFace {
@@ -35,6 +36,15 @@ export default function FaceSwapTestPage() {
   const [upscaledHeadPreview, setUpscaledHeadPreview] = useState<string>('');
   const [optimalFrameInfo, setOptimalFrameInfo] = useState<{position: number, brightness: number, analysis?: any} | null>(null);
   const [videoAnalysisProgress, setVideoAnalysisProgress] = useState<{current: number, total: number, percentage: number} | null>(null);
+  
+  // Gemini Torso Generation States
+  const [geminiTorsoResult, setGeminiTorsoResult] = useState<TorsoGenerationResult | null>(null);
+  const [isGeneratingTorso, setIsGeneratingTorso] = useState(false);
+  const [geminiService] = useState(() => new GeminiTorsoService());
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imageUrl, setImageUrl] = useState<string>('');
+  const [customPrompt, setCustomPrompt] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'video' | 'image'>('video');
 
   // Download utility function
   const downloadFrame = useCallback((dataUrl: string, filename: string) => {
@@ -406,6 +416,161 @@ export default function FaceSwapTestPage() {
       setCurrentFrame('');
     }
   }, []);
+
+  // Handle image file selection for Gemini testing
+  const handleImageSelect = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setSelectedImage(file);
+      const url = URL.createObjectURL(file);
+      setImageUrl(url);
+      setGeminiTorsoResult(null);
+    }
+  }, []);
+
+  // Generate torso using Gemini Flash Image Generation
+  const generateTorsoWithGemini = useCallback(async () => {
+    let croppedImageData = '';
+    
+    if (activeTab === 'video') {
+      // Use cropped face from video analysis
+      if (!upscaledHeadPreview && !sharpenedFacePreview && !croppedFacePreview) {
+        setStatus('Please detect faces first to get a cropped face image.');
+        return;
+      }
+      croppedImageData = upscaledHeadPreview || sharpenedFacePreview || croppedFacePreview;
+    } else {
+      // Use uploaded image directly
+      if (!selectedImage) {
+        setStatus('Please upload an image first.');
+        return;
+      }
+      
+      // Convert uploaded image to data URL
+      const reader = new FileReader();
+      croppedImageData = await new Promise<string>((resolve, reject) => {
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            resolve(e.target.result as string);
+          } else {
+            reject(new Error('Failed to read image'));
+          }
+        };
+        reader.onerror = () => reject(new Error('FileReader error'));
+        reader.readAsDataURL(selectedImage);
+      });
+    }
+
+    setIsGeneratingTorso(true);
+    setStatus('Generating torso with Gemini 2.5 Flash Image Preview...');
+
+    try {
+      const request: TorsoGenerationRequest = {
+        croppedHeadImage: croppedImageData,
+        gender: 'auto', // Let Gemini auto-detect
+        customPrompt: customPrompt.trim() || undefined // Only pass if not empty
+      };
+
+      console.log('Starting Gemini torso generation...');
+      const result = await geminiService.generateTorso(request);
+
+      setGeminiTorsoResult(result);
+      
+      if (result.success) {
+        setStatus('✓ Gemini torso generation completed successfully!');
+        console.log('Gemini generation successful');
+      } else {
+        setStatus(`Gemini generation failed: ${result.error}`);
+        console.error('Gemini generation failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Gemini generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setGeminiTorsoResult({
+        success: false,
+        error: errorMessage
+      });
+      setStatus(`Gemini generation failed: ${errorMessage}`);
+    } finally {
+      setIsGeneratingTorso(false);
+    }
+  }, [activeTab, upscaledHeadPreview, sharpenedFacePreview, croppedFacePreview, selectedImage, geminiService]);
+
+  // Download Gemini result
+  const downloadGeminiResult = useCallback(() => {
+    if (!geminiTorsoResult?.imageUrl) return;
+
+    const link = document.createElement('a');
+    link.href = geminiTorsoResult.imageUrl;
+    link.download = `gemini-torso-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }, [geminiTorsoResult]);
+
+  // Try fallback composite method
+  const generateTorsoWithFallback = useCallback(async () => {
+    let croppedImageData = '';
+    
+    if (activeTab === 'video') {
+      if (!upscaledHeadPreview && !sharpenedFacePreview && !croppedFacePreview) {
+        setStatus('Please detect faces first to get a cropped face image.');
+        return;
+      }
+      croppedImageData = upscaledHeadPreview || sharpenedFacePreview || croppedFacePreview;
+    } else {
+      if (!selectedImage) {
+        setStatus('Please upload an image first.');
+        return;
+      }
+      
+      const reader = new FileReader();
+      croppedImageData = await new Promise<string>((resolve, reject) => {
+        reader.onload = (e) => {
+          if (e.target?.result) {
+            resolve(e.target.result as string);
+          } else {
+            reject(new Error('Failed to read image'));
+          }
+        };
+        reader.onerror = () => reject(new Error('FileReader error'));
+        reader.readAsDataURL(selectedImage);
+      });
+    }
+
+    setIsGeneratingTorso(true);
+    setStatus('Generating torso using local composite method...');
+
+    try {
+      const request: TorsoGenerationRequest = {
+        croppedHeadImage: croppedImageData,
+        gender: 'auto'
+      };
+
+      console.log('Starting fallback torso generation...');
+      const result = await geminiService.generateTorsoFallback(request);
+
+      setGeminiTorsoResult(result);
+      
+      if (result.success) {
+        setStatus('✓ Local composite torso generation completed successfully!');
+        console.log('Fallback generation successful');
+      } else {
+        setStatus(`Fallback generation failed: ${result.error}`);
+        console.error('Fallback generation failed:', result.error);
+      }
+    } catch (error) {
+      console.error('Fallback generation error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setGeminiTorsoResult({
+        success: false,
+        error: errorMessage
+      });
+      setStatus(`Fallback generation failed: ${errorMessage}`);
+    } finally {
+      setIsGeneratingTorso(false);
+    }
+  }, [activeTab, upscaledHeadPreview, sharpenedFacePreview, croppedFacePreview, selectedImage, geminiService]);
 
   // Enhanced preprocessing functions for better face detection
   const preprocessImage = useCallback((canvas: HTMLCanvasElement, ctx: CanvasRenderingContext2D) => {
@@ -1699,6 +1864,10 @@ export default function FaceSwapTestPage() {
     setVideoAnalysisProgress(null);
     setPreviousFaces([]);
     setFrameCount(0);
+    setSelectedImage(null);
+    setImageUrl('');
+    setGeminiTorsoResult(null);
+    setCustomPrompt('');
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -1750,7 +1919,7 @@ export default function FaceSwapTestPage() {
                 lineHeight: '1.2'
               }}
             >
-              AI Head Detection + Swap
+              AI Head Detection + Gemini 2.5 Flash Image Preview
             </h1>
             <p 
               style={{
@@ -1761,40 +1930,113 @@ export default function FaceSwapTestPage() {
                 lineHeight: '1.3'
               }}
             >
-              Comprehensive video analysis finds the clearest head frame using AI
+              Test face detection, cropping, and Gemini 2.5 Flash Image Preview generation
             </p>
           </div>
 
-          {/* Upload Section */}
+          {/* Tab Navigation */}
           <div className="mb-8">
-            <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
-              <h2 className="text-lg font-semibold text-white mb-4">Upload Video</h2>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="video/*"
-                onChange={handleFileSelect}
-                className="hidden"
-              />
-              
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="w-full p-4 border-2 border-dashed border-white/30 rounded-lg text-white hover:border-white/50 transition-colors flex flex-col items-center gap-2"
-              >
-                <Upload className="w-8 h-8" />
-                <span>Click to upload video</span>
-                {selectedFile && (
-                  <span className="text-sm text-green-300">
-                    Selected: {selectedFile.name}
-                  </span>
-                )}
-              </button>
+            <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-4 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+              <div className="flex gap-4 justify-center">
+                <button
+                  onClick={() => setActiveTab('video')}
+                  className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                    activeTab === 'video'
+                      ? 'bg-[#FFC315] text-black'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  <Camera className="w-4 h-4 inline mr-2" />
+                  Video Analysis
+                </button>
+                <button
+                  onClick={() => setActiveTab('image')}
+                  className={`px-6 py-2 rounded-lg font-semibold transition-colors ${
+                    activeTab === 'image'
+                      ? 'bg-[#FFC315] text-black'
+                      : 'bg-white/10 text-white hover:bg-white/20'
+                  }`}
+                >
+                  <ImageIcon className="w-4 h-4 inline mr-2" />
+                  Image Upload
+                </button>
+              </div>
             </div>
           </div>
 
+          {/* Upload Section */}
+          {activeTab === 'video' && (
+            <div className="mb-8">
+              <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+                <h2 className="text-lg font-semibold text-white mb-4">Upload Video</h2>
+                
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full p-4 border-2 border-dashed border-white/30 rounded-lg text-white hover:border-white/50 transition-colors flex flex-col items-center gap-2"
+                >
+                  <Upload className="w-8 h-8" />
+                  <span>Click to upload video</span>
+                  {selectedFile && (
+                    <span className="text-sm text-green-300">
+                      Selected: {selectedFile.name}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Image Upload Section */}
+          {activeTab === 'image' && (
+            <div className="mb-8">
+              <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+                <h2 className="text-lg font-semibold text-white mb-4">Upload Image</h2>
+                
+                <input
+                  id="imageInput"
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                
+                <button
+                  onClick={() => document.getElementById('imageInput')?.click()}
+                  className="w-full p-4 border-2 border-dashed border-white/30 rounded-lg text-white hover:border-white/50 transition-colors flex flex-col items-center gap-2"
+                >
+                  <ImageIcon className="w-8 h-8" />
+                  <span>Click to upload image with face</span>
+                  {selectedImage && (
+                    <span className="text-sm text-green-300">
+                      Selected: {selectedImage.name}
+                    </span>
+                  )}
+                </button>
+
+                {/* Image Preview */}
+                {imageUrl && (
+                  <div className="mt-4 text-center">
+                    <img 
+                      src={imageUrl} 
+                      alt="Uploaded image"
+                      className="w-full max-w-md mx-auto rounded-lg"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Video Display */}
-          {videoUrl && (
+          {activeTab === 'video' && videoUrl && (
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
                 <h2 className="text-lg font-semibold text-white mb-4">Video Preview</h2>
@@ -1874,8 +2116,105 @@ export default function FaceSwapTestPage() {
             </div>
           )}
 
+          {/* Gemini Torso Generation Section */}
+          <div className="mb-8">
+            <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
+              <h2 className="text-lg font-semibold text-white mb-4">
+                <Wand2 className="w-5 h-5 inline mr-2" />
+                Gemini 2.5 Flash Image Preview
+              </h2>
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-white/80 text-sm">
+                    {activeTab === 'video' 
+                      ? 'Generate Indian cricket player torso using the detected and processed face from video' 
+                      : 'Generate Indian cricket player torso using the uploaded face image'
+                    }
+                  </p>
+                  <div className="bg-blue-900/30 border border-blue-400/30 rounded-lg p-3">
+                    <p className="text-blue-200 text-xs">
+                      <strong>✅ Working Model:</strong> Gemini 2.5 Flash Image Preview is now working via secure backend API. Uses the same format as your successful curl test.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Custom Prompt Input */}
+                <div className="space-y-2">
+                  <label className="text-white text-sm font-medium">Custom Prompt (Optional)</label>
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    placeholder="Leave empty to use default cricket player torso prompt, or enter your custom generation prompt..."
+                    className="w-full p-3 rounded-lg bg-white/10 border border-white/20 text-white placeholder-white/50 resize-none focus:outline-none focus:border-white/40 transition-colors"
+                    rows={3}
+                  />
+                  <p className="text-white/60 text-xs">
+                    Custom prompts will override the default Indian cricket player torso generation. The uploaded face will still be used as reference.
+                  </p>
+                </div>
+
+                {/* Generation Buttons */}
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <button
+                    onClick={generateTorsoWithFallback}
+                    disabled={isGeneratingTorso || (activeTab === 'video' ? !croppedFacePreview : !selectedImage)}
+                    className="px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                  >
+                    <ImageIcon className="w-5 h-5" />
+                    {isGeneratingTorso ? 'Generating Locally...' : 'Local Composite Method (Recommended)'}
+                  </button>
+                  
+                  <button
+                    onClick={generateTorsoWithGemini}
+                    disabled={isGeneratingTorso || (activeTab === 'video' ? !croppedFacePreview : !selectedImage)}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-all"
+                  >
+                    <Wand2 className="w-5 h-5" />
+                    {isGeneratingTorso ? 'Generating with Gemini...' : 'Generate with Gemini 2.5'}
+                  </button>
+                </div>
+
+                {/* Gemini Result */}
+                {geminiTorsoResult && (
+                  <div className="mt-6">
+                    {geminiTorsoResult.success && geminiTorsoResult.imageUrl ? (
+                      <div className="text-center">
+                        <h3 className="text-white font-semibold mb-3">Generated Torso Result</h3>
+                        <img 
+                          src={geminiTorsoResult.imageUrl} 
+                          alt="Generated cricket player torso"
+                          className="w-full max-w-md mx-auto rounded-lg mb-4"
+                        />
+                        <button
+                          onClick={downloadGeminiResult}
+                          className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 flex items-center gap-2 mx-auto transition-colors"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download Gemini Result
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="text-center text-red-300 bg-red-900/20 p-4 rounded-lg">
+                        <h3 className="font-semibold mb-2">Generation Failed</h3>
+                        <p className="text-sm mb-3">{geminiTorsoResult.error}</p>
+                        {geminiTorsoResult.error?.includes('503') && (
+                          <div className="bg-blue-900/30 border border-blue-400/30 rounded-lg p-3 mt-3">
+                            <p className="text-blue-200 text-xs">
+                              <strong>💡 Solution:</strong> Use the <strong>"Local Composite Method (Recommended)"</strong> button above for reliable cricket jersey generation that works offline.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Current Frame */}
-          {currentFrame && (
+          {activeTab === 'video' && currentFrame && (
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
                 <h2 className="text-lg font-semibold text-white mb-4">Captured Frame</h2>
@@ -1932,7 +2271,7 @@ export default function FaceSwapTestPage() {
           )}
 
           {/* Cropped Face Preview */}
-          {croppedFacePreview && (
+          {activeTab === 'video' && croppedFacePreview && (
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
                 <h2 className="text-lg font-semibold text-white mb-4">Head Processing Pipeline</h2>
@@ -1998,7 +2337,7 @@ export default function FaceSwapTestPage() {
           )}
 
           {/* Face Swap Result */}
-          {faceSwapResult && (
+          {activeTab === 'video' && faceSwapResult && (
             <div className="mb-8">
               <div className="rounded-[20px] border border-white/10 bg-white/10 px-6 py-6 shadow-[0_8px_32px_rgba(31,38,135,0.25)] backdrop-blur-xl">
                 <h2 className="text-lg font-semibold text-white mb-4">Head Swap Result</h2>

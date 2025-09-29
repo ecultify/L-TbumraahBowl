@@ -522,6 +522,56 @@ export default function SimplifiedAnalyzePage() {
                 )}
               </div>
             </div>
+
+            {/* Text and Retry Button - Below Glass Box */}
+            <div style={{ marginTop: '20px', width: '100%' }}>
+              {/* Plain White Text */}
+              <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+                <p style={{
+                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  color: '#FFFFFF',
+                  margin: 0
+                }}>
+                  Enter feedback or comments here
+                </p>
+              </div>
+              
+              {/* Retry Button */}
+              <button
+                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#80CBEB',
+                  borderRadius: '22.89px',
+                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                  fontWeight: '700',
+                  fontSize: '14px',
+                  color: 'white',
+                  padding: '12px 16px',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  cursor: 'pointer'
+                }}
+                onClick={() => {
+                  console.log('🔄 Retry button clicked');
+                  // Clear session data and redirect to record-upload
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.clear();
+                    window.location.href = '/record-upload';
+                  }
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+                Retry
+              </button>
+            </div>
           </div>
         </div>
       </main>
@@ -843,6 +893,56 @@ export default function SimplifiedAnalyzePage() {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Text and Retry Button - Below Glass Box */}
+                <div style={{ marginTop: '20px', width: '100%' }}>
+                  {/* Plain White Text */}
+                  <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+                    <p style={{
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      color: '#FFFFFF',
+                      margin: 0
+                    }}>
+                      Enter feedback or comments here
+                    </p>
+                  </div>
+                  
+                  {/* Retry Button */}
+                  <button
+                    className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#80CBEB',
+                      borderRadius: '22.89px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: '700',
+                      fontSize: '13px',
+                      color: 'white',
+                      padding: '10px 16px',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      console.log('🔄 Retry button clicked');
+                      // Clear session data and redirect to record-upload
+                      if (typeof window !== 'undefined') {
+                        sessionStorage.clear();
+                        window.location.href = '/record-upload';
+                      }
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                    </svg>
+                    Retry
+                  </button>
                 </div>
               </div>
             </div>

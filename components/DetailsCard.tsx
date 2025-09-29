@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Phone, User } from 'lucide-react';
 
 interface DetailsCardSubmitPayload {
@@ -37,6 +38,12 @@ export function DetailsCard({
   const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!isTimerActive) {
@@ -368,7 +375,24 @@ export function DetailsCard({
                 color: 'black'
               }}
             >
-              I agree to the terms and conditions and privacy policy. I consent to receive communications about this service.
+              By continuing, I accept the{' '}
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(true)}
+                className="text-blue-600 underline hover:text-blue-800"
+                style={{
+                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                  fontWeight: '400',
+                  fontSize: 'clamp(10px, 2.5vw, 12px)',
+                  color: '#2563eb',
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer'
+                }}
+              >
+                Term & Condition
+              </button>
             </span>
           </label>
         </div>
@@ -386,16 +410,146 @@ export function DetailsCard({
     </>
   );
 
-  return (
-    <div className={`${className} p-6 relative overflow-hidden`}>
-      {onSubmit ? (
-        <form onSubmit={handleSubmit} noValidate>
-          {CardContent}
-        </form>
-      ) : (
-        CardContent
-      )}
+  const termsModal = showTermsModal && isMounted && (
+    <div
+      className="fixed inset-0 flex items-center justify-center"
+      style={{
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        zIndex: 9999
+      }}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowTermsModal(false);
+      }}
+    >
+      <div
+        className="relative bg-white mx-4"
+        style={{
+          width: '353px',
+          height: '319px',
+          maxWidth: 'calc(100vw - 32px)',
+          maxHeight: 'calc(100vh - 32px)',
+          borderRadius: '20px',
+          border: '0.8px solid #000000',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          padding: '24px',
+          boxSizing: 'border-box',
+          overflow: 'hidden'
+        }}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      >
+        {/* Header with terms.png */}
+        <div className="mb-4 flex-shrink-0">
+          <img
+            src="/images/newhomepage/terms.png"
+            alt="Terms & Conditions"
+            className="w-auto h-auto"
+            style={{ maxHeight: '40px' }}
+          />
+        </div>
+
+        {/* Terms Text */}
+        <div
+          className="flex-1 overflow-y-auto mb-4"
+          style={{
+            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+            fontWeight: '400',
+            fontSize: '12px',
+            lineHeight: '1.4',
+            color: '#000000',
+            textAlign: 'left',
+            width: '100%',
+            padding: '0 4px'
+          }}
+        >
+          I hereby consent to L&T Finance Limited and its affiliates to use, edit, reproduce, and publish the photographs, videos, audio recordings, contact numbers, and any AI-generated or campaign-related content featuring me or submitted by me, for marketing, promotional, and other commercial purposes related to the 'Bowl Kar Bumrah ki Speed Par' campaign, across any media platforms including digital, print, outdoor, or broadcast, without any compensation or further approval.
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-3 w-full flex-shrink-0">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setShowTermsModal(false);
+            }}
+            className="flex-1 font-bold transition-all duration-300 transform hover:scale-105"
+            style={{
+              height: '36px',
+              backgroundColor: '#CCEAF7',
+              borderRadius: '22.89px',
+              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+              fontWeight: '700',
+              fontSize: '14px',
+              color: '#000000',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Decline
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setConsent(true);
+              setShowTermsModal(false);
+            }}
+            className="flex-1 font-bold transition-all duration-300 transform hover:scale-105"
+            style={{
+              height: '36px',
+              backgroundColor: '#FFCA04',
+              borderRadius: '22.89px',
+              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+              fontWeight: '700',
+              fontSize: '14px',
+              color: '#000000',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Accept
+          </button>
+        </div>
+      </div>
     </div>
+  );
+
+  return (
+    <>
+      <div className={`${className} p-6 relative overflow-hidden`}>
+        {onSubmit ? (
+          <form onSubmit={handleSubmit} noValidate>
+            {CardContent}
+          </form>
+        ) : (
+          CardContent
+        )}
+      </div>
+
+      {/* Render modal using portal to document.body */}
+      {isMounted && typeof document !== 'undefined' && termsModal && 
+        createPortal(termsModal, document.body)
+      }
+    </>
   );
 }
 

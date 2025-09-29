@@ -2,11 +2,12 @@
 'use client';
 
 const GEMINI_API_KEY = 'AIzaSyBRyKCamJ5jwSbzGS_lHt1hz6xVuaMbPa8';
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent';
+const IMAGEN_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-001:generateImage';
 
 export interface TorsoGenerationRequest {
   croppedHeadImage: string; // base64 data URL
   gender?: 'male' | 'female' | 'auto';
+  customPrompt?: string; // Optional custom prompt to override default
 }
 
 export interface TorsoGenerationResult {
@@ -26,7 +27,9 @@ function dataURLToBase64(dataURL: string): string {
 
 // Enhanced prompt for generating Indian cricket jersey torso with chest-level crop
 function createTorsoGenerationPrompt(): string {
-  return `Generate a professional chest-level portrait of an Indian cricket player using the EXACT face from the provided image without any modifications. The person should be wearing an official Indian cricket team blue jersey with "INDIA" text only (no other logos), arms folded across chest, proper upright posture. Adapt body type and build according to the detected gender. Maintain exact facial features and skin tone from input. Even studio lighting, clean background, photorealistic. Crop the generated image at chest level so the final image shows only from neck to chest.
+  return `GENERATE AN IMAGE: Create a professional chest-level portrait photograph of an Indian cricket player using the EXACT face from the provided image without any modifications. The person should be wearing an official Indian cricket team blue jersey with "INDIA" text only (no other logos), arms folded across chest, proper upright posture. Adapt body type and build according to the detected gender. Maintain exact facial features and skin tone from input. Even studio lighting, clean background, photorealistic. Crop the generated image at chest level so the final image shows only from neck to chest.
+
+IMPORTANT: This request requires IMAGE GENERATION, not text description.
 
 REQUIREMENTS:
 - Use input face EXACTLY as provided with ZERO alterations
@@ -36,7 +39,8 @@ REQUIREMENTS:
 - Professional cricket player posture
 - Chest-level cropping (neck to chest only)
 - Gender-appropriate body proportions
-- High resolution photorealistic quality`;
+- High resolution photorealistic quality
+- OUTPUT: Digital image file, not text description`;
 }
 
 // Enhanced negative prompt
@@ -51,10 +55,10 @@ export class GeminiTorsoService {
     this.apiKey = GEMINI_API_KEY;
   }
 
-  // Generate torso image with Gemini 2.0 Flash Preview Image Generation
+  // Generate torso image with Imagen 3 via backend API
   async generateTorso(request: TorsoGenerationRequest): Promise<TorsoGenerationResult> {
     try {
-      console.log('Starting Gemini 2.0 Flash Preview Image Generation...');
+      console.log('Starting Gemini 2.5 Flash Image Preview via backend...');
       
       if (!request.croppedHeadImage) {
         throw new Error('Cropped head image is required');
@@ -71,58 +75,20 @@ export class GeminiTorsoService {
         mimeType = 'image/webp';
       }
 
-      const prompt = createTorsoGenerationPrompt();
-      const negativePrompt = createNegativePrompt();
+      const prompt = request.customPrompt || createTorsoGenerationPrompt();
 
-      // Prepare request body for Gemini 2.0 Flash Preview Image Generation
+      // Prepare request body for backend API
       const requestBody = {
-        contents: [
-          {
-            parts: [
-              {
-                text: `${prompt}
-
-NEGATIVE PROMPT: ${negativePrompt}`
-              },
-              {
-                inline_data: {
-                  mime_type: mimeType,
-                  data: base64Image
-                }
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.3,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 8192,
-          responseModalities: ["TEXT", "IMAGE"]
-        },
-        safetySettings: [
-          {
-            category: "HARM_CATEGORY_HARASSMENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_HATE_SPEECH",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          },
-          {
-            category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-            threshold: "BLOCK_MEDIUM_AND_ABOVE"
-          }
-        ]
+        prompt: prompt,
+        referenceImage: {
+          mime_type: mimeType,
+          data: base64Image
+        }
       };
 
-      console.log('Sending request to Gemini 2.0 Flash Preview API...');
+      console.log('Sending request to backend Gemini API...');
       
-      const response = await fetch(`${GEMINI_API_URL}?key=${this.apiKey}`, {
+      const response = await fetch('/api/generate-imagen', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,61 +96,30 @@ NEGATIVE PROMPT: ${negativePrompt}`
         body: JSON.stringify(requestBody)
       });
 
-      console.log('Gemini API response status:', response.status);
+      console.log('Backend API response status:', response.status);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Gemini API error response:', errorText);
-        throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+        const errorData = await response.json();
+        console.error('Backend API error response:', errorData);
+        
+        throw new Error(errorData.error || `Backend API error: ${response.status}`);
       }
 
       const responseData = await response.json();
-      console.log('Gemini API response received');
+      console.log('Backend API response received');
 
-      // Check if the response contains generated content
-      if (responseData.candidates && responseData.candidates.length > 0) {
-        const candidate = responseData.candidates[0];
-        
-        // Check for inline data (image response)
-        if (candidate.content && candidate.content.parts) {
-          for (const part of candidate.content.parts) {
-            if (part.inline_data && part.inline_data.data) {
-              const generatedImageBase64 = part.inline_data.data;
-              const generatedMimeType = part.inline_data.mime_type || 'image/png';
-              
-              const imageUrl = `data:${generatedMimeType};base64,${generatedImageBase64}`;
-              
-              console.log('Gemini 2.0 Flash torso generation completed successfully');
-              return {
-                success: true,
-                imageUrl
-              };
-            }
-          }
-        }
-        
-        // Check for text response (fallback)
-        if (candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-          const textContent = candidate.content.parts[0].text;
-          
-          if (textContent) {
-            console.log('Gemini generated text response:', textContent.substring(0, 200) + '...');
-            
-            return {
-              success: false,
-              error: 'Gemini 2.0 Flash returned text instead of image. Model may not support image generation.'
-            };
-          }
-        }
+      if (responseData.success && responseData.imageUrl) {
+        console.log('Gemini 2.5 Flash Image Preview torso generation completed successfully via backend');
+        return {
+          success: true,
+          imageUrl: responseData.imageUrl
+        };
+      } else {
+        return {
+          success: false,
+          error: responseData.error || 'Unknown error from backend API'
+        };
       }
-
-      // If we reach here, the response format was unexpected
-      console.error('Unexpected Gemini API response format:', responseData);
-      
-      return {
-        success: false,
-        error: 'Unexpected response format from Gemini API'
-      };
 
     } catch (error) {
       console.error('Gemini torso generation error:', error);

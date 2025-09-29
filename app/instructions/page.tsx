@@ -4,9 +4,8 @@ import Link from "next/link";
 import { GlassBackButton } from '@/components/GlassBackButton';
 
 const bulletPoints = [
-  "Camera at crease level, steady.",
   "Release point must be visible.",
-  "Record in landscape mode.",
+  "Record in vertical mode.",
   "Capture full run-up to follow-through.",
   "Good lighting = accurate speed.",
 ];
@@ -143,7 +142,7 @@ export default function InstructionsPage() {
                   }}
                 >
                   <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 10, color: "#000", lineHeight: "12px" }}>
-                    Pro Tip: Higher video quality means more precise speed and action analysis — avoid camera shake for the best results!
+                    Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
                   </span>
                 </div>
 
@@ -220,8 +219,8 @@ export default function InstructionsPage() {
 
             <div style={{ position: "relative", width: "100%" }}>
               <img
-                src="/images/instructions/loanapproved.png"
-                alt="Loan Approved"
+                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
+                alt="Bumrah Ball in Hand"
                 style={{ position: "absolute", top: -170, right: -8, width: 150, height: "auto", zIndex: 1, pointerEvents: "none" }}
               />
 
@@ -302,7 +301,7 @@ export default function InstructionsPage() {
                   }}
                 >
                   <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(9px, 2vw, 10px)", color: "#000", lineHeight: "14px" }}>
-                    Pro Tip: Higher video quality means more precise speed and action analysis — avoid camera shake for the best results!
+                    Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
                   </span>
                 </div>
 

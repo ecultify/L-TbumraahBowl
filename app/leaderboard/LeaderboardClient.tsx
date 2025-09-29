@@ -317,7 +317,7 @@ export default function LeaderboardClient() {
                           }}
                         >
                           {/* Avatar Box - Positioned First */}
-                          <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-50%)", zIndex: 2 }}>
+                          <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-40%)", zIndex: 2 }}>
                             <div style={{ position: "relative" }}>
                               {/* Avatar Box with Border */}
                               <div
@@ -410,9 +410,11 @@ export default function LeaderboardClient() {
                               position: "relative",
                               marginLeft: 25,
                               marginTop: 8.57, // (50 - 32.86) / 2 to center vertically with avatar
-                              background: "#FFFFFF4D",
+                              background: "#FFFFFF26",
                               borderRadius: 3.13,
                               clipPath: "polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)",
+                              border: "1px solid",
+                              borderImage: "linear-gradient(180deg, #7FCAEB 0%, #3B98C0 100%) 1",
                               display: "flex",
                               alignItems: "center",
                               paddingLeft: 35,
@@ -420,21 +422,6 @@ export default function LeaderboardClient() {
                               zIndex: 1
                             }}
                           >
-                            {/* Gradient Border Effect */}
-                            <div
-                              style={{
-                                position: "absolute",
-                                top: -1,
-                                left: -1,
-                                right: -1,
-                                bottom: -1,
-                                background: "linear-gradient(180deg, #7FCAEB 0%, #3B98C0 100%)",
-                                borderRadius: 3.13,
-                                clipPath: "polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)",
-                                zIndex: -1
-                              }}
-                            />
-                            
                             {/* Content aligned under column headers */}
                             <div style={{ 
                               display: "flex", 
@@ -508,28 +495,28 @@ export default function LeaderboardClient() {
                               </div>
 
                               {/* Speed - aligned under SPEED column */}
-                              <div style={{ flex: "0 0 70px", textAlign: "center" }}>
+                              <div style={{ flex: "0 0 70px", textAlign: "left" }}>
                                 <span
                                   style={{
                                     fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
                                             fontWeight: 800,
                                             fontStyle: "italic",
-                                            fontSize: "clamp(12px, 3vw, 16px)",
+                                            fontSize: "clamp(14px, 3.5vw, 18px)",
                                             color: "white"
                                   }}
                                 >
-                                  {formatNumber(entry.predicted_kmh, 0)}KMPH
+                                  {formatNumber(entry.predicted_kmh, 0)}kmph
                                 </span>
                               </div>
 
                               {/* Match - aligned under MATCH column */}
-                              <div style={{ flex: "0 0 60px", textAlign: "center" }}>
+                              <div style={{ flex: "0 0 60px", textAlign: "left", paddingLeft: "8px" }}>
                                 <span
                                   style={{
                                     fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
                                             fontWeight: 800,
                                             fontStyle: "italic",
-                                            fontSize: "clamp(12px, 3vw, 16px)",
+                                            fontSize: "clamp(14px, 3.5vw, 18px)",
                                             color: "white"
                                   }}
                                 >
@@ -603,13 +590,12 @@ export default function LeaderboardClient() {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="flex flex-col sm:flex-row gap-3 justify-center w-full max-w-xs mx-auto">
+                <div className="flex flex-row gap-3 justify-center w-full max-w-xs mx-auto">
                   {/* Retry Button */}
                   <button
                     onClick={() => {
                       window.location.href = '/record-upload?mode=record';
                     }}
-                    className="w-full sm:w-auto"
                     style={{
                       backgroundColor: "#CCEAF7",
                       borderRadius: "25.62px",
@@ -617,7 +603,8 @@ export default function LeaderboardClient() {
                       fontWeight: "700",
                       fontSize: "clamp(12px, 2.5vw, 14px)",
                       color: "black",
-                      padding: "10px 20px",
+                      width: "157.78px",
+                      height: "36px",
                       border: "none",
                       cursor: "pointer",
                       display: "flex",
@@ -639,7 +626,6 @@ export default function LeaderboardClient() {
                     onClick={() => {
                       window.location.href = '/quick-analysis';
                     }}
-                    className="w-full sm:w-auto"
                     style={{
                       backgroundColor: "#FDC217",
                       borderRadius: "25.62px",
@@ -647,7 +633,8 @@ export default function LeaderboardClient() {
                       fontWeight: "700",
                       fontSize: "clamp(12px, 2.5vw, 14px)",
                       color: "black",
-                      padding: "10px 20px",
+                      width: "157.78px",
+                      height: "36px",
                       border: "none",
                       cursor: "pointer",
                       display: "flex",

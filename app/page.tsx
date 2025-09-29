@@ -86,10 +86,10 @@ export default function Home() {
     color: '#FFFFFF',
     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
     fontWeight: 800,
-    fontSize: 16.95,
+    fontSize: 24,
     lineHeight: 1.2,
     fontStyle: 'italic',
-    marginTop: -22, // push a little more up
+    marginTop: -10, // pushed down a bit
   };
 
   const yellowPanelStyle: CSSProperties = {
@@ -177,14 +177,17 @@ export default function Home() {
               style={heroSubtextStyle}
               className={`animate-fadeInUp animate-delay-300 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             >
-              <div style={{ transform: 'rotate(-3.48deg)', transformOrigin: 'center' }}>
-                <span>
-                  Bring Your Best Bowling –
-                </span>
-                <br />
-                <span>
-                  Get a Chance to Meet Me!
-                </span>
+              <div style={{ transform: 'rotate(-0.5deg)', transformOrigin: 'center', display: 'flex', justifyContent: 'center' }}>
+                <img
+                  src="/images/newhomepage/bolw like me.png"
+                  alt="Bowl Like Me and Get a Chance to Meet Me"
+                  style={{
+                    width: 'auto',
+                    height: 'auto',
+                    maxWidth: '100%',
+                    maxHeight: '60px'
+                  }}
+                />
               </div>
             </div>
             <div
@@ -218,23 +221,17 @@ export default function Home() {
               Get Started
             </Link>
 
-            {/* Win word with woosh icon (replaces image) */}
-            <div style={winWordStyle}>
+            {/* And also Win word with woosh icon attached to A */}
+            <div style={{...winWordStyle, marginTop: 8}}>
               <img
-                src="/images/newhomepage/woosh.svg"
-                alt=""
-                aria-hidden
+                src="/images/newhomepage/andalsowin.svg"
+                alt="And Also Win"
                 style={{
-                  position: 'absolute',
-                  left: -35,
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  height: 24,
+                  height: 18,
                   width: 'auto',
                   pointerEvents: 'none',
                 }}
               />
-              WIN
             </div>
             
             {/* Additional text after WIN */}
@@ -242,14 +239,14 @@ export default function Home() {
               style={{
                 fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                 fontWeight: 400,
-                fontSize: 'clamp(10px, 2.5vw, 12px)',
-                color: '#FFFFFF',
+                fontSize: 'clamp(12px, 3vw, 16px)',
+                color: '#000000',
                 lineHeight: 1.2,
                 textAlign: 'center',
-                marginTop: 8
+                marginTop: -10
               }}
             >
-              Signed Merchandises and vouchers
+              Bumrah's signed gear & voucher
             </div>
           </div>
         </div>
@@ -273,7 +270,7 @@ export default function Home() {
 
         {/* Gratifications image straddling the hero bottom border - hidden on desktop */}
         <img
-          src="/images/newhomepage/Gratifications%203%20(1).png"
+          src="/images/gratification.png"
           alt="Gratifications"
           aria-hidden
           className="md:hidden"
@@ -281,9 +278,9 @@ export default function Home() {
             position: 'absolute',
             left: '50%',
             top: '100%',
-            transform: 'translate(-50%, -50%)', // half overlaps above the border
-            width: 255,
-            height: 111,
+            transform: 'translate(-50%, -30%)', // back to previous position
+            width: 320,
+            height: 140,
             zIndex: 2, // above hero background so upper half is in front
             pointerEvents: 'none',
           }}
@@ -437,9 +434,10 @@ export default function Home() {
                     style={{
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 400,
-                      fontSize: '14px',
+                      fontSize: '18px',
                       color: '#FFFFFF',
-                      lineHeight: 1.2
+                      lineHeight: 1.2,
+                      marginTop: -20
                     }}
                   >
                     Signed Merchandises and vouchers
@@ -498,59 +496,22 @@ export default function Home() {
       </div>
 
       {/* Responsive Analysis Steps Section */}
-      <div className="md:hidden w-full px-4 py-12" ref={secondSection.ref} style={{ marginTop: 80, paddingBottom: 'calc(3rem + 60px)' }}>
+      <div className="md:hidden w-full px-4 py-12" ref={secondSection.ref} style={{ marginTop: 120, paddingBottom: 'calc(3rem + 60px)' }}>
         {/* Section Title */}
         <div className="text-center mb-8">
-          {/* Take challenge headline with woosh attached to 'T' */}
-          <div
-            className={`${secondSection.isIntersecting ? 'animate-on-scroll animate-fadeInUp' : ''}`}
-            style={{
-              display: 'inline-block',
-              position: 'relative',
-              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-              fontWeight: 700,
-              fontStyle: 'italic',
-              fontSize: 'clamp(18px, 5vw, 22px)',
-              color: '#FFFFFF',
-              lineHeight: 1.05,
-            }}
-          >
-            <img
-              src="/images/newhomepage/woosh.svg"
-              alt=""
-              aria-hidden
-              style={{
-                position: 'absolute',
-                left: -22,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                height: 24,
-                width: 'auto',
-                pointerEvents: 'none',
-              }}
+          {/* Take challenge image */}
+          <div className={`mb-4 animate-fadeInUp ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
+            <img 
+              src="/images/newhomepage/takechallenge.png" 
+              alt="Take Challenge" 
+              className="w-auto h-auto mx-auto"
+              style={{ maxHeight: '50px' }}
             />
-            <span>TAKE CHALLENGE</span>
-          </div>
-
-          {/* Subheadline */}
-          <div
-            className={`${secondSection.isIntersecting ? 'animate-on-scroll animate-fadeInUp animate-delay-200' : ''}`}
-            style={{
-              marginTop: 0,
-              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-              fontWeight: 800,
-              fontStyle: 'italic',
-              fontSize: 'clamp(16px, 4vw, 18.2px)',
-              color: '#FFC315',
-              lineHeight: 1.05,
-            }}
-          >
-            IN 3 STEPS
           </div>
         </div>
 
         {/* Glass box container with decorative balls */}
-        <div className="relative mx-auto mb-8" style={{ width: 282 }}>
+        <div className="relative mx-auto mb-8" style={{ width: 350 }}>
           {/* Left Ball - Partially hidden behind vector */}
           <img 
             src="/frontend-images/homepage/ball.png" 
@@ -582,20 +543,20 @@ export default function Home() {
           <div
             className={`${secondSection.isIntersecting ? 'animate-on-scroll animate-fadeInUp animate-delay-300' : ''} relative z-10`}
             style={{
-              width: 282,
-              height: 181,
-              borderRadius: 17.87,
+              width: 350,
+              height: 220,
+              borderRadius: 22,
               backgroundColor: '#FFFFFF80',
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
-              boxShadow: 'inset 0 0 0 0.89px #FFFFFF',
+              boxShadow: 'inset 0 0 0 1px #FFFFFF',
               border: 'none',
               display: 'flex',
               alignItems: 'stretch',
               justifyContent: 'flex-start',
             }}
           >
-          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '12px 14px', gap: 14, alignItems: 'flex-start', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '16px 18px', gap: 18, alignItems: 'flex-start', justifyContent: 'center' }}>
             {[1, 2, 3].map((n) => (
               <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 {/* Left circle per step */}
@@ -617,7 +578,7 @@ export default function Home() {
                     style={{
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 300,
-                      fontSize: 'clamp(6px, 1.5vw, 6.89px)',
+                      fontSize: 'clamp(8px, 2vw, 9px)',
                       lineHeight: 1.18,
                       color: '#FFFFFF',
                       textTransform: 'uppercase',
@@ -629,7 +590,7 @@ export default function Home() {
                     style={{
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 700,
-                      fontSize: 'clamp(12px, 3vw, 15.16px)',
+                      fontSize: 'clamp(16px, 4vw, 20px)',
                       lineHeight: 1,
                       color: '#FFFFFF',
                       textTransform: 'uppercase',
@@ -643,20 +604,20 @@ export default function Home() {
                 {/* Right-aligned text vertically centered to circle */}
                 <div style={{ marginLeft: 2, textAlign: 'left', display: 'flex', alignItems: 'center', minHeight: 34.22657012939453, flex: 1 }}>
                   {n === 1 && (
-                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(10px, 2.5vw, 12px)', lineHeight: 1.2, color: '#0A0A0A' }}>
+                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
                       Upload Your Bowling Video
                     </div>
                   )}
                   {n === 2 && (
-                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(10px, 2.5vw, 12px)', lineHeight: 1.2, color: '#0A0A0A' }}>
+                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
                       Get a personalised Analysis of your speed and style with Bumrah
                     </div>
                   )}
                   {n === 3 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
-                      <div style={{ fontSize: 'clamp(10px, 2.5vw, 12px)', lineHeight: 1.2 }}>Share with <span style={{ color: '#FFC315', fontWeight: 700 }}>#BumrahKiSpeedPar</span>,</div>
-                      <div style={{ fontSize: 'clamp(7px, 1.8vw, 8px)', lineHeight: 1.2 }}>
-                        tag &amp; follow <span style={{ fontWeight: 700 }}>@LNTFinance</span> to join the leaderboard!
+                      <div style={{ fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2 }}>Share your analysis with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span> tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>,</div>
+                      <div style={{ fontSize: 'clamp(12px, 3vw, 15px)', lineHeight: 1.2 }}>
+                        &amp; follow us to secure your spot on the leaderboard!
                       </div>
                     </div>
                   )}
@@ -665,6 +626,16 @@ export default function Home() {
             ))}
           </div>
           </div>
+        </div>
+
+        {/* Wall of Fame Image */}
+        <div className="mx-auto mb-6 flex justify-center">
+          <img
+            src="/images/newhomepage/walloffame.png"
+            alt="Wall of Fame"
+            className="w-auto h-auto"
+            style={{ maxHeight: '90px' }}
+          />
         </div>
 
         {/* Report card carousel */}
@@ -679,7 +650,7 @@ export default function Home() {
                 <CarouselItem key={i} className="pl-2 md:pl-4 basis-1/2">
                   <div className="flex items-center justify-center">
                     <img
-                      src="/images/Report Card.png"
+                      src="/images/newhomepage/Report Card.png"
                       alt={`Report card ${i + 1}`}
                       className="w-full h-auto object-contain rounded-xl"
                       style={{ maxWidth: 220, aspectRatio: '185/325' }}
@@ -1117,12 +1088,13 @@ export default function Home() {
         />
         
         <div className="relative z-20 flex flex-col items-center justify-start text-center px-4 pt-8 pb-12">
-          {/* Watch How Speed Works SVG */}
+          {/* Watch How PNG */}
           <div className="mb-4">
             <img 
-              src="/images/newhomepage/watchhowspeedworks.svg" 
-              alt="Watch How Speed Works" 
+              src="/images/newhomepage/watchhow.png" 
+              alt="Watch How" 
               className="w-auto h-auto mx-auto"
+              style={{ maxHeight: '90px' }}
             />
           </div>
           
@@ -1142,9 +1114,10 @@ export default function Home() {
 
           {/* Video Box Container - Moved from next section */}
           <div 
-            className="relative mb-8 mx-auto w-full max-w-sm"
+            className="relative mb-8 mx-auto"
             style={{
-              aspectRatio: '370/230',
+              width: 260,
+              height: 380,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1159,9 +1132,7 @@ export default function Home() {
                 backgroundColor: '#5BA6DB',
                 top: '10px',
                 left: '10px',
-                zIndex: 26,
-                maxWidth: '360px',
-                maxHeight: '220px'
+                zIndex: 26
               }}
             />
             
@@ -1174,9 +1145,7 @@ export default function Home() {
                 overflow: 'hidden',
                 zIndex: 27,
                 top: '0',
-                left: '0',
-                maxWidth: '360px',
-                maxHeight: '220px'
+                left: '0'
               }}
             >
               {/* Play Button */}
@@ -1353,33 +1322,35 @@ export default function Home() {
       </div>
 
       {/* Responsive About Section */}
-      <div className="md:hidden w-full px-4 py-12 relative" ref={fourthSection.ref}>
+      <div className="md:hidden w-full relative" style={{ minHeight: 'auto', marginTop: 0, paddingBottom: '0px' }} ref={fourthSection.ref}>
         {/* Vector 10 background */}
         <div 
           className="absolute inset-0 z-0"
           style={{
             backgroundImage: 'url(/images/newhomepage/Vector%2010.png)',
             backgroundSize: 'contain',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            backgroundPosition: 'top center',
+            backgroundRepeat: 'no-repeat',
+            pointerEvents: 'none'
           }}
         />
         
         
-        <div className="relative z-10 flex flex-col items-center justify-center text-center">
-          {/* About SVG */}
+        <div className="relative z-10 flex flex-col items-center justify-center text-center px-4 pt-6 pb-0">
+          {/* About LNT PNG */}
           <div className={`mb-6 animate-fadeInUp ${fourthSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <img 
-              src="/images/newhomepage/about.svg" 
-              alt="About" 
+              src="/images/newhomepage/aboutlnt.png" 
+              alt="About LNT" 
               className="w-auto h-auto mx-auto"
+              style={{ maxHeight: '80px' }}
             />
           </div>
           
           {/* New Text Content */}
           <div 
             className={`animate-fadeInUp animate-delay-300 ${fourthSection.isIntersecting ? 'animate-on-scroll' : ''}`}
-            style={{ width: '100%', textAlign: 'center', maxWidth: '320px', margin: '0 auto' }}
+            style={{ width: '100%', textAlign: 'center', maxWidth: '340px', margin: '-10px auto 0 auto' }}
           >
             {/* First paragraph - Header text */}
             <p 
@@ -1394,7 +1365,7 @@ export default function Home() {
                 margin: '0 0 12px 0'
               }}
             >
-              Think you can match Jasprit Bumrah's pace?<br/>Here's your chance!
+              Think you can bowl like Bumrah?<br/>Here's your chance!
             </p>
             
             {/* Second paragraph - Record and analysis */}
@@ -1410,7 +1381,7 @@ export default function Home() {
                 margin: '0 0 12px 0'
               }}
             >
-              Record your bowling action, upload it,<br/>and get a personalized analysis.
+              Record your bowling action, upload it,<br/>and get a personalized analysis report.
             </p>
             
             {/* Third paragraph - Climb leaderboard with hashtag */}
@@ -1442,28 +1413,30 @@ export default function Home() {
                 margin: '0'
               }}
             >
-              Win a chance to meet Bumrah,<br/>grab signed gear, and exciting rewards!
+              Get a chance to meet Bumrah,<br/>& also win Bumrah's signed gear,<br/>and exciting voucher!
             </p>
           </div>
         </div>
       </div>
 
       {/* New Section - Group Image Background */}
-      <div className="md:hidden w-full relative" style={{ height: 300, marginBottom: 0, marginTop: 0 }}>
+      <div className="md:hidden w-full relative" style={{ marginBottom: 0, marginTop: 0 }}>
         {/* Group 1437254115 background */}
         <div 
-          className="absolute inset-0 z-0"
+          className="z-0"
           style={{
             backgroundImage: 'url(/images/newhomepage/Group%201437254115.png)',
             backgroundSize: 'contain',
             backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat'
+            backgroundRepeat: 'no-repeat',
+            height: '250px',
+            width: '100%'
           }}
         />
       </div>
       {/* Desktop Final Section */}
       <div className="hidden md:block">
-        <div className="w-full py-16">
+        <div className="w-full">
           <div className="max-w-7xl mx-auto px-8">
             <img 
               src="/images/newhomepage/Group%201437254115.png" 
@@ -1473,7 +1446,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-
       {/* Unified Responsive Footer */}
       <footer className="w-full bg-black px-4 md:px-8 pt-6 pb-6" ref={footerSection.ref}>
         <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
