@@ -1322,21 +1322,20 @@ export default function Home() {
       </div>
 
       {/* Responsive About Section */}
-      <div className="md:hidden w-full relative" style={{ minHeight: 'auto', marginTop: 0, paddingBottom: '0px' }} ref={fourthSection.ref}>
+      <div className="md:hidden w-full relative overflow-hidden" style={{ minHeight: 'auto', marginTop: 0, paddingBottom: '0px', marginBottom: 0 }} ref={fourthSection.ref}>
         {/* Vector 10 background */}
         <div 
           className="absolute inset-0 z-0"
           style={{
             backgroundImage: 'url(/images/newhomepage/Vector%2010.png)',
-            backgroundSize: 'contain',
+            backgroundSize: 'cover',
             backgroundPosition: 'top center',
             backgroundRepeat: 'no-repeat',
             pointerEvents: 'none'
           }}
         />
         
-        
-        <div className="relative z-10 flex flex-col items-center justify-center text-center px-4 pt-6 pb-0">
+        <div className="relative z-20 flex flex-col items-center justify-start text-center px-4 pt-8 pb-4">
           {/* About LNT PNG */}
           <div className={`mb-6 animate-fadeInUp ${fourthSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <img 
@@ -1422,15 +1421,14 @@ export default function Home() {
       {/* New Section - Group Image Background */}
       <div className="md:hidden w-full relative" style={{ marginBottom: 0, marginTop: 0 }}>
         {/* Group 1437254115 background */}
-        <div 
-          className="z-0"
+        <img 
+          src="/images/newhomepage/Group%201437254115.png"
+          alt="L&T Finance"
+          className="w-full h-auto block"
           style={{
-            backgroundImage: 'url(/images/newhomepage/Group%201437254115.png)',
-            backgroundSize: 'contain',
-            backgroundPosition: 'center',
-            backgroundRepeat: 'no-repeat',
-            height: '250px',
-            width: '100%'
+            maxWidth: '100%',
+            height: 'auto',
+            display: 'block'
           }}
         />
       </div>
@@ -1447,7 +1445,7 @@ export default function Home() {
         </div>
       </div>
       {/* Unified Responsive Footer */}
-      <footer className="w-full bg-black px-4 md:px-8 pt-6 pb-6" ref={footerSection.ref}>
+      <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6" ref={footerSection.ref}>
         <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
           {/* Copyright Text */}
           <div className={`text-left animate-fadeInLeft ${footerSection.isIntersecting ? 'animate-on-scroll' : ''}`}>

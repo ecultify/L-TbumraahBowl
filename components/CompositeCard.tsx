@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { getGeneratedTorsoImage } from '@/lib/utils/geminiService';
 
 interface CompositeCardProps {
@@ -31,6 +31,9 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   recommendations
 }) => {
   const [generatedTorsoImage, setGeneratedTorsoImage] = useState<string | null>(null);
+  const [scale, setScale] = useState(1);
+  const [isReady, setIsReady] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Load generated torso image from session storage
   useEffect(() => {
@@ -40,9 +43,41 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       console.log('✅ Loaded generated torso image for composite card');
     }
   }, []);
+
+  // Calculate scale based on actual card width (reference: 346px at 430x932 viewport)
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const cardWidth = containerRef.current.offsetWidth;
+        const referenceWidth = 346; // Perfect layout width from 430x932 viewport
+        const newScale = cardWidth / referenceWidth;
+        setScale(newScale);
+        
+        // Store scale as data attribute for html2canvas cloning
+        containerRef.current.setAttribute('data-scale', newScale.toString());
+        
+        // Mark as ready after scale calculation and small delay for rendering
+        setTimeout(() => {
+          setIsReady(true);
+          containerRef.current?.setAttribute('data-ready', 'true');
+          console.log('✅ CompositeCard ready with scale:', newScale);
+        }, 150);
+      }
+    };
+
+    // Initial calculation with delay to ensure container is measured correctly
+    const timer = setTimeout(updateScale, 100);
+    
+    window.addEventListener('resize', updateScale);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener('resize', updateScale);
+    };
+  }, []);
   return (
     <div 
       id="composite-card" 
+      ref={containerRef}
       className="composite-card-container"
       style={{ 
         position: "relative", 
@@ -70,15 +105,15 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           alt="Generated Cricket Player Torso"
           style={{
             position: "absolute",
-            top: "102px", // 102px from top of upperpart
-            right: "10px", // 10px from right edge
+            top: `${102 * scale}px`,
+            right: `${10 * scale}px`,
             width: "auto",
             height: "auto",
-            maxWidth: "150px", // Reasonable max width for chest-level portrait
-            maxHeight: "200px", // Reasonable max height
+            maxWidth: `${150 * scale}px`,
+            maxHeight: `${200 * scale}px`,
             display: "block",
-            zIndex: 1.5, // Between upperpart (z:1) and bottompart (z:2)
-            borderRadius: "8px", // Slight rounding for better integration
+            zIndex: 1.5,
+            borderRadius: `${8 * scale}px`,
             objectFit: "contain"
           }}
         />
@@ -102,11 +137,11 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "98.39px",
-          left: "16px",
+          top: `${98.39 * scale}px`,
+          left: `${16 * scale}px`,
           fontFamily: "Helvetica Condensed",
           fontWeight: 700,
-          fontSize: "32.18px",
+          fontSize: `${32.18 * scale}px`,
           fontStyle: "normal",
           textTransform: "uppercase",
           color: "white",
@@ -120,13 +155,13 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "144px",
-          left: "16px",
-          width: "75px",
-          height: "21px",
+          top: `${144 * scale}px`,
+          left: `${16 * scale}px`,
+          width: `${75 * scale}px`,
+          height: `${21 * scale}px`,
           backgroundColor: "#114F80",
-          borderTopLeftRadius: "10.5px",
-          borderBottomLeftRadius: "10.5px",
+          borderTopLeftRadius: `${10.5 * scale}px`,
+          borderBottomLeftRadius: `${10.5 * scale}px`,
           borderTopRightRadius: "0px",
           borderBottomRightRadius: "0px",
           zIndex: 3,
@@ -135,14 +170,14 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
         <div
           style={{
             position: "absolute",
-            top: "2px",
-            left: "14px",
-            width: "42px",
-            height: "18px",
+            top: `${2 * scale}px`,
+            left: `${14 * scale}px`,
+            width: `${42 * scale}px`,
+            height: `${18 * scale}px`,
             fontFamily: "Helvetica Condensed",
             fontWeight: 700,
             fontStyle: "normal",
-            fontSize: "14px",
+            fontSize: `${14 * scale}px`,
             textTransform: "uppercase",
             color: "#FFCA04",
             display: "flex",
@@ -155,21 +190,21 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
 
       {/* Phase scores */}
       {[
-        { label: "RUN-UP", score: runUpScore, top: "215px" },
-        { label: "DELIVERY", score: deliveryScore, top: "255px" },
-        { label: "FOLLOW THRU", score: followThroughScore, top: "295px" },
+        { label: "RUN-UP", score: runUpScore, top: 215 },
+        { label: "DELIVERY", score: deliveryScore, top: 255 },
+        { label: "FOLLOW THRU", score: followThroughScore, top: 295 },
       ].map(({ label, score, top }) => (
         <React.Fragment key={label}>
           {/* Percentage */}
           <div
             style={{
               position: "absolute",
-              top,
-              left: "16px",
-              width: "63.31px",
+              top: `${top * scale}px`,
+              left: `${16 * scale}px`,
+              width: `${63.31 * scale}px`,
               fontFamily: "Helvetica Condensed",
               fontWeight: 700,
-              fontSize: "13.56px",
+              fontSize: `${13.56 * scale}px`,
               fontStyle: "bold",
               textTransform: "uppercase",
               color: "white",
@@ -186,12 +221,12 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           <div
             style={{
               position: "absolute",
-              top: `${parseInt(top) + 20}px`,
-              left: "16px",
-              width: "63.31px",
-              height: "14.27px",
+              top: `${(top + 20) * scale}px`,
+              left: `${16 * scale}px`,
+              width: `${63.31 * scale}px`,
+              height: `${14.27 * scale}px`,
               backgroundColor: "#FFCA04",
-              borderRadius: "7.23px",
+              borderRadius: `${7.23 * scale}px`,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -203,7 +238,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
                 fontFamily: "Helvetica Condensed",
                 fontWeight: 700,
                 fontStyle: "bold",
-                fontSize: "8.14px",
+                fontSize: `${8.14 * scale}px`,
                 textTransform: "uppercase",
                 color: "#13264A",
               }}
@@ -218,11 +253,11 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "403.06px",
-          left: "16px",
+          top: `${403.06 * scale}px`,
+          left: `${16 * scale}px`,
           fontFamily: "Helvetica Condensed",
           fontWeight: 400,
-          fontSize: "16px",
+          fontSize: `${16 * scale}px`,
           fontStyle: "normal",
           textTransform: "uppercase",
           color: "white",
@@ -236,22 +271,22 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "399.44px",
-          left: "256.16px",
-          width: "77.76px",
-          height: "61.94px",
+          top: `${399.44 * scale}px`,
+          left: `${256.16 * scale}px`,
+          width: `${77.76 * scale}px`,
+          height: `${61.94 * scale}px`,
           zIndex: 3,
           display: "flex",
           alignItems: "baseline",
           justifyContent: "center",
-          gap: "4px",
+          gap: `${4 * scale}px`,
         }}
       >
         <div
           style={{
             fontFamily: "Helvetica Condensed",
             fontWeight: 700,
-            fontSize: "36.17px",
+            fontSize: `${36.17 * scale}px`,
             fontStyle: "bold",
             textTransform: "uppercase",
             color: "white",
@@ -264,7 +299,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           style={{
             fontFamily: "Helvetica Condensed",
             fontWeight: 700,
-            fontSize: "9.04px",
+            fontSize: `${9.04 * scale}px`,
             fontStyle: "bold",
             textTransform: "lowercase",
             color: "white",
@@ -278,9 +313,9 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "466.38px",
-          left: "256.16px",
-          width: "77.76px",
+          top: `${466.38 * scale}px`,
+          left: `${256.16 * scale}px`,
+          width: `${77.76 * scale}px`,
           zIndex: 3,
         }}
       >
@@ -290,13 +325,13 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           { label: 'RHYTHM', value: rhythmScore },
           { label: 'RELEASE POINT', value: releasePointScore }
         ].map((metric, index) => (
-          <div key={metric.label} style={{ marginBottom: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+          <div key={metric.label} style={{ marginBottom: `${8 * scale}px` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: `${2 * scale}px` }}>
               <div
                 style={{
                   fontFamily: "Helvetica Condensed",
                   fontWeight: 400,
-                  fontSize: "6px",
+                  fontSize: `${6 * scale}px`,
                   fontStyle: "normal",
                   textTransform: "uppercase",
                   color: "white",
@@ -308,7 +343,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
                 style={{
                   fontFamily: "Helvetica Condensed",
                   fontWeight: 700,
-                  fontSize: "8.14px",
+                  fontSize: `${8.14 * scale}px`,
                   fontStyle: "bold",
                   color: "white",
                 }}
@@ -318,16 +353,16 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
             </div>
             <div style={{ 
               width: '100%', 
-              height: '3px', 
+              height: `${3 * scale}px`, 
               backgroundColor: 'rgba(255,255,255,0.2)', 
-              borderRadius: '1.5px',
+              borderRadius: `${1.5 * scale}px`,
               overflow: 'hidden'
             }}>
               <div style={{ 
                 width: `${Math.min(metric.value, 100)}%`, 
                 height: '100%', 
                 backgroundColor: '#FFC315',
-                borderRadius: '1.5px'
+                borderRadius: `${1.5 * scale}px`
               }} />
             </div>
           </div>
@@ -338,9 +373,9 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "465px",
-          left: "16px",
-          width: "160px",
+          top: `${465 * scale}px`,
+          left: `${16 * scale}px`,
+          width: `${160 * scale}px`,
           zIndex: 3,
         }}
       >
@@ -348,11 +383,11 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           style={{
             fontFamily: "Helvetica Condensed",
             fontWeight: 700,
-            fontSize: "10px",
+            fontSize: `${10 * scale}px`,
             fontStyle: "bold",
             textTransform: "uppercase",
             color: "white",
-            marginBottom: "4px",
+            marginBottom: `${4 * scale}px`,
           }}
         >
           RECOMMENDATIONS
@@ -362,7 +397,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           style={{
             fontFamily: "Helvetica Condensed",
             fontWeight: 400,
-            fontSize: "8px",
+            fontSize: `${8 * scale}px`,
             fontStyle: "normal",
             color: "white",
             lineHeight: "1.2",
@@ -376,11 +411,11 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "433.06px",
-          left: "16px",
+          top: `${433.06 * scale}px`,
+          left: `${16 * scale}px`,
           fontFamily: "Helvetica Condensed",
           fontWeight: 700,
-          fontSize: "8px",
+          fontSize: `${8 * scale}px`,
           fontStyle: "bold",
           textTransform: "uppercase",
           color: "white",
@@ -394,10 +429,10 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "445px",
-          left: "16px",
+          top: `${445 * scale}px`,
+          left: `${16 * scale}px`,
           display: "flex",
-          gap: "1px",
+          gap: `${1 * scale}px`,
           zIndex: 3,
         }}
       >
@@ -405,8 +440,8 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           <div
             key={i}
             style={{
-              width: "30.32px",
-              height: "5.35px",
+              width: `${30.32 * scale}px`,
+              height: `${5.35 * scale}px`,
               backgroundColor: color,
             }}
           />
@@ -417,17 +452,17 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "430px",
-          left: "111px",
+          top: `${430 * scale}px`,
+          left: `${(16 + (30.32 * 4) + (1 * 4)) * scale}px`, // Position on last (5th) block
           fontFamily: "Helvetica Condensed",
           fontWeight: 700,
-          fontSize: "12px",
+          fontSize: `${12 * scale}px`,
           fontStyle: "bold",
           textTransform: "uppercase",
           color: "white",
           zIndex: 4,
           textAlign: "center",
-          width: "30px",
+          width: `${30.32 * scale}px`,
         }}
       >
         {accuracyDisplay}%
@@ -437,10 +472,10 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       <div
         style={{
           position: "absolute",
-          top: "453.35px",
-          left: "16px",
-          width: "157.82px",
-          height: "0.89px",
+          top: `${453.35 * scale}px`,
+          left: `${16 * scale}px`,
+          width: `${157.82 * scale}px`,
+          height: `${0.89 * scale}px`,
           backgroundColor: "white",
           zIndex: 3,
         }}
@@ -451,10 +486,10 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
         alt="Ticker"
         style={{
           position: "absolute",
-          top: "448.85px",
-          left: `${16 + (157.82 * (accuracyDisplay / 100)) - 1.475}px`,
-          width: "2.95px",
-          height: "9.85px",
+          top: `${448.85 * scale}px`,
+          left: `${(16 + (157.82 * (accuracyDisplay / 100)) - 1.475) * scale}px`,
+          width: `${2.95 * scale}px`,
+          height: `${9.85 * scale}px`,
           zIndex: 4,
         }}
       />

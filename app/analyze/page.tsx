@@ -204,6 +204,53 @@ export default function SimplifiedAnalyzePage() {
     try {
       console.log('📥 Starting composite card download...');
       
+      // Wait for fonts to load
+      try {
+        await document.fonts.ready;
+        console.log('✅ Fonts loaded');
+      } catch (e) {
+        console.log('⚠️ Font loading check skipped');
+      }
+      
+      // Wait for the card to be fully rendered with correct scale
+      const waitForReady = () => new Promise<void>((resolve) => {
+        const checkReady = () => {
+          if (cardElement.getAttribute('data-ready') === 'true') {
+            console.log('✅ Card is ready for capture');
+            resolve();
+          } else {
+            console.log('⏳ Waiting for card to render...');
+            setTimeout(checkReady, 100);
+          }
+        };
+        checkReady();
+      });
+
+      await waitForReady();
+      
+      // Get the scale from the card element
+      const scaleValue = parseFloat(cardElement.getAttribute('data-scale') || '1');
+      console.log('📐 Using scale:', scaleValue);
+      
+      // Force browser to recalculate and apply all styles
+      cardElement.offsetHeight; // Trigger reflow
+      
+      // Wait for browser to paint all changes
+      await new Promise(resolve => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // Double RAF ensures paint is complete
+            setTimeout(resolve, 500);
+          });
+        });
+      });
+      
+      console.log('📸 Starting capture with dimensions:', {
+        width: cardElement.offsetWidth,
+        height: cardElement.offsetHeight,
+        scale: scaleValue
+      });
+      
       // Configure html2canvas options for better quality
       const canvas = await html2canvas(cardElement, {
         useCORS: true,
@@ -216,12 +263,29 @@ export default function SimplifiedAnalyzePage() {
         width: cardElement.offsetWidth,
         height: cardElement.offsetHeight,
         onclone: (clonedDoc) => {
-          // Ensure fonts and images are loaded in the cloned document
+          console.log('🖨️ Cloning document for capture...');
+          
+          // Find the cloned card and apply scale-dependent styles
           const clonedCard = clonedDoc.getElementById('composite-card');
           if (clonedCard) {
-            // Apply any necessary styles to the cloned element
+            // Reset transforms that might interfere
             clonedCard.style.transform = 'none';
             clonedCard.style.isolation = 'auto';
+            clonedCard.style.willChange = 'auto';
+            
+            // Get the stored scale value
+            const cloneScale = parseFloat(clonedCard.getAttribute('data-scale') || '1');
+            console.log('📐 Clone scale:', cloneScale);
+            
+            // Force all absolutely positioned elements to use inline styles with current scale
+            const allAbsoluteElements = clonedCard.querySelectorAll('[style*="position: absolute"]');
+            allAbsoluteElements.forEach((el: any) => {
+              const style = el.getAttribute('style');
+              if (style) {
+                // Keep the existing inline styles as they already have the scale applied
+                el.style.cssText = style;
+              }
+            });
           }
         }
       });
@@ -524,34 +588,45 @@ export default function SimplifiedAnalyzePage() {
             </div>
 
             {/* Text and Retry Button - Below Glass Box */}
-            <div style={{ marginTop: '20px', width: '100%' }}>
-              {/* Plain White Text */}
-              <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-                <p style={{
-                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: '#FFFFFF',
-                  margin: 0
-                }}>
-                  Enter feedback or comments here
-                </p>
-              </div>
-              
-              {/* Retry Button */}
-              <button
-                className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                style={{
-                  width: '100%',
-                  backgroundColor: '#80CBEB',
-                  borderRadius: '22.89px',
-                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                  fontWeight: '700',
-                  fontSize: '14px',
-                  color: 'white',
-                  padding: '12px 16px',
-                  border: 'none',
-                  display: 'flex',
+            {accuracyDisplay < 85 && (
+              <div style={{ marginTop: '20px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                {/* Feedback Text */}
+                <div style={{ marginBottom: '16px', textAlign: 'center' }}>
+                  <p style={{
+                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    color: '#FFFFFF',
+                    margin: 0,
+                    marginBottom: '4px'
+                  }}>
+                    You've just missed the benchmark
+                  </p>
+                  <p style={{
+                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    color: '#FFFFFF',
+                    margin: 0
+                  }}>
+                    Don't worry, try again!
+                  </p>
+                </div>
+                
+                {/* Retry Button */}
+                <button
+                  className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                  style={{
+                    width: '142px',
+                    height: '36px',
+                    backgroundColor: '#80CBEB',
+                    borderRadius: '22.89px',
+                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                    fontWeight: '700',
+                    fontSize: '14px',
+                    color: 'white',
+                    border: 'none',
+                    display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
@@ -572,6 +647,7 @@ export default function SimplifiedAnalyzePage() {
                 Retry
               </button>
             </div>
+            )}
           </div>
         </div>
       </main>
