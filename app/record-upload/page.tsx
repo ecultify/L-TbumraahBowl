@@ -795,7 +795,7 @@ export default function RecordUploadPage() {
             <div style={{ position: "relative", width: "100%" }}>
               {/* Bumrah Ball in Hand Decoration */}
               <img
-                src="/images/Bumrah Ball in Hand 1.png"
+                src="/images/newhomepage/Bumrah Ball in Hand 1.png"
                 alt="Bumrah Ball in Hand"
                 style={{ 
                   position: "absolute", 

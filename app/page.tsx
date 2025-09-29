@@ -167,7 +167,7 @@ export default function Home() {
               />
             </Link>
             <img
-              src="/images/newhomepage/bowlkarbumraahkispeedpar.svg"
+              src="/images/bowlkarbumrahkispeedpar.png"
               alt="Bowl Kar Bumraah Ki Speed Par"
               style={heroTaglineStyle}
               className={`animate-fadeInUp animate-delay-200 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
@@ -340,7 +340,7 @@ export default function Home() {
                   }}
                 >
                   <img
-                    src="/images/newhomepage/bowlkarbumraahkispeedpar.svg"
+                    src="/images/bowlkarbumrahkispeedpar.png"
                     alt="Bowl Kar Bumraah Ki Speed Par"
                     className="h-16 md:h-20 lg:h-24 w-auto"
                   />
