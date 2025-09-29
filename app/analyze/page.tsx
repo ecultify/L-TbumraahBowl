@@ -128,23 +128,24 @@ export default function SimplifiedAnalyzePage() {
     );
   }
   
+  // TEMPORARILY COMMENTED OUT FOR UI/UX TESTING
   // Fallback for when there are no results at all (not even no bowling action)
-  if (!hasValidResults && !noBowlingDetected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-gray-600 mb-4">
-            <p>No analysis results found.</p>
-            <p className="mt-2">
-              <Link href="/record-upload" className="text-blue-600 hover:underline">
-                Go back to upload a video
-              </Link>
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // if (!hasValidResults && !noBowlingDetected) {
+  //   return (
+  //     <div className="min-h-screen flex items-center justify-center">
+  //       <div className="text-center">
+  //         <div className="text-gray-600 mb-4">
+  //           <p>No analysis results found.</p>
+  //           <p className="mt-2">
+  //             <Link href="/record-upload" className="text-blue-600 hover:underline">
+  //               Go back to upload a video
+  //             </Link>
+  //           </p>
+  //         </div>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Speed values - prioritize sessionStorage data and round to whole numbers
   const finalIntensityValue = sessionAnalysisData?.intensity || state.finalIntensity || 0;
