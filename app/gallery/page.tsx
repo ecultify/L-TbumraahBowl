@@ -78,7 +78,7 @@ export default function GalleryPage() {
               <GlassBackButton />
 
               {/* Gallery Title Image */}
-              <div className="w-full flex justify-center mb-1" style={{ marginTop: 20 }}>
+              <div className="w-full flex justify-center mb-1" style={{ marginTop: 5 }}>
                 <img
                   src="/images/newhomepage/Group 1437254106 (1).png"
                   alt="Gallery"
