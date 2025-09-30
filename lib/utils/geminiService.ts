@@ -124,9 +124,14 @@ export class GeminiTorsoService {
 
       if (responseData.success && responseData.imageUrl) {
         console.log('Gemini 2.5 Flash Image Preview torso generation completed successfully via backend');
+        
+        // Apply background removal to make it fully transparent
+        console.log('Applying background removal for full transparency...');
+        const transparentImageUrl = await this.removeBackground(responseData.imageUrl);
+        
         return {
           success: true,
-          imageUrl: responseData.imageUrl
+          imageUrl: transparentImageUrl || responseData.imageUrl
         };
       } else {
         return {
@@ -143,6 +148,74 @@ export class GeminiTorsoService {
         success: false,
         error: errorMessage
       };
+    }
+  }
+
+  // Remove background from image to make it fully transparent
+  private async removeBackground(imageUrl: string): Promise<string> {
+    try {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            console.error('Canvas context not available');
+            resolve(imageUrl); // Return original on error
+            return;
+          }
+          
+          canvas.width = img.width;
+          canvas.height = img.height;
+          
+          // Draw image
+          ctx.drawImage(img, 0, 0);
+          
+          // Get image data
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imageData.data;
+          
+          // Remove semi-transparent backgrounds
+          // Make any pixel with low alpha or grayish colors fully transparent
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            const a = data[i + 3];
+            
+            // Check if pixel is semi-transparent (alpha < 255)
+            // or if it's a grayish/whitish background color
+            const isGrayish = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
+            const isLight = (r + g + b) / 3 > 200;
+            const isSemiTransparent = a < 255;
+            
+            // Make background fully transparent
+            if (isSemiTransparent || (isGrayish && isLight)) {
+              data[i + 3] = 0; // Set alpha to 0 (fully transparent)
+            }
+          }
+          
+          // Put the modified image data back
+          ctx.putImageData(imageData, 0, 0);
+          
+          // Convert to data URL
+          const transparentImageUrl = canvas.toDataURL('image/png');
+          console.log('✅ Background removed successfully');
+          resolve(transparentImageUrl);
+        };
+        
+        img.onerror = (error) => {
+          console.error('Failed to load image for background removal:', error);
+          resolve(imageUrl); // Return original on error
+        };
+        
+        img.src = imageUrl;
+      });
+    } catch (error) {
+      console.error('Background removal error:', error);
+      return imageUrl; // Return original on error
     }
   }
 

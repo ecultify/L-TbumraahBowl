@@ -249,6 +249,25 @@ export default function DetailsPage() {
         videoHeight: videoRef.current.videoHeight
       });
       
+      // Wait for video to have enough data to play
+      if (videoRef.current.readyState < 3) {
+        console.log('⏳ Waiting for video to load enough data...');
+        await new Promise<void>((resolve) => {
+          const handleCanPlay = () => {
+            videoRef.current?.removeEventListener('canplay', handleCanPlay);
+            console.log('✅ Video has enough data to play');
+            resolve();
+          };
+          videoRef.current?.addEventListener('canplay', handleCanPlay);
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            videoRef.current?.removeEventListener('canplay', handleCanPlay);
+            console.log('⚠️ Video load timeout, proceeding anyway');
+            resolve();
+          }, 10000);
+        });
+      }
+      
       await videoRef.current.play();
       frameSamplerRef.current.start();
       console.log('✅ Frame sampler started');
@@ -505,7 +524,9 @@ export default function DetailsPage() {
         <video
           ref={videoRef}
           src={videoUrl}
-          preload="metadata"
+          preload="auto"
+          playsInline
+          muted
           className="hidden"
           onLoadedMetadata={handleVideoLoadedMetadata}
           onError={handleVideoError}
