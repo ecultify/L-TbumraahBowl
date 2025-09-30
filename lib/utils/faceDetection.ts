@@ -446,68 +446,169 @@ export class FaceDetectionService {
       const frameData = optimalFrame.frameData;
       const video = this.videoRef;
 
-      // Use TensorFlow BlazeFace as primary face detection (reliable and fast)
+      // Use MediaPipe Face Detection as primary method (best results from test-faceswap)
       try {
-        console.log('🎯 Using TensorFlow BlazeFace for face detection...');
+        console.log('🎯 Using MediaPipe Face Detection...');
         
-        const tf = await import('@tensorflow/tfjs');
-        const blazeface = await import('@tensorflow-models/blazeface');
+        // Dynamic import to avoid build issues
+        const { FaceDetection } = await import('@mediapipe/face_detection');
         
-        await tf.ready();
-        console.log('✅ TensorFlow.js ready');
-        
-        const model = await blazeface.load();
-        console.log('✅ BlazeFace model loaded');
-        
+        const faceDetection = new FaceDetection({
+          locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
+          }
+        });
+
+        // Enhanced settings for sports videos with distant faces
+        faceDetection.setOptions({
+          model: 'full', // Use full model for better accuracy
+          minDetectionConfidence: 0.3, // Lower threshold for distant faces
+        });
+
+        console.log('✅ MediaPipe Face Detection model configured');
+
+        const detectedFaces: DetectedFace[] = [];
+        let mediaScriptResolved = false;
+
+        faceDetection.onResults((results) => {
+          if (results.detections && results.detections.length > 0) {
+            console.log('✅ MediaPipe detected', results.detections.length, 'face(s)');
+            
+            results.detections.forEach((detection, index) => {
+              const bbox = detection.boundingBox;
+              if (bbox) {
+                const face: DetectedFace = {
+                  x: bbox.xCenter * video.videoWidth - (bbox.width * video.videoWidth) / 2,
+                  y: bbox.yCenter * video.videoHeight - (bbox.height * video.videoHeight) / 2,
+                  width: bbox.width * video.videoWidth,
+                  height: bbox.height * video.videoHeight,
+                  confidence: (detection as any).score?.[0] || 0.8
+                };
+                detectedFaces.push(face);
+                console.log(`MediaPipe Face ${index + 1}:`, face);
+              }
+            });
+          }
+          mediaScriptResolved = true;
+        });
+
         const img = new Image();
         img.crossOrigin = 'anonymous';
-        
+
         const result: any = await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            if (!mediaScriptResolved) {
+              reject(new Error('MediaPipe detection timeout'));
+            }
+          }, 8000); // Timeout for processing
+
           img.onload = async () => {
             try {
-              const predictions = await model.estimateFaces(img, false);
+              await faceDetection.send({ image: img });
               
-              if (predictions && predictions.length > 0) {
-                console.log('✅ BlazeFace detected', predictions.length, 'face(s)');
-                
-                const blazeFaces: DetectedFace[] = predictions.map((prediction) => {
-                  const [x1, y1, x2, y2] = (prediction as any).topLeft.concat((prediction as any).bottomRight);
-                  return {
-                    x: x1,
-                    y: y1,
-                    width: x2 - x1,
-                    height: y2 - y1,
-                    confidence: (prediction as any).probability?.[0] || 0.9
-                  };
-                });
-                
-                resolve({ faces: blazeFaces, frameData });
-              } else {
-                reject(new Error('No faces detected by BlazeFace'));
-              }
+              // Wait for MediaPipe to process and call onResults
+              const checkResults = () => {
+                if (mediaScriptResolved) {
+                  clearTimeout(timeout);
+                  if (detectedFaces.length > 0) {
+                    console.log('✅ MediaPipe detection successful:', detectedFaces);
+                    resolve({ faces: detectedFaces, frameData });
+                  } else {
+                    reject(new Error('No faces detected by MediaPipe'));
+                  }
+                } else {
+                  // Still waiting for results
+                  setTimeout(checkResults, 100);
+                }
+              };
+              
+              setTimeout(checkResults, 100);
+              
             } catch (error) {
+              clearTimeout(timeout);
               reject(error);
             }
           };
           
-          img.onerror = () => reject(new Error('Failed to load image for BlazeFace'));
+          img.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error('Failed to load image for MediaPipe'));
+          };
+          
           img.src = frameData;
         });
         
         return result;
         
-      } catch (blazeFaceError) {
-        console.log('⚠️ BlazeFace failed, using fallback algorithm:', blazeFaceError);
+      } catch (mediaPipeError) {
+        console.log('⚠️ MediaPipe failed, trying TensorFlow BlazeFace fallback:', mediaPipeError);
         
-        // Fallback to advanced algorithm
+        // Fallback to TensorFlow BlazeFace
         try {
-          const faces = await this.detectFacesWithAdvancedAlgorithm(frameData);
-          if (faces.length > 0) {
-            console.log('✅ Fallback algorithm detected', faces.length, 'face(s)');
-            return { faces, frameData };
+          const tf = await import('@tensorflow/tfjs');
+          const blazeface = await import('@tensorflow-models/blazeface');
+          
+          await tf.ready();
+          console.log('✅ TensorFlow.js ready (fallback)');
+          
+          const model = await blazeface.load();
+          console.log('✅ BlazeFace model loaded (fallback)');
+          
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          
+          const result: any = await new Promise((resolve, reject) => {
+            img.onload = async () => {
+              try {
+                const predictions = await model.estimateFaces(img, false);
+                
+                if (predictions && predictions.length > 0) {
+                  console.log('✅ BlazeFace detected', predictions.length, 'face(s)');
+                  
+                  const blazeFaces: DetectedFace[] = predictions.map((prediction) => {
+                    const bbox = (prediction as any).box || (prediction as any).topLeft.concat((prediction as any).bottomRight);
+                    const [x1, y1, width, height] = Array.isArray(bbox) && bbox.length === 4 ? bbox : 
+                      [(prediction as any).topLeft[0], (prediction as any).topLeft[1], 
+                       (prediction as any).bottomRight[0] - (prediction as any).topLeft[0],
+                       (prediction as any).bottomRight[1] - (prediction as any).topLeft[1]];
+                    
+                    return {
+                      x: x1,
+                      y: y1,
+                      width: width,
+                      height: height,
+                      confidence: (prediction as any).probability?.[0] || 0.9
+                    };
+                  });
+                  
+                  resolve({ faces: blazeFaces, frameData });
+                } else {
+                  reject(new Error('No faces detected by BlazeFace'));
+                }
+              } catch (error) {
+                reject(error);
+              }
+            };
+            
+            img.onerror = () => reject(new Error('Failed to load image for BlazeFace'));
+            img.src = frameData;
+          });
+          
+          return result;
+          
+        } catch (blazeFaceError) {
+          console.log('⚠️ BlazeFace failed, using advanced fallback algorithm:', blazeFaceError);
+          
+          // Final fallback to advanced algorithm
+          try {
+            const faces = await this.detectFacesWithAdvancedAlgorithm(frameData);
+            if (faces.length > 0) {
+              console.log('✅ Fallback algorithm detected', faces.length, 'face(s)');
+              return { faces, frameData };
+            }
+          } catch (fallbackError) {
+            console.error('❌ All face detection methods failed:', fallbackError);
           }
-        } catch (fallbackError) {
-          console.error('❌ All face detection methods failed:', fallbackError);
         }
       }
 
