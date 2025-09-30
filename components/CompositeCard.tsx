@@ -74,6 +74,12 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       window.removeEventListener('resize', updateScale);
     };
   }, []);
+
+  const torsoImageTopOffset = 105;
+  const torsoImageRightOffset = -5;
+  const torsoImageWidth = 260;
+  const torsoImageMaxHeight = 340;
+
   return (
     <div 
       id="composite-card" 
@@ -85,7 +91,8 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
         marginBottom: 16,
         isolation: "isolate",
         transform: "translateZ(0)",
-        willChange: "auto"
+        willChange: "auto",
+        overflow: "visible"
       }}
     >
       {/* Upper part */}
@@ -105,14 +112,15 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           alt="Generated Cricket Player Torso"
           style={{
             position: "absolute",
-            top: `${95 * scale}px`,
-            right: `${15 * scale}px`,
-            width: `${260 * scale}px`,
-            height: `${320 * scale}px`,
+            top: `${torsoImageTopOffset * scale}px`,
+            right: `${torsoImageRightOffset * scale}px`,
+            width: `${torsoImageWidth * scale}px`,
+            height: 'auto',
+            maxHeight: `${torsoImageMaxHeight * scale}px`,
             display: "block",
             zIndex: 1.5,
-            objectFit: "cover",
-            objectPosition: "top right"
+            objectFit: "contain",
+            objectPosition: "center top"
           }}
         />
       )}

@@ -27,7 +27,7 @@ function dataURLToBase64(dataURL: string): string {
 
 // Enhanced prompt for generating Indian cricket jersey torso with chest-level crop (no hands visible)
 function createTorsoGenerationPrompt(): string {
-  return `GENERATE A PNG IMAGE WITH COMPLETELY TRANSPARENT BACKGROUND (ALPHA CHANNEL): Create a professional chest-level portrait of an Indian cricket player using the EXACT face from the provided image without any modifications. The person should be wearing an official Indian cricket team blue jersey with "INDIA" text only.
+  return `GENERATE A PNG IMAGE WITH COMPLETELY TRANSPARENT BACKGROUND (ALPHA CHANNEL): Create a professional chest-level portrait of an Indian cricket player using the EXACT face from the provided image without any modifications. The person must be wearing an official Indian cricket team blue jersey with "INDIA" text only.
 
 CRITICAL - TRANSPARENT BACKGROUND:
 - MUST OUTPUT: PNG format with full alpha channel transparency
@@ -36,15 +36,15 @@ CRITICAL - TRANSPARENT BACKGROUND:
 - Only the person should be visible - everything else must be transparent
 
 CRITICAL - COMPOSITION:
-- CROP AT CHEST: Cut off the image at mid-chest level (collarbone to upper chest area only)
-- NO HANDS, NO ARMS, NO SHOULDERS visible in the final output
-- Show ONLY head, neck, and upper chest area with jersey
+- FRAME INCLUDES: Entire head, full width of both shoulders, and upper chest down to mid-chest
+- Provide a small transparent margin so the head and shoulders never touch the canvas edges
+- NO HANDS, NO ARMS below the shoulders visible in the final output
 - Use input face EXACTLY as provided with ZERO alterations
-- Maintain exact facial features and skin tone from input
+- Maintain exact facial features, hairstyle, and skin tone from input
 
 STYLING:
 - Indian cricket team jersey: primary blue with orange accents
-- Only "INDIA" text - NO other logos or sponsors
+- Jersey must be completely clean: absolutely no brand logos, sponsor marks, badges, numbers, or extra text anywhere except the "INDIA" wordmark
 - Simple upright posture, centered composition
 - Gender-appropriate body proportions
 - High resolution photorealistic quality
@@ -54,12 +54,12 @@ MANDATORY OUTPUT SPECIFICATIONS:
 - Format: PNG with transparency (not JPEG)
 - Background: Fully transparent alpha channel
 - Person cutout: Clean edges, no halo, no artifacts
-- Crop level: Mid-chest (no hands/arms/shoulders)`;
+- Ensure shoulders and head are fully visible without being cropped on any side`;
 }
 
 // Enhanced negative prompt
 function createNegativePrompt(): string {
-  return `altered_face, modified_facial_features, enhanced_face, different_expression, changed_face_angle, face_beautification, face_smoothing, different_skin_tone_on_face, mismatched_face, AI_enhanced_face, face_style_transfer, modified_eyes, altered_nose, changed_mouth, different_eyebrows, face_retouching, harsh_blend_lines, inconsistent_lighting, disproportionate_head_to_body_ratio, wrong_gender_body_type, overly_muscular, too_skinny, awkward_pose, bad_jersey_fit, visible_editing_artifacts, sponsor_logos, brand_logos, commercial_logos, text_other_than_india, advertisements, full_body_shot, waist_visible, legs_visible, below_chest_content, hands_visible, arms_visible, shoulders_visible, folded_arms, crossed_arms, hands_in_frame, elbows_visible, forearms_visible, wrists_visible, fingers_visible, background_color, colored_background, solid_background, gradient_background, studio_background, wall_background, opaque_background, white_background, gray_background, blue_background`;
+  return `altered_face, modified_facial_features, enhanced_face, different_expression, changed_face_angle, face_beautification, face_smoothing, different_skin_tone_on_face, mismatched_face, AI_enhanced_face, face_style_transfer, modified_eyes, altered_nose, changed_mouth, different_eyebrows, face_retouching, harsh_blend_lines, inconsistent_lighting, disproportionate_head_to_body_ratio, wrong_gender_body_type, overly_muscular, too_skinny, awkward_pose, bad_jersey_fit, visible_editing_artifacts, sponsor_logos, brand_logos, commercial_logos, jersey_badges, jersey_numbers, extra_text_on_shirt, text_other_than_india, advertisements, full_body_shot, waist_visible, hips_visible, legs_visible, below_chest_content, hands_visible, arms_visible, cropped_shoulders, shoulders_cut_off, head_cropped, hair_cropped, folded_arms, crossed_arms, hands_in_frame, elbows_visible, forearms_visible, wrists_visible, fingers_visible, background_color, colored_background, solid_background, gradient_background, studio_background, wall_background, opaque_background, white_background, gray_background, blue_background`;
 }
 
 export class GeminiTorsoService {
