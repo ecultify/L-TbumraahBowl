@@ -22,6 +22,7 @@ export default function DetailsPage() {
   const [fileSizeLabel, setFileSizeLabel] = useState<string | null>(null);
   const [isPortraitVideo, setIsPortraitVideo] = useState(false);
   const [hasAnalysisData, setHasAnalysisData] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
   const { state, dispatch } = useAnalysis();
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
@@ -135,7 +136,8 @@ export default function DetailsPage() {
         }
       }
       
-      // If all strategies failed, show error and redirect
+      // If all strategies failed, log error but don't show popup immediately
+      // Give the page more time to load on mobile devices
       console.error('❌ No valid video data found - all recovery strategies failed');
       console.log('📊 Debug info:', {
         hasStoredVideoUrl: !!storedVideoUrl,
@@ -146,37 +148,19 @@ export default function DetailsPage() {
         sessionStorageKeys: Object.keys(sessionStorage)
       });
       
-      // Try one more fallback - check if there's a video thumbnail stored
-      const videoThumbnail = sessionStorage.getItem('videoThumbnail');
-      if (videoThumbnail) {
-        console.log('🔄 Found video thumbnail, attempting to use as fallback...');
-        // For now, just show a message that video was found but needs to be re-uploaded
-        if (typeof window !== 'undefined') {
-          const shouldRetry = confirm('Video data was lost during navigation, but we found a thumbnail. Would you like to upload your video again?');
-          if (shouldRetry) {
-            window.location.href = '/record-upload';
-          }
-        }
-      } else {
-        // Show user-friendly error message
-        if (typeof window !== 'undefined') {
-          const shouldRetry = confirm('Video data was lost during navigation. Would you like to upload your video again?');
-          if (shouldRetry) {
-            window.location.href = '/record-upload';
-          }
-        }
-      }
+      // On mobile, video data might take longer to load - wait before showing error
+      console.log('⏳ Video data not immediately available - will check again before analysis');
     };
 
     if (storedVideoUrl || storedVideoData) {
-      // Make video setup non-blocking for faster page load
-    setTimeout(() => {
+      // Setup video URL with proper ready state tracking
       setupVideoUrl().then(() => {
-        console.log('📹 Video setup completed. Final videoUrl:', videoUrl);
+        console.log('📹 Video setup completed successfully');
+        setIsVideoReady(true);
       }).catch((error) => {
         console.error('❌ Video setup failed:', error);
+        setIsVideoReady(false);
       });
-    }, 10); // Minimal delay to make setup non-blocking
       
       if (storedSource === 'record' || storedSource === 'upload') {
         setVideoSource(storedSource);
@@ -275,6 +259,7 @@ export default function DetailsPage() {
     const seconds = Math.floor(duration % 60);
     setVideoDuration(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     setIsPortraitVideo(video.videoHeight > video.videoWidth);
+    setIsVideoReady(true);
     console.log('✅ Video loaded successfully:', {
       duration: `${minutes}:${seconds}`,
       dimensions: `${video.videoWidth}x${video.videoHeight}`,
@@ -312,7 +297,13 @@ export default function DetailsPage() {
         hasVideoUrl: !!videoUrl,
         videoUrl: videoUrl
       });
-      return;
+      
+      // Show user-friendly error and redirect
+      if (typeof window !== 'undefined') {
+        alert('Video is not ready yet. Please wait a moment and try again, or re-upload your video.');
+        // Don't auto-redirect, let user decide
+      }
+      throw new Error('Video not ready for analysis');
     }
     
     // Wait for video to be ready if it's not loaded yet
@@ -815,23 +806,36 @@ export default function DetailsPage() {
                 >
                   {/* Desktop Details Content */}
                   <div className="w-full">
-                    <DetailsCard
-                      submitLabel={'Analyze Video'}
-                      onSubmit={async (payload) => {
-                        // Store player name and details
-                        if (typeof window !== 'undefined') {
-                          window.sessionStorage.setItem('detailsCompleted', 'true');
-                          window.sessionStorage.setItem('playerName', payload.name);
-                          window.sessionStorage.setItem('playerPhone', payload.phone || '');
-                          console.log('✅ Details completed - flag set in sessionStorage');
-                          console.log('✅ Player name stored:', payload.name);
-                        }
-                        
-                        // Always start fresh analysis for the current video
-                        console.log('🎬 Submit clicked - Starting fresh analysis');
-                        await startAnalysis();
-                      }}
-                    />
+                <DetailsCard
+                  submitLabel={'Analyze Video'}
+                  loading={!isVideoReady}
+                  onSubmit={async (payload) => {
+                    // Check if video is ready before proceeding
+                    if (!isVideoReady || !videoUrl) {
+                      console.warn('⚠️ Video not ready, waiting...');
+                      // Wait a bit for video to load
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      
+                      // Check again
+                      if (!videoUrl || !videoRef.current) {
+                        throw new Error('Video is not ready. Please wait a moment and try again.');
+                      }
+                    }
+                    
+                    // Store player name and details
+                    if (typeof window !== 'undefined') {
+                      window.sessionStorage.setItem('detailsCompleted', 'true');
+                      window.sessionStorage.setItem('playerName', payload.name);
+                      window.sessionStorage.setItem('playerPhone', payload.phone || '');
+                      console.log('✅ Details completed - flag set in sessionStorage');
+                      console.log('✅ Player name stored:', payload.name);
+                    }
+                    
+                    // Always start fresh analysis for the current video
+                    console.log('🎬 Submit clicked - Starting fresh analysis');
+                    await startAnalysis();
+                  }}
+                />
                   </div>
                 </div>
               </div>
@@ -923,7 +927,20 @@ export default function DetailsPage() {
                 <GlassBackButton />
                 <DetailsCard
                   submitLabel={'Analyze Video'}
+                  loading={!isVideoReady}
                   onSubmit={async (payload) => {
+                    // Check if video is ready before proceeding
+                    if (!isVideoReady || !videoUrl) {
+                      console.warn('⚠️ Video not ready, waiting...');
+                      // Wait a bit for video to load
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+                      
+                      // Check again
+                      if (!videoUrl || !videoRef.current) {
+                        throw new Error('Video is not ready. Please wait a moment and try again.');
+                      }
+                    }
+                    
                     // Store player name and details
                     if (typeof window !== 'undefined') {
                       window.sessionStorage.setItem('detailsCompleted', 'true');
