@@ -51,61 +51,68 @@ export default function ReportPreview({ kmh, similarityPercent, speedClass, conf
   const appGreen = '#16A34A'; // tailwind green-600
 
   return (
-    <div className="w-[794px] h-[1123px] bg-white text-gray-800">
+    <div style={{ width: '794px', height: '1123px', backgroundColor: 'white', color: '#1f2937', fontFamily: 'Arial, sans-serif' }}>
       {/* Header */}
-      <div className="w-full px-8 py-6" style={{ background: `linear-gradient(90deg, ${appBlue}, ${appGreen})` }}>
-        <div className="flex items-center justify-between">
-          <h1 className="text-white text-2xl font-bold">Bowling Analysis Report</h1>
-          <div className="text-white/90 text-sm">{currentDate || 'Loading...'}</div>
+      <div style={{ width: '100%', padding: '24px 32px', background: `linear-gradient(90deg, ${appBlue}, ${appGreen})` }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '32px' }}>
+          <h1 style={{ color: 'white', fontSize: '24px', fontWeight: 'bold', lineHeight: '32px', margin: 0 }}>Bowling Analysis Report</h1>
+          <div style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px', lineHeight: '32px' }}>{currentDate || 'Loading...'}</div>
         </div>
       </div>
 
-      <div className="px-8 py-6 space-y-12">
-        {/* Summary Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="p-4">
-            <div className="inline-flex items-center gap-2 text-gray-500 text-sm leading-none">
-              <Gauge className="w-4 h-4 shrink-0 -mt-0.5" />
-              <span>Predicted Speed</span>
-            </div>
-            <div className="text-3xl font-bold mt-2" style={{ color: appBlue }}>{kmh.toFixed(2)} km/h</div>
-          </Card>
-          <Card className="p-4">
-            <div className="inline-flex items-center gap-2 text-gray-500 text-sm leading-none">
-              <TrendingUp className="w-4 h-4 shrink-0 -mt-0.5" />
-              <span>Similarity</span>
-            </div>
-            <div className="text-3xl font-bold mt-2" style={{ color: appBlue }}>{similarityPercent.toFixed(1)}%</div>
-          </Card>
-          <Card className="p-4">
-            <div className="inline-flex items-center gap-2 text-gray-500 text-sm leading-none">
-              <Award className="w-4 h-4 shrink-0 -mt-0.5" />
-              <span>Speed Class</span>
-            </div>
-            <div className="text-2xl font-semibold mt-2" style={{ color: appGreen }}>{speedClass ?? '—'}</div>
-          </Card>
-          <Card className="p-4">
-            <div className="inline-flex items-center gap-2 text-gray-500 text-sm leading-none">
-              <Zap className="w-4 h-4 shrink-0 -mt-0.5" />
-              <span>Confidence</span>
-            </div>
-            <div className="text-3xl font-bold mt-2" style={{ color: appGreen }}>{confidencePercent}%</div>
-          </Card>
+      <div style={{ padding: '24px 32px' }}>
+        {/* Summary Grid - Using Table Layout for PDF Stability */}
+        <div style={{ marginBottom: '48px' }}>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '8px' }}>
+            <tbody>
+              <tr>
+                <td style={{ width: '50%', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white', verticalAlign: 'top' }}>
+                  <div style={{ display: 'block', color: '#6b7280', fontSize: '14px', lineHeight: '20px', marginBottom: '8px', whiteSpace: 'nowrap' }}>
+                    Predicted Speed
+                  </div>
+                  <div style={{ fontSize: '30px', fontWeight: 'bold', lineHeight: '36px', color: appBlue }}>{kmh.toFixed(2)} km/h</div>
+                </td>
+                <td style={{ width: '50%', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white', verticalAlign: 'top' }}>
+                  <div style={{ display: 'block', color: '#6b7280', fontSize: '14px', lineHeight: '20px', marginBottom: '8px', whiteSpace: 'nowrap' }}>
+                    Similarity
+                  </div>
+                  <div style={{ fontSize: '30px', fontWeight: 'bold', lineHeight: '36px', color: appBlue }}>{similarityPercent.toFixed(1)}%</div>
+                </td>
+              </tr>
+              <tr>
+                <td style={{ width: '50%', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white', verticalAlign: 'top' }}>
+                  <div style={{ display: 'block', color: '#6b7280', fontSize: '14px', lineHeight: '20px', marginBottom: '8px', whiteSpace: 'nowrap' }}>
+                    Speed Class
+                  </div>
+                  <div style={{ fontSize: '24px', fontWeight: '600', lineHeight: '32px', color: appGreen }}>{speedClass ?? '—'}</div>
+                </td>
+                <td style={{ width: '50%', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white', verticalAlign: 'top' }}>
+                  <div style={{ display: 'block', color: '#6b7280', fontSize: '14px', lineHeight: '20px', marginBottom: '8px', whiteSpace: 'nowrap' }}>
+                    Confidence
+                  </div>
+                  <div style={{ fontSize: '30px', fontWeight: 'bold', lineHeight: '36px', color: appGreen }}>{confidencePercent}%</div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {/* Phase Comparison */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Phase Comparison</h2>
-          <div className="space-y-3">
+        <div style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '600', lineHeight: '28px', marginBottom: '12px' }}>Phase Comparison</h2>
+          <div style={{ display: 'block' }}>
             {[
               { label: 'Run-up', val: runUp },
               { label: 'Delivery', val: delivery },
               { label: 'Follow-through', val: followThrough },
             ].map((item) => (
-              <div key={item.label}>
-                <div className="flex justify-between text-sm mb-1"><span>{item.label}</span><span>{item.val}%</span></div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${item.val}%`, background: appBlue }} />
+              <div key={item.label} style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', lineHeight: '20px', marginBottom: '4px' }}>
+                  <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                  <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{item.val}%</span>
+                </div>
+                <div style={{ height: '8px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden', width: '100%' }}>
+                  <div style={{ height: '100%', borderRadius: '9999px', width: `${item.val}%`, background: appBlue }} />
                 </div>
               </div>
             ))}
@@ -113,39 +120,57 @@ export default function ReportPreview({ kmh, similarityPercent, speedClass, conf
         </div>
 
         {/* Technical Metrics */}
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Technical Metrics</h2>
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              { label: 'Arm Swing Similarity', val: arm },
-              { label: 'Body Movement Similarity', val: body },
-              { label: 'Rhythm Similarity', val: rhythm },
-              { label: 'Release Point Accuracy', val: release },
-            ].map((item) => (
-              <Card key={item.label} className="p-4">
-                <div className="flex justify-between text-sm mb-2"><span>{item.label}</span><span>{item.val}%</span></div>
-                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${item.val}%`, background: appGreen }} />
-                </div>
-              </Card>
-            ))}
-          </div>
+        <div style={{ marginBottom: '48px' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '600', lineHeight: '28px', marginBottom: '12px' }}>Technical Metrics</h2>
+          <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: '8px' }}>
+            <tbody>
+              <tr>
+                {[
+                  { label: 'Arm Swing Similarity', val: arm },
+                  { label: 'Body Movement Similarity', val: body },
+                ].map((item) => (
+                  <td key={item.label} style={{ width: '50%', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white', verticalAlign: 'top' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', lineHeight: '20px', marginBottom: '8px' }}>
+                      <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                      <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{item.val}%</span>
+                    </div>
+                    <div style={{ height: '8px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden', width: '100%' }}>
+                      <div style={{ height: '100%', borderRadius: '9999px', width: `${item.val}%`, background: appGreen }} />
+                    </div>
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                {[
+                  { label: 'Rhythm Similarity', val: rhythm },
+                  { label: 'Release Point Accuracy', val: release },
+                ].map((item) => (
+                  <td key={item.label} style={{ width: '50%', padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white', verticalAlign: 'top' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', lineHeight: '20px', marginBottom: '8px' }}>
+                      <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>
+                      <span style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>{item.val}%</span>
+                    </div>
+                    <div style={{ height: '8px', backgroundColor: '#e5e7eb', borderRadius: '9999px', overflow: 'hidden', width: '100%' }}>
+                      <div style={{ height: '100%', borderRadius: '9999px', width: `${item.val}%`, background: appGreen }} />
+                    </div>
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         {/* Recommendations */}
         {details?.recommendations && details.recommendations.length > 0 && (
-          <div>
-            <div className="inline-flex items-center gap-2 mb-3 leading-none">
-              <Target className="w-5 h-5 shrink-0 -mt-0.5" />
-              <h2 className="text-lg font-semibold">Recommendations</h2>
-            </div>
-            <Card className="p-4">
-              <ul className="list-disc list-inside text-sm space-y-1">
+          <div style={{ marginBottom: '24px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', lineHeight: '28px', marginBottom: '12px' }}>Recommendations</h2>
+            <div style={{ padding: '16px', border: '1px solid #e5e7eb', borderRadius: '8px', backgroundColor: 'white' }}>
+              <ul style={{ listStyleType: 'disc', listStylePosition: 'inside', fontSize: '14px', lineHeight: '20px', margin: 0, padding: 0 }}>
                 {details.recommendations.map((r, i) => (
-                  <li key={i}>{r}</li>
+                  <li key={i} style={{ marginBottom: i < details.recommendations!.length - 1 ? '4px' : 0 }}>{r}</li>
                 ))}
               </ul>
-            </Card>
+            </div>
           </div>
         )}
       </div>

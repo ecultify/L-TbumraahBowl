@@ -105,10 +105,10 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           alt="Generated Cricket Player Torso"
           style={{
             position: "absolute",
-            top: `${115 * scale}px`,
-            right: `${25 * scale}px`,
-            width: `${200 * scale}px`,
-            height: `${250 * scale}px`,
+            top: `${95 * scale}px`,
+            right: `${15 * scale}px`,
+            width: `${260 * scale}px`,
+            height: `${320 * scale}px`,
             display: "block",
             zIndex: 1.5,
             objectFit: "cover",
