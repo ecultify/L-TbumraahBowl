@@ -6,6 +6,7 @@ import { useAnalysis } from '@/context/AnalysisContext';
 import { intensityToKmh, classifySpeed } from '@/lib/utils/normalize';
 import { NoBowlingActionModal } from '@/components/NoBowlingActionModal';
 import { CompositeCard } from '@/components/CompositeCard';
+import { GlassBackButton } from '@/components/GlassBackButton';
 import html2canvas from 'html2canvas';
 
 export default function SimplifiedAnalyzePage() {
@@ -376,46 +377,7 @@ export default function SimplifiedAnalyzePage() {
               }}
             >
               {/* Universal Back Arrow Box - Top Left */}
-              <div
-                onClick={() => {
-                  console.log('⬅️ Back button clicked - going to video-preview...');
-                  window.location.href = '/video-preview';
-                }}
-                style={{
-                  position: "absolute",
-                  top: "10px",
-                  left: "10px",
-                  width: "30px",
-                  height: "30px",
-                  border: "1px solid white",
-                  borderRadius: "4px",
-                  backgroundColor: "rgba(0,0,0,0.1)",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  zIndex: 10,
-                  transition: "all 0.2s ease"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.2)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.1)";
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path 
-                    d="M15 18L9 12L15 6" 
-                    stroke="white" 
-                    strokeWidth="2" 
-                    strokeLinecap="round" 
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
+              <GlassBackButton />
               
               {/* Headline */}
               <div className="mb-3 text-center">

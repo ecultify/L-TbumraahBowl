@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { getFaceDetectionService, storeCroppedHeadImage } from '@/lib/utils/faceDetection';
 import { getGeminiTorsoService, storeGeneratedTorsoImage } from '@/lib/utils/geminiService';
+import { GlassBackButton } from '@/components/GlassBackButton';
 
 export default function VideoPreviewPage() {
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -292,13 +293,13 @@ export default function VideoPreviewPage() {
     }
   }, [videoUrl]);
 
-  // Auto-trigger face detection when video is loaded and ready
+  // Auto-trigger face detection when video is loaded and ready (background process)
   useEffect(() => {
     if (videoRef.current && videoUrl && !isFaceDetectionRunning && !hasAnalysisData) {
-      // Auto-start face detection after video loads
+      // Auto-start face detection after video loads (runs in background)
       const video = videoRef.current;
       const handleLoadedData = () => {
-        console.log('🎯 Video loaded, auto-starting face detection...');
+        console.log('🎯 Video loaded, auto-starting background face detection...');
         setTimeout(() => {
           detectFaceAndGenerateTorso();
         }, 1000); // Wait 1 second for video to stabilize
@@ -600,14 +601,11 @@ export default function VideoPreviewPage() {
                       {/* Continue to Details Page */}
                       <button
                         onClick={() => {
-                          if (!isFaceDetectionRunning) {
-                            window.location.href = '/details';
-                          }
+                          window.location.href = '/details';
                         }}
-                        disabled={isFaceDetectionRunning}
-                        className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                         style={{
-                          backgroundColor: isFaceDetectionRunning ? '#cccccc' : '#FFCA04',
+                          backgroundColor: '#FFCA04',
                           borderRadius: '16px',
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: '700',
@@ -616,10 +614,10 @@ export default function VideoPreviewPage() {
                           height: '36px',
                           border: 'none',
                           padding: '0 12px',
-                          cursor: isFaceDetectionRunning ? 'not-allowed' : 'pointer'
+                          cursor: 'pointer'
                         }}
                       >
-                        {isFaceDetectionRunning ? 'Processing...' : 'Continue'}
+                        Continue
                       </button>
                     </div>
                   </div>
@@ -710,52 +708,7 @@ export default function VideoPreviewPage() {
                 }}
               >
                 {/* Universal Back Arrow Box - Top Left */}
-                <div
-                  onClick={() => {
-                    // Don't allow back navigation during analysis
-                    if (!state.isAnalyzing) {
-                      window.history.back();
-                    }
-                  }}
-                  style={{
-                    position: "absolute",
-                    top: "10px",
-                    left: "10px",
-                    width: "30px",
-                    height: "30px",
-                    border: "1px solid white",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(0,0,0,0.1)",
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: state.isAnalyzing ? "not-allowed" : "pointer",
-                    opacity: state.isAnalyzing ? 0.5 : 1,
-                    zIndex: 10,
-                    transition: "all 0.2s ease"
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!state.isAnalyzing) {
-                      e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.2)";
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.1)";
-                  }}
-                >
-                  {/* Left Arrow Icon (without stem) - Even Bigger */}
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M15 18L9 12L15 6"
-                      stroke="white"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
+                <GlassBackButton />
                 {/* Preview Your Delivery headline */}
                 <div className="mb-6 text-center">
                   <div className="flex justify-center mb-3">
@@ -764,7 +717,8 @@ export default function VideoPreviewPage() {
                       alt="Preview Your Delivery"
                       style={{
                         maxWidth: "250px",
-                        height: "auto"
+                        height: "auto",
+                        marginLeft: "10px"
                       }}
                     />
                   </div>
@@ -889,14 +843,11 @@ export default function VideoPreviewPage() {
                   {/* Continue to Details Page */}
                   <button
                     onClick={() => {
-                      if (!isFaceDetectionRunning) {
-                        window.location.href = '/details';
-                      }
+                      window.location.href = '/details';
                     }}
-                    disabled={isFaceDetectionRunning}
-                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                     style={{
-                      backgroundColor: isFaceDetectionRunning ? '#cccccc' : '#FFCA04',
+                      backgroundColor: '#FFCA04',
                       borderRadius: '20px',
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: '700',
@@ -906,10 +857,10 @@ export default function VideoPreviewPage() {
                       height: '36px',
                       border: 'none',
                       padding: '0 16px',
-                      cursor: isFaceDetectionRunning ? 'not-allowed' : 'pointer'
+                      cursor: 'pointer'
                     }}
                   >
-                    {isFaceDetectionRunning ? 'Processing...' : 'Continue'}
+                    Continue
                   </button>
                 </div>
               </div>

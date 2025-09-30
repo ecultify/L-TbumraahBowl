@@ -611,15 +611,13 @@ export default function Home() {
                   )}
                   {n === 2 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
-                      Get a personalised Analysis of your speed and style with Bumrah
+                      Get a personalized Analysis Matched With Bumrah
                     </div>
                   )}
                   {n === 3 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
-                      <div style={{ fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2 }}>Share your analysis with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span> tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>,</div>
-                      <div style={{ fontSize: 'clamp(12px, 3vw, 15px)', lineHeight: 1.2 }}>
-                        &amp; follow us to secure your spot on the leaderboard!
-                      </div>
+                      <div style={{ fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2 }}>Share your analysis Report
+                      tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span> tag on Instagram</div>
                     </div>
                   )}
                 </div>
@@ -1075,7 +1073,7 @@ export default function Home() {
       </div>
 
       {/* Responsive Video Section - Watch How Speed Works */}
-      <div className="md:hidden w-full relative" style={{ minHeight: 700, marginTop: -20 }}>
+      <div className="md:hidden w-full relative" style={{ minHeight: 700, marginTop: -40 }}>
         {/* Vector 13 background */}
         <div 
           className="absolute inset-0 z-0"
@@ -1459,7 +1457,7 @@ export default function Home() {
                 lineHeight: '1.4'
               }}
             >
-              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
+              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
             </p>
           </div>
           
@@ -1923,7 +1921,7 @@ export default function Home() {
                   lineHeight: '1.4'
                 }}
               >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a> | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
               </p>
             </div>
             

@@ -612,8 +612,8 @@ export class BenchmarkComparisonAnalyzer {
 
     let validFrameCount = 0;
     let framesWithFullBody = 0;
-    const FULL_BODY_THRESHOLD = 0.3; // Lowered from 60% to 30% to be more permissive
-    const MIN_CONFIDENCE = 0.3;       // Lowered from 0.4 to 0.3 to be more permissive
+    const FULL_BODY_THRESHOLD = 0.5; // Require 50% of frames to have full body
+    const MIN_CONFIDENCE = 0.3;      // Keypoint confidence threshold
 
     // Analyze frames for consistent full body keypoint detection
     for (const frameData of this.inputPattern.keypoints) {
@@ -646,17 +646,17 @@ export class BenchmarkComparisonAnalyzer {
       
       // === UPPER BODY REQUIREMENTS ===
       const hasShoulders = leftShoulder || rightShoulder;
-      const hasArms = (leftElbow || rightElbow) || (leftWrist || rightWrist); // Changed AND to OR
-      const hasUpperBody = hasShoulders || hasArms; // Changed AND to OR
+      const hasArms = (leftElbow || rightElbow) || (leftWrist || rightWrist);
+      const hasUpperBody = hasShoulders && hasArms; // Require BOTH shoulders AND arms
       
       // === LOWER BODY REQUIREMENTS ===
       const hasHips = leftHip || rightHip;
-      const hasLegs = (leftKnee || rightKnee) || (leftAnkle || rightAnkle); // Changed AND to OR
-      const hasLowerBody = hasHips || hasLegs; // Changed AND to OR
+      const hasLegs = (leftKnee || rightKnee) || (leftAnkle || rightAnkle);
+      const hasLowerBody = hasHips && hasLegs; // Require BOTH hips AND legs
       
       // === FULL BODY CHECK === 
-      // Only require upper body OR lower body detection, not both
-      if (hasUpperBody || hasLowerBody) {
+      // REQUIRE BOTH upper body AND lower body for valid bowling action detection
+      if (hasUpperBody && hasLowerBody) {
         framesWithFullBody++;
       }
     }
@@ -668,7 +668,16 @@ export class BenchmarkComparisonAnalyzer {
     const fullBodyRatio = framesWithFullBody / validFrameCount;
     const hasRequiredFullBody = fullBodyRatio >= FULL_BODY_THRESHOLD;
     
-    console.log(`Full body keypoint analysis: ${framesWithFullBody}/${validFrameCount} frames have complete body (${(fullBodyRatio * 100).toFixed(1)}%), threshold: ${(FULL_BODY_THRESHOLD * 100).toFixed(1)}%`);
+    console.log(`📊 Full body keypoint analysis:`);
+    console.log(`   - Frames with BOTH upper AND lower body: ${framesWithFullBody}/${validFrameCount}`);
+    console.log(`   - Full body detection ratio: ${(fullBodyRatio * 100).toFixed(1)}%`);
+    console.log(`   - Required threshold: ${(FULL_BODY_THRESHOLD * 100).toFixed(1)}%`);
+    console.log(`   - Result: ${hasRequiredFullBody ? '✅ PASSED' : '❌ FAILED'}`);
+    
+    if (!hasRequiredFullBody) {
+      console.log(`⚠️ Missing lower body keypoints (hips, knees, ankles) in most frames`);
+      console.log(`   This will trigger "No Bowling Action" modal`);
+    }
     
     return hasRequiredFullBody;
   }
@@ -739,13 +748,14 @@ export class BenchmarkComparisonAnalyzer {
       return 0;
     }
 
-    // Check for required full body keypoints - temporarily made more permissive for debugging
+    // Check for required full body keypoints (BOTH upper and lower body)
     const hasRequiredFullBodyKeypoints = this.checkRequiredFullBodyKeypoints();
     if (!hasRequiredFullBodyKeypoints) {
-      console.log('⚠️ Full body keypoints check failed, but proceeding with analysis anyway for debugging');
-      // Continue with analysis instead of returning 0
+      console.log('❌ Full body keypoints check FAILED - missing lower body or upper body keypoints');
+      console.log('🚫 No valid bowling action detected - returning 0 intensity');
+      return 0; // This will trigger "No Bowling Action" modal
     } else {
-      console.log('✅ Full body keypoints check passed');
+      console.log('✅ Full body keypoints check passed - both upper and lower body detected');
     }
 
     // Check for minimum movement threshold to filter out static videos
