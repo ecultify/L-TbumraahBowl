@@ -600,7 +600,41 @@ export default function VideoPreviewPage() {
 
                       {/* Continue to Details Page */}
                       <button
-                        onClick={() => {
+                        onClick={async () => {
+                          // Ensure video data is properly stored before navigation
+                          if (videoUrl && typeof window !== 'undefined') {
+                            try {
+                              // Store current video URL in sessionStorage for details page
+                              sessionStorage.setItem('uploadedVideoUrl', videoUrl);
+                              
+                              // Store other video metadata
+                              if (fileName) sessionStorage.setItem('uploadedFileName', fileName);
+                              if (videoSource) sessionStorage.setItem('uploadedSource', videoSource);
+                              if (mimeType) sessionStorage.setItem('uploadedMimeType', mimeType);
+                              
+                              // Also store the video as base64 for more reliable persistence
+                              if (videoRef.current) {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                if (ctx) {
+                                  canvas.width = videoRef.current.videoWidth || 640;
+                                  canvas.height = videoRef.current.videoHeight || 480;
+                                  ctx.drawImage(videoRef.current, 0, 0);
+                                  const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                                  sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
+                                }
+                              }
+                              
+                              // Store temp file reference if available
+                              if ((window as any).tempVideoFile) {
+                                sessionStorage.setItem('uploadedVideoData', 'file-reference-available');
+                              }
+                              
+                              console.log('✅ Video data stored before navigation to details page');
+                            } catch (error) {
+                              console.error('❌ Error storing video data:', error);
+                            }
+                          }
                           window.location.href = '/details';
                         }}
                         className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
@@ -842,7 +876,41 @@ export default function VideoPreviewPage() {
 
                   {/* Continue to Details Page */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      // Ensure video data is properly stored before navigation
+                      if (videoUrl && typeof window !== 'undefined') {
+                        try {
+                          // Store current video URL in sessionStorage for details page
+                          sessionStorage.setItem('uploadedVideoUrl', videoUrl);
+                          
+                          // Store other video metadata
+                          if (fileName) sessionStorage.setItem('uploadedFileName', fileName);
+                          if (videoSource) sessionStorage.setItem('uploadedSource', videoSource);
+                          if (mimeType) sessionStorage.setItem('uploadedMimeType', mimeType);
+                          
+                          // Also store the video as base64 for more reliable persistence
+                          if (videoRef.current) {
+                            const canvas = document.createElement('canvas');
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                              canvas.width = videoRef.current.videoWidth || 640;
+                              canvas.height = videoRef.current.videoHeight || 480;
+                              ctx.drawImage(videoRef.current, 0, 0);
+                              const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                              sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
+                            }
+                          }
+                          
+                          // Store temp file reference if available
+                          if ((window as any).tempVideoFile) {
+                            sessionStorage.setItem('uploadedVideoData', 'file-reference-available');
+                          }
+                          
+                          console.log('✅ Video data stored before navigation to details page');
+                        } catch (error) {
+                          console.error('❌ Error storing video data:', error);
+                        }
+                      }
                       window.location.href = '/details';
                     }}
                     className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"

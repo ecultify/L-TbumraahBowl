@@ -146,11 +146,24 @@ export default function DetailsPage() {
         sessionStorageKeys: Object.keys(sessionStorage)
       });
       
-      // Show user-friendly error message
-      if (typeof window !== 'undefined') {
-        const shouldRetry = confirm('Video data was lost during navigation. Would you like to upload your video again?');
-        if (shouldRetry) {
-          window.location.href = '/record-upload';
+      // Try one more fallback - check if there's a video thumbnail stored
+      const videoThumbnail = sessionStorage.getItem('videoThumbnail');
+      if (videoThumbnail) {
+        console.log('🔄 Found video thumbnail, attempting to use as fallback...');
+        // For now, just show a message that video was found but needs to be re-uploaded
+        if (typeof window !== 'undefined') {
+          const shouldRetry = confirm('Video data was lost during navigation, but we found a thumbnail. Would you like to upload your video again?');
+          if (shouldRetry) {
+            window.location.href = '/record-upload';
+          }
+        }
+      } else {
+        // Show user-friendly error message
+        if (typeof window !== 'undefined') {
+          const shouldRetry = confirm('Video data was lost during navigation. Would you like to upload your video again?');
+          if (shouldRetry) {
+            window.location.href = '/record-upload';
+          }
         }
       }
     };
