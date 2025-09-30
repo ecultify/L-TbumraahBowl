@@ -450,8 +450,9 @@ export class FaceDetectionService {
       try {
         console.log('🎯 Using MediaPipe Face Detection...');
         
-        // Dynamic import to avoid build issues
+        // Dynamic import to avoid build issues - import both FaceDetection and Camera
         const { FaceDetection } = await import('@mediapipe/face_detection');
+        const { Camera } = await import('@mediapipe/camera_utils');
         
         const faceDetection = new FaceDetection({
           locateFile: (file) => {
@@ -461,14 +462,15 @@ export class FaceDetectionService {
 
         // Enhanced settings for sports videos with distant faces
         faceDetection.setOptions({
-          model: 'full', // Use full model for better accuracy
+          model: 'short', // Use short model first for better compatibility
           minDetectionConfidence: 0.3, // Lower threshold for distant faces
         });
 
         console.log('✅ MediaPipe Face Detection model configured');
 
-        const detectedFaces: DetectedFace[] = [];
+        let detectedFaces: DetectedFace[] = [];
         let mediaScriptResolved = false;
+        let detectionResults: DetectedFace[] = [];
 
         faceDetection.onResults((results) => {
           if (results.detections && results.detections.length > 0) {
@@ -484,7 +486,7 @@ export class FaceDetectionService {
                   height: bbox.height * video.videoHeight,
                   confidence: (detection as any).score?.[0] || 0.8
                 };
-                detectedFaces.push(face);
+                detectionResults.push(face);
                 console.log(`MediaPipe Face ${index + 1}:`, face);
               }
             });
@@ -510,9 +512,9 @@ export class FaceDetectionService {
               const checkResults = () => {
                 if (mediaScriptResolved) {
                   clearTimeout(timeout);
-                  if (detectedFaces.length > 0) {
-                    console.log('✅ MediaPipe detection successful:', detectedFaces);
-                    resolve({ faces: detectedFaces, frameData });
+                  if (detectionResults.length > 0) {
+                    console.log('✅ MediaPipe detection successful:', detectionResults);
+                    resolve({ faces: detectionResults, frameData });
                   } else {
                     reject(new Error('No faces detected by MediaPipe'));
                   }

@@ -7,6 +7,7 @@ import { useAnalysis } from '@/context/AnalysisContext';
 import { getFaceDetectionService, storeCroppedHeadImage } from '@/lib/utils/faceDetection';
 import { getGeminiTorsoService, storeGeneratedTorsoImage } from '@/lib/utils/geminiService';
 import { GlassBackButton } from '@/components/GlassBackButton';
+import { ProcessingModal } from '@/components/ProcessingModal';
 
 export default function VideoPreviewPage() {
   const router = useRouter();
@@ -318,15 +319,22 @@ export default function VideoPreviewPage() {
   }, [videoUrl, detectFaceAndGenerateTorso, isFaceDetectionRunning, hasAnalysisData]);
 
   return (
-    <div
-      className="min-h-screen flex flex-col relative"
-      style={{
-        backgroundImage: "url(/images/instructions/Instructions%20bg.jpg)",
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundRepeat: "no-repeat",
-      }}
-    >
+    <>
+      {/* Processing Modal */}
+      <ProcessingModal 
+        isOpen={isFaceDetectionRunning} 
+        message="Finding the best frame from your video." 
+      />
+      
+      <div
+        className="min-h-screen flex flex-col relative"
+        style={{
+          backgroundImage: "url(/images/instructions/Instructions%20bg.jpg)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
       {/* Desktop Layout */}
       <div className="hidden md:flex flex-col" style={{
         minHeight: "100vh",
@@ -969,5 +977,6 @@ export default function VideoPreviewPage() {
         </footer>
       </div>
     </div>
+    </>
   );
 }
