@@ -88,7 +88,7 @@ export class BenchmarkComparisonAnalyzer {
 
   async loadBenchmarkPattern(): Promise<boolean> {
     try {
-      console.log('Loading benchmark pattern...');
+      console.log('Loading benchmark pattern from /benchmarkPattern.json...');
       
       // Initialize TensorFlow and pose detector
       try {
@@ -136,102 +136,28 @@ export class BenchmarkComparisonAnalyzer {
         }
       } catch {}
 
-      // Prefer single benchmark pattern for consistency
-      try {
-        const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
-        if (res.ok) {
-          const data = await res.json() as SerializedPattern;
-          this.benchmarkPattern = this.deserializePattern(data);
-          this.isInitialized = true;
-          console.log('Loaded single benchmark pattern from /benchmarkPattern.json');
-          return true;
-        }
-      } catch (e) {
-        console.warn('No public benchmarkPattern.json found or failed to load', e);
+      // ONLY USE /benchmarkPattern.json - NO FALLBACKS
+      const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
+      if (!res.ok) {
+        console.error('❌ Failed to load /benchmarkPattern.json - status:', res.status);
+        throw new Error(`Failed to load benchmark pattern: HTTP ${res.status}`);
       }
 
-      // Fallback to multi-reference benchmarks if single pattern not found
-      try {
-        const idxRes = await fetch('/benchmarks/index.json', { cache: 'force-cache' });
-        if (idxRes.ok) {
-          const list: string[] = await idxRes.json();
-          const loaded: BowlingActionPattern[] = [];
-          for (const name of list) {
-            try {
-              const pr = await fetch(`/benchmarks/${name}`, { cache: 'force-cache' });
-              if (pr.ok) {
-                const pd = await pr.json() as SerializedPattern;
-                loaded.push(this.deserializePattern(pd));
-              }
-            } catch {}
-          }
-          if (loaded.length > 0) {
-            this.benchmarkPatterns = loaded;
-            this.benchmarkPattern = loaded[0];
-            this.isInitialized = true;
-            console.log(`Loaded ${loaded.length} benchmark patterns from /benchmarks as fallback`);
-            return true;
-          }
-        }
-      } catch (e) {
-        console.warn('No multi-reference benchmarks found', e);
-      }
-
-      // Finally, try cached pattern in localStorage
-      const LOCAL_KEY = 'benchmarkPattern.v2';
-      try {
-        const cached = typeof window !== 'undefined' ? window.localStorage.getItem(LOCAL_KEY) : null;
-        if (cached) {
-          const parsed = JSON.parse(cached) as SerializedPattern;
-          this.benchmarkPattern = this.deserializePattern(parsed);
-          this.isInitialized = true;
-          console.log('Loaded benchmark pattern from localStorage');
-          return true;
-        }
-      } catch (e) {
-        console.warn('No valid cached pattern in localStorage', e);
-      }
-
-      // Load and analyze benchmark video
-      const video = document.createElement('video');
-      video.crossOrigin = 'anonymous';
-      video.muted = true;
-      
-      return new Promise((resolve) => {
-        video.addEventListener('loadeddata', async () => {
-          try {
-            console.log('Benchmark video loaded, extracting pattern...');
-            this.benchmarkPattern = await this.extractPatternFromVideo(video);
-            this.isInitialized = this.benchmarkPattern !== null;
-            console.log('Benchmark pattern extracted:', this.isInitialized);
-            // Cache a lightweight version for future runs
-            try {
-              if (this.benchmarkPattern) {
-                const serialized = this.serializePattern(this.benchmarkPattern);
-                if (typeof window !== 'undefined') {
-                  window.localStorage.setItem(LOCAL_KEY, JSON.stringify(serialized));
-                }
-              }
-            } catch (e) {
-              console.warn('Failed to cache benchmark pattern', e);
-            }
-            resolve(this.isInitialized);
-          } catch (error) {
-            console.error('Failed to extract benchmark pattern:', error);
-            resolve(false);
-          }
-        });
-        
-        video.addEventListener('error', (e) => {
-          console.error('Failed to load benchmark video:', e);
-          resolve(false);
-        });
-
-        // Use the benchmark video URL
-        video.src = 'https://ik.imagekit.io/qm7ltbkkk/bumrah%20bowling%20action.mp4?updatedAt=1756728336742';
+      const data = await res.json() as SerializedPattern;
+      this.benchmarkPattern = this.deserializePattern(data);
+      this.isInitialized = true;
+      console.log('✅ Successfully loaded benchmark pattern from /benchmarkPattern.json');
+      console.log('📊 Benchmark pattern data:', {
+        armSwingVelocities: this.benchmarkPattern.armSwingVelocities.length,
+        bodyMovementVelocities: this.benchmarkPattern.bodyMovementVelocities.length,
+        overallIntensities: this.benchmarkPattern.overallIntensities.length,
+        releasePointFrame: this.benchmarkPattern.releasePointFrame
       });
+      
+      return true;
     } catch (error) {
-      console.error('Error initializing benchmark analyzer:', error);
+      console.error('❌ Error loading benchmark pattern from /benchmarkPattern.json:', error);
+      this.isInitialized = false;
       return false;
     }
   }
