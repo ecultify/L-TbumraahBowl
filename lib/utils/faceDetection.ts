@@ -460,15 +460,14 @@ export class FaceDetectionService {
           }
         });
 
-        // Enhanced settings for sports videos with distant faces
+        // Enhanced settings for sports videos with distant faces - EXACT match to test-faceswap
         faceDetection.setOptions({
-          model: 'short', // Use short model first for better compatibility
+          model: 'full', // Use full model for better accuracy (same as test-faceswap)
           minDetectionConfidence: 0.3, // Lower threshold for distant faces
         });
 
         console.log('✅ MediaPipe Face Detection model configured');
 
-        let detectedFaces: DetectedFace[] = [];
         let mediaScriptResolved = false;
         let detectionResults: DetectedFace[] = [];
 
@@ -502,7 +501,7 @@ export class FaceDetectionService {
             if (!mediaScriptResolved) {
               reject(new Error('MediaPipe detection timeout'));
             }
-          }, 8000); // Timeout for processing
+          }, 8000); // Longer timeout for full model
 
           img.onload = async () => {
             try {
@@ -524,6 +523,7 @@ export class FaceDetectionService {
                 }
               };
               
+              // Start checking for results
               setTimeout(checkResults, 100);
               
             } catch (error) {
