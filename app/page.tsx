@@ -179,7 +179,7 @@ export default function Home() {
             >
               <div style={{ transform: 'rotate(-0.5deg)', transformOrigin: 'center', display: 'flex', justifyContent: 'center', marginTop: '-15px' }}>
                 <img
-                  src="/images/newhomepage/bolw like me.png"
+                  src="/images/newhomepage/bowllikebumraah.png"
                   alt="Bowl Like Me and Get a Chance to Meet Me"
                   style={{
                     width: 'auto',
@@ -200,7 +200,7 @@ export default function Home() {
                 style={{
                   position: 'absolute',
                   left: '50%',
-                  bottom: 0,
+                  bottom: '-1px', // slight negative value to ensure it sticks to bottom
                   transform: 'translateX(-50%)',
                   height: '100%', // fill height to eliminate any bottom gap
                   width: 'auto',
@@ -246,7 +246,7 @@ export default function Home() {
                 marginTop: -15 // reduced from -10 for closer spacing
               }}
             >
-              Bumrah's signed gear & voucher
+              Bumrah's signed gears & voucher
             </div>
           </div>
         </div>
@@ -498,14 +498,15 @@ export default function Home() {
       {/* Responsive Analysis Steps Section */}
       <div className="md:hidden w-full px-4 py-12" ref={secondSection.ref} style={{ marginTop: 80, paddingBottom: 'calc(3rem + 60px)' }}>
         {/* Section Title */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-4">
           {/* Take challenge image */}
-          <div className={`mb-4 animate-fadeInUp ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
+          <div className={`mb-2 animate-fadeInUp ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <img 
               src="/images/newhomepage/takechallenge.png" 
               alt="Take Challenge" 
               className="w-auto h-auto mx-auto"
               style={{ maxHeight: '50px' }}
+              loading="eager"
             />
           </div>
         </div>
@@ -521,7 +522,7 @@ export default function Home() {
               width: '64.78px',
               height: '55.22px',
               top: '32px',
-              left: '-85px',
+              left: '-45px',
               opacity: 0.5
             }}
           />
@@ -534,7 +535,7 @@ export default function Home() {
             style={{
               width: '81.81px',
               height: '69.73px',
-              right: '-80px',
+              right: '-40px',
               opacity: 0.5
             }}
           />
@@ -629,7 +630,7 @@ export default function Home() {
         </div>
 
         {/* Wall of Fame Image */}
-        <div className="mx-auto mb-6 flex justify-center">
+        <div className="mx-auto mb-2 flex justify-center">
           <img
             src="/images/newhomepage/walloffame.png"
             alt="Wall of Fame"
@@ -1074,7 +1075,7 @@ export default function Home() {
       </div>
 
       {/* Responsive Video Section - Watch How Speed Works */}
-      <div className="md:hidden w-full relative" style={{ minHeight: 700, marginTop: 0 }}>
+      <div className="md:hidden w-full relative" style={{ minHeight: 700, marginTop: -20 }}>
         {/* Vector 13 background */}
         <div 
           className="absolute inset-0 z-0"

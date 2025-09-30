@@ -2,15 +2,9 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
-import { AnalysisLoader } from '@/components/AnalysisLoader';
-import { GlassBackButton } from '@/components/GlassBackButton';
-import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
-import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
-import { FrameSampler } from '@/lib/video/frameSampler';
+import { useAnalysis } from '@/context/AnalysisContext';
 import { getFaceDetectionService, storeCroppedHeadImage } from '@/lib/utils/faceDetection';
 import { getGeminiTorsoService, storeGeneratedTorsoImage } from '@/lib/utils/geminiService';
-import { classifySpeed, intensityToKmh } from '@/lib/utils/normalize';
 
 export default function VideoPreviewPage() {
   const [videoUrl, setVideoUrl] = useState<string>('');
@@ -22,11 +16,8 @@ export default function VideoPreviewPage() {
   const [isPortraitVideo, setIsPortraitVideo] = useState(false);
   const [hasAnalysisData, setHasAnalysisData] = useState(false);
   const [isFaceDetectionRunning, setIsFaceDetectionRunning] = useState(false);
-  const { state, dispatch } = useAnalysis();
+  const { state } = useAnalysis();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const frameSamplerRef = useRef<FrameSampler | null>(null);
-  const poseAnalyzerRef = useRef<PoseBasedAnalyzer>(new PoseBasedAnalyzer());
-  const benchmarkAnalyzerRef = useRef<BenchmarkComparisonAnalyzer>(new BenchmarkComparisonAnalyzer());
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -198,17 +189,6 @@ export default function VideoPreviewPage() {
     };
   }, []);
 
-  // Handle navigation after analysis completion with a delay to show the loader
-  useEffect(() => {
-    if (!state.isAnalyzing && state.progress === 100 && (state.finalIntensity > 0 || state.speedClass === 'No Action')) {
-      console.log('🔄 Analysis completed - navigating to /analyze in 2 seconds...');
-      const timer = setTimeout(() => {
-        // Use replace instead of href to avoid back button issues
-        window.location.replace('/analyze');
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
-  }, [state.isAnalyzing, state.progress, state.finalIntensity, state.speedClass]);
 
   const handleVideoLoadedMetadata = (event: React.SyntheticEvent<HTMLVideoElement>) => {
     const video = event.currentTarget;
@@ -231,192 +211,6 @@ export default function VideoPreviewPage() {
       window.location.href = '/record-upload';
     }
   };
-
-  const startAnalysis = useCallback(async () => {
-    if (!videoRef.current || !videoUrl) {
-      console.error('No video available for analysis');
-      return;
-    }
-
-    dispatch({ type: 'START_ANALYSIS' });
-    dispatch({ type: 'SET_VIDEO', payload: videoUrl });
-
-    try {
-      console.log('Starting analysis with benchmark mode');
-
-      // Initialize benchmark analyzer
-      const initialized = await benchmarkAnalyzerRef.current.loadBenchmarkPattern();
-      if (!initialized) {
-        console.warn('Benchmark analyzer failed');
-        return;
-      }
-
-      const analyzer = benchmarkAnalyzerRef.current;
-      analyzer.reset();
-
-      // Start frame sampling
-      const intensities: FrameIntensity[] = [];
-      let frameCount = 0;
-      const totalFrames = Math.floor(videoRef.current.duration * 12); // Estimate frames
-      console.log(`Processing ${totalFrames} frames at 12 FPS`);
-
-      frameSamplerRef.current = new FrameSampler(
-        videoRef.current,
-        12, // 12 FPS
-        async (frame) => {
-          frameCount++;
-          const progress = Math.min((frameCount / totalFrames) * 100, 95);
-          dispatch({ type: 'UPDATE_PROGRESS', payload: progress });
-
-          const intensity = await analyzer.analyzeFrame(frame);
-
-          const frameIntensity: FrameIntensity = {
-            timestamp: frame.timestamp,
-            intensity
-          };
-
-          intensities.push(frameIntensity);
-          dispatch({ type: 'ADD_FRAME_INTENSITY', payload: frameIntensity });
-        }
-      );
-
-      // Reset video and start analysis
-      videoRef.current.currentTime = 0;
-      videoRef.current.play();
-      frameSamplerRef.current.start();
-
-      // Wait for video to finish
-      await new Promise<void>((resolve) => {
-        const video = videoRef.current!;
-        const handleEnded = () => {
-          video.removeEventListener('ended', handleEnded);
-          resolve();
-        };
-        video.addEventListener('ended', handleEnded);
-      });
-
-      // Complete analysis
-      if (frameSamplerRef.current) {
-        frameSamplerRef.current.stop();
-      }
-
-      // Calculate final results
-      const rawFinalIntensity = analyzer.getFinalIntensity();
-      const finalIntensity = Math.max(0, Math.min(100, rawFinalIntensity));
-      const speedResult = classifySpeed(finalIntensity);
-
-      // Check if no bowling action was detected
-      if (finalIntensity === 0) {
-        console.log('🚫 No bowling action detected');
-        // Store a flag indicating no bowling action was detected
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.setItem('noBowlingActionDetected', 'true');
-        }
-
-        dispatch({
-          type: 'COMPLETE_ANALYSIS',
-          payload: {
-            finalIntensity: 0,
-            speedClass: 'No Action',
-            confidence: 0,
-          }
-        });
-
-        // Don't navigate here - let the useEffect handle navigation after showing the loader
-        return;
-      }
-
-      // Get detailed analysis data
-      console.log('📊 Getting detailed analysis data in video-preview...');
-      const detailedAnalysis = analyzer.getDetailedAnalysis();
-      console.log('📊 Detailed analysis retrieved:', detailedAnalysis);
-
-      // Store detailed analysis in sessionStorage immediately
-      if (detailedAnalysis && typeof window !== 'undefined') {
-        try {
-          window.sessionStorage.setItem('benchmarkDetailedData', JSON.stringify(detailedAnalysis));
-          console.log('✅ Stored detailed analysis in sessionStorage');
-
-          // Get player name from sessionStorage
-          const storedPlayerName = window.sessionStorage.getItem('playerName');
-
-          // Also store in the more comprehensive format
-          const analysisVideoData = {
-            intensity: finalIntensity,
-            speedClass: speedResult.speedClass,
-            kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
-            similarity: finalIntensity,
-            frameIntensities: intensities.map(({ timestamp, intensity }) => ({
-              timestamp: Number(timestamp.toFixed(3)),
-              intensity: Number(intensity.toFixed(3)),
-            })),
-            phases: {
-              runUp: detailedAnalysis.runUp ? Math.round(parseFloat(String(detailedAnalysis.runUp)) * 100) : 83,
-              delivery: detailedAnalysis.delivery ? Math.round(parseFloat(String(detailedAnalysis.delivery)) * 100) : 86,
-              followThrough: detailedAnalysis.followThrough ? Math.round(parseFloat(String(detailedAnalysis.followThrough)) * 100) : 87,
-            },
-            technicalMetrics: {
-              armSwing: detailedAnalysis.armSwing ? Math.round(parseFloat(String(detailedAnalysis.armSwing)) * 100) : 80,
-              bodyMovement: detailedAnalysis.bodyMovement ? Math.round(parseFloat(String(detailedAnalysis.bodyMovement)) * 100) : 86,
-              rhythm: detailedAnalysis.rhythm ? Math.round(parseFloat(String(detailedAnalysis.rhythm)) * 100) : 81,
-              releasePoint: detailedAnalysis.releasePoint ? Math.round(parseFloat(String(detailedAnalysis.releasePoint)) * 100) : 82,
-            },
-            recommendations: detailedAnalysis.recommendations || ['Focus on maintaining consistency'],
-            playerName: storedPlayerName || 'Player',
-            createdAt: new Date().toISOString(),
-          };
-
-          window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisVideoData));
-          console.log('✅ Stored comprehensive analysis data in sessionStorage');
-        } catch (error) {
-          console.error('❌ Failed to store detailed analysis:', error);
-        }
-      } else {
-        console.warn('⚠️ No detailed analysis data available to store');
-      }
-
-      console.log('🏆 Analysis Complete! Final Results:', {
-        finalIntensity,
-        speedClass: speedResult.speedClass,
-        confidence: speedResult.confidence,
-        kmh: Number(intensityToKmh(finalIntensity).toFixed(2))
-      });
-
-      dispatch({
-        type: 'COMPLETE_ANALYSIS',
-        payload: {
-          finalIntensity,
-          speedClass: speedResult.speedClass,
-          confidence: speedResult.confidence,
-        }
-      });
-
-      if (typeof window !== 'undefined') {
-        const storedPlayerName = window.sessionStorage.getItem('playerName');
-        const pendingEntry = {
-          predicted_kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
-          similarity_percent: Number(finalIntensity.toFixed(2)),
-          intensity_percent: Number(finalIntensity.toFixed(2)),
-          speed_class: speedResult.speedClass,
-          name: storedPlayerName || null,
-          meta: {
-            analyzer_mode: state.analyzerMode,
-            app: 'bowling-analyzer',
-            player_name: storedPlayerName || null,
-            playerName: storedPlayerName || null,
-          },
-          created_at: new Date().toISOString(),
-        };
-        window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
-      }
-
-      // Don't navigate here - let the useEffect handle navigation after showing the loader
-
-    } catch (error) {
-      console.error('Analysis failed:', error);
-      dispatch({ type: 'RESET_ANALYSIS' });
-    }
-  }, [videoUrl, dispatch, state.analyzerMode]);
 
   // Background Face Detection and Torso Generation Function
   const detectFaceAndGenerateTorso = useCallback(async () => {
@@ -461,9 +255,9 @@ export default function VideoPreviewPage() {
       // Start torso generation
       const geminiService = getGeminiTorsoService();
 
-      console.log('🎨 Starting Gemini 2.0 Flash Preview Image Generation...');
+      console.log('🎨 Starting Gemini 2.5 Flash Image Preview...');
 
-      // Try Gemini 2.0 Flash Preview Image Generation first
+      // Try Gemini 2.5 Flash Image Preview first
       let torsoResult = await geminiService.generateTorso({
         croppedHeadImage: croppedHeadImage,
         gender: 'auto'
@@ -471,7 +265,7 @@ export default function VideoPreviewPage() {
 
       // If Gemini fails, try the composite fallback
       if (!torsoResult.success) {
-        console.log('Gemini 2.0 Flash failed, trying composite fallback...');
+        console.log('Gemini 2.5 Flash failed, trying composite fallback...');
         torsoResult = await geminiService.generateTorsoFallback({
           croppedHeadImage: croppedHeadImage,
           gender: 'auto'
@@ -803,12 +597,17 @@ export default function VideoPreviewPage() {
                         Retry
                       </Link>
 
-                      {/* DEMO MODE: Analysis functionality commented out */}
-                      <Link
-                        href="/leaderboard"
-                        className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
+                      {/* Continue to Details Page */}
+                      <button
+                        onClick={() => {
+                          if (!isFaceDetectionRunning) {
+                            window.location.href = '/details';
+                          }
+                        }}
+                        disabled={isFaceDetectionRunning}
+                        className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
-                          backgroundColor: '#FFCA04',
+                          backgroundColor: isFaceDetectionRunning ? '#cccccc' : '#FFCA04',
                           borderRadius: '16px',
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: '700',
@@ -816,11 +615,12 @@ export default function VideoPreviewPage() {
                           color: 'black',
                           height: '36px',
                           border: 'none',
-                          padding: '0 12px'
+                          padding: '0 12px',
+                          cursor: isFaceDetectionRunning ? 'not-allowed' : 'pointer'
                         }}
                       >
-                        View Leaderboard
-                      </Link>
+                        {isFaceDetectionRunning ? 'Processing...' : 'Continue'}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1086,12 +886,17 @@ export default function VideoPreviewPage() {
                     Retry
                   </Link>
 
-                  {/* DEMO MODE: Analysis functionality commented out */}
-                  <Link
-                    href="/leaderboard"
-                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
+                  {/* Continue to Details Page */}
+                  <button
+                    onClick={() => {
+                      if (!isFaceDetectionRunning) {
+                        window.location.href = '/details';
+                      }
+                    }}
+                    disabled={isFaceDetectionRunning}
+                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
-                      backgroundColor: '#FFCA04',
+                      backgroundColor: isFaceDetectionRunning ? '#cccccc' : '#FFCA04',
                       borderRadius: '20px',
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: '700',
@@ -1100,11 +905,12 @@ export default function VideoPreviewPage() {
                       minWidth: '142px',
                       height: '36px',
                       border: 'none',
-                      padding: '0 16px'
+                      padding: '0 16px',
+                      cursor: isFaceDetectionRunning ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    View Leaderboard
-                  </Link>
+                    {isFaceDetectionRunning ? 'Processing...' : 'Continue'}
+                  </button>
                 </div>
               </div>
             </div>
@@ -1140,9 +946,6 @@ export default function VideoPreviewPage() {
           </div>
         </footer>
       </div>
-
-      {/* Analysis Loading Overlay */}
-      <AnalysisLoader isVisible={state.isAnalyzing} progress={state.progress} />
     </div>
   );
 }

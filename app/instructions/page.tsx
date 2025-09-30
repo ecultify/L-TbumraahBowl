@@ -363,7 +363,7 @@ export default function InstructionsPage() {
                     padding: "10px 12px",
                   }}
                 >
-                  <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(9px, 2vw, 10px)", color: "#000", lineHeight: "14px" }}>
+                  <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(10.5px, calc(2vw + 1.5px), 11.5px)", color: "#000", lineHeight: "14px" }}>
                     Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
                   </span>
                 </div>
@@ -425,5 +425,6 @@ export default function InstructionsPage() {
     </div>
   );
 }
+
 
 

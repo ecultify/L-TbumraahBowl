@@ -624,7 +624,7 @@ export default function LeaderboardClient() {
                   {/* View Gallery Button */}
                   <button
                     onClick={() => {
-                      window.location.href = '/quick-analysis';
+                      window.location.href = '/gallery';
                     }}
                     style={{
                       backgroundColor: "#FDC217",

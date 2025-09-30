@@ -500,15 +500,7 @@ export default function DetailsPage() {
           }
         });
 
-        // DEMO MODE: Analysis functionality commented out
-        // Navigate to analyze page to show no bowling action detected message
-        // setTimeout(() => {
-        //   router.push('/analyze');
-        // }, 1000);
-        console.log('Analysis functionality disabled for demo mode');
-        setTimeout(() => {
-          router.push('/leaderboard');
-        }, 1000);
+        // Navigation will be handled by useEffect when analysis state updates
         return;
       }
 
@@ -609,15 +601,7 @@ export default function DetailsPage() {
         window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
       }
 
-      // DEMO MODE: Analysis functionality commented out
-      // Navigate to analyze page to show results
-      // setTimeout(() => {
-      //   router.push('/analyze');
-      // }, 1000);
-      console.log('Analysis functionality disabled for demo mode');
-      setTimeout(() => {
-        router.push('/leaderboard');
-      }, 1000);
+      // Navigation will be handled by useEffect when analysis state updates (line 232-256)
 
     } catch (error) {
       console.error('❌ Analysis failed with error:', error);
