@@ -431,192 +431,367 @@ export class FaceDetectionService {
 
   // Detect faces using multiple AI models with fallbacks
   async detectFaces(): Promise<{ faces: DetectedFace[]; frameData: string | null }> {
-    if (!this.videoRef) {
-      throw new Error('Video element not set');
-    }
-
     try {
-      // Find the optimal frame first
+      if (!this.videoRef) {
+        throw new Error('Video element not set');
+      }
+
       const optimalFrame = await this.findOptimalFrame();
-      
+
       if (!optimalFrame || !optimalFrame.frameData) {
         throw new Error('Failed to find optimal frame');
       }
 
-      const frameData = optimalFrame.frameData;
       const video = this.videoRef;
+      const enhancedFrame = optimalFrame.frameData;
 
-      // Use MediaPipe Face Detection as primary method (best results from test-faceswap)
-      try {
-        console.log('🎯 Using MediaPipe Face Detection...');
-        
-        // Dynamic import to avoid build issues - import both FaceDetection and Camera
-        const { FaceDetection } = await import('@mediapipe/face_detection');
-        const { Camera } = await import('@mediapipe/camera_utils');
-        
-        const faceDetection = new FaceDetection({
-          locateFile: (file) => {
-            return `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection/${file}`;
-          }
-        });
+      const frameVariants: Array<{ data: string; label: string }> = [{ data: enhancedFrame, label: 'enhanced' }];
 
-        // Enhanced settings for sports videos with distant faces - EXACT match to test-faceswap
-        faceDetection.setOptions({
-          model: 'full', // Use full model for better accuracy (same as test-faceswap)
-          minDetectionConfidence: 0.3, // Lower threshold for distant faces
-        });
+      const originalFrame = this.captureFrame(false);
+      if (originalFrame && originalFrame !== enhancedFrame) {
+        frameVariants.push({ data: originalFrame, label: 'original' });
+      }
 
-        console.log('✅ MediaPipe Face Detection model configured');
+      const tryMediaPipe = async (): Promise<{ faces: DetectedFace[]; frameData: string } | null> => {
+        try {
+          console.log('dYZ_ Using MediaPipe Face Detection...');
+          const { FaceDetection } = await import('@mediapipe/face_detection');
 
-        let mediaScriptResolved = false;
-        let detectionResults: DetectedFace[] = [];
+          const faceDetection = new FaceDetection({
+            locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_detection@0.4/${file}`
+          });
 
-        faceDetection.onResults((results) => {
-          if (results.detections && results.detections.length > 0) {
-            console.log('✅ MediaPipe detected', results.detections.length, 'face(s)');
-            
-            results.detections.forEach((detection, index) => {
-              const bbox = detection.boundingBox;
-              if (bbox) {
-                const face: DetectedFace = {
-                  x: bbox.xCenter * video.videoWidth - (bbox.width * video.videoWidth) / 2,
-                  y: bbox.yCenter * video.videoHeight - (bbox.height * video.videoHeight) / 2,
-                  width: bbox.width * video.videoWidth,
-                  height: bbox.height * video.videoHeight,
-                  confidence: (detection as any).score?.[0] || 0.8
-                };
-                detectionResults.push(face);
-                console.log(`MediaPipe Face ${index + 1}:`, face);
-              }
-            });
-          }
-          mediaScriptResolved = true;
-        });
+          faceDetection.setOptions({
+            model: 'full',
+            minDetectionConfidence: 0.3
+          });
 
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
+          let detectionResults: DetectedFace[] = [];
+          let mediaScriptResolved = false;
 
-        const result: any = await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            if (!mediaScriptResolved) {
-              reject(new Error('MediaPipe detection timeout'));
-            }
-          }, 8000); // Longer timeout for full model
-
-          img.onload = async () => {
-            try {
-              await faceDetection.send({ image: img });
-              
-              // Wait for MediaPipe to process and call onResults
-              const checkResults = () => {
-                if (mediaScriptResolved) {
-                  clearTimeout(timeout);
-                  if (detectionResults.length > 0) {
-                    console.log('✅ MediaPipe detection successful:', detectionResults);
-                    resolve({ faces: detectionResults, frameData });
-                  } else {
-                    reject(new Error('No faces detected by MediaPipe'));
+          faceDetection.onResults((results: any) => {
+            if (results.detections && results.detections.length > 0) {
+              detectionResults = results.detections
+                .map((detection: any, index: number) => {
+                  const bbox = detection.boundingBox;
+                  if (!bbox) {
+                    return null;
                   }
-                } else {
-                  // Still waiting for results
-                  setTimeout(checkResults, 100);
+
+                  const face: DetectedFace = {
+                    x: bbox.xCenter * video.videoWidth - (bbox.width * video.videoWidth) / 2,
+                    y: bbox.yCenter * video.videoHeight - (bbox.height * video.videoHeight) / 2,
+                    width: bbox.width * video.videoWidth,
+                    height: bbox.height * video.videoHeight,
+                    confidence: (detection.score?.[0] as number | undefined) ?? 0.8
+                  };
+
+                  console.log(`MediaPipe Face ${index + 1}:`, face);
+                  return face;
+                })
+                .filter(Boolean) as DetectedFace[];
+            }
+            mediaScriptResolved = true;
+          });
+
+          for (let attemptIndex = 0; attemptIndex < frameVariants.length; attemptIndex++) {
+            const { data, label } = frameVariants[attemptIndex];
+            mediaScriptResolved = false;
+            detectionResults = [];
+
+            const attempt = await new Promise<{ faces: DetectedFace[]; frameData: string } | null>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                if (!mediaScriptResolved) {
+                  reject(new Error('MediaPipe detection timeout'));
+                }
+              }, 8000);
+
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+
+              img.onload = async () => {
+                try {
+                  await faceDetection.send({ image: img });
+
+                  const waitForResults = () => {
+                    if (mediaScriptResolved) {
+                      clearTimeout(timeout);
+                      if (detectionResults.length > 0) {
+                        console.log(`MediaPipe detection successful on ${label} frame`, detectionResults);
+                        resolve({ faces: detectionResults, frameData: data });
+                      } else {
+                        resolve(null);
+                      }
+                    } else {
+                      setTimeout(waitForResults, 100);
+                    }
+                  };
+
+                  setTimeout(waitForResults, 100);
+                } catch (error) {
+                  clearTimeout(timeout);
+                  reject(error as Error);
                 }
               };
-              
-              // Start checking for results
-              setTimeout(checkResults, 100);
-              
-            } catch (error) {
-              clearTimeout(timeout);
-              reject(error);
+
+              img.onerror = () => {
+                clearTimeout(timeout);
+                reject(new Error('Failed to load image for MediaPipe'));
+              };
+
+              img.src = data;
+            }).catch((error) => {
+              console.log(`MediaPipe attempt ${attemptIndex + 1} (${label}) failed:`, error);
+              return null;
+            });
+
+            if (attempt && attempt.faces.length > 0) {
+              if (typeof faceDetection.close === 'function') {
+                faceDetection.close();
+              }
+              return attempt;
             }
-          };
-          
-          img.onerror = () => {
-            clearTimeout(timeout);
-            reject(new Error('Failed to load image for MediaPipe'));
-          };
-          
-          img.src = frameData;
-        });
-        
-        return result;
-        
-      } catch (mediaPipeError) {
-        console.log('⚠️ MediaPipe failed, trying TensorFlow BlazeFace fallback:', mediaPipeError);
-        
-        // Fallback to TensorFlow BlazeFace
+          }
+
+          if (typeof faceDetection.close === 'function') {
+            faceDetection.close();
+          }
+        } catch (error) {
+          console.log('MediaPipe detection failed:', error);
+        }
+
+        return null;
+      };
+
+      const mediaPipeResult = await tryMediaPipe();
+      if (mediaPipeResult) {
+        return mediaPipeResult;
+      }
+
+      const tryBlazeFace = async (): Promise<{ faces: DetectedFace[]; frameData: string } | null> => {
         try {
           const tf = await import('@tensorflow/tfjs');
           const blazeface = await import('@tensorflow-models/blazeface');
-          
+
           await tf.ready();
-          console.log('✅ TensorFlow.js ready (fallback)');
-          
           const model = await blazeface.load();
-          console.log('✅ BlazeFace model loaded (fallback)');
-          
-          const img = new Image();
-          img.crossOrigin = 'anonymous';
-          
-          const result: any = await new Promise((resolve, reject) => {
-            img.onload = async () => {
-              try {
-                const predictions = await model.estimateFaces(img, false);
-                
-                if (predictions && predictions.length > 0) {
-                  console.log('✅ BlazeFace detected', predictions.length, 'face(s)');
-                  
-                  const blazeFaces: DetectedFace[] = predictions.map((prediction) => {
-                    const bbox = (prediction as any).box || (prediction as any).topLeft.concat((prediction as any).bottomRight);
-                    const [x1, y1, width, height] = Array.isArray(bbox) && bbox.length === 4 ? bbox : 
-                      [(prediction as any).topLeft[0], (prediction as any).topLeft[1], 
-                       (prediction as any).bottomRight[0] - (prediction as any).topLeft[0],
-                       (prediction as any).bottomRight[1] - (prediction as any).topLeft[1]];
-                    
-                    return {
-                      x: x1,
-                      y: y1,
-                      width: width,
-                      height: height,
-                      confidence: (prediction as any).probability?.[0] || 0.9
-                    };
-                  });
-                  
-                  resolve({ faces: blazeFaces, frameData });
-                } else {
-                  reject(new Error('No faces detected by BlazeFace'));
+
+          for (const variant of frameVariants) {
+            const blazeResult = await new Promise<{ faces: DetectedFace[]; frameData: string } | null>((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+
+              img.onload = async () => {
+                try {
+                  const predictions = await model.estimateFaces(img, false);
+
+                  if (predictions && predictions.length > 0) {
+                    const faces = predictions.map((prediction: any) => {
+                      const bbox = (prediction as any).box || (prediction as any).topLeft.concat((prediction as any).bottomRight);
+                      const [x1, y1, width, height] = Array.isArray(bbox) && bbox.length === 4
+                        ? bbox
+                        : [
+                            (prediction as any).topLeft[0],
+                            (prediction as any).topLeft[1],
+                            (prediction as any).bottomRight[0] - (prediction as any).topLeft[0],
+                            (prediction as any).bottomRight[1] - (prediction as any).topLeft[1],
+                          ];
+
+                      return {
+                        x: x1,
+                        y: y1,
+                        width,
+                        height,
+                        confidence: (prediction.probability?.[0] as number | undefined) ?? 0.9
+                      } as DetectedFace;
+                    });
+
+                    resolve({ faces, frameData: variant.data });
+                  } else {
+                    resolve(null);
+                  }
+                } catch (error) {
+                  reject(error);
                 }
-              } catch (error) {
-                reject(error);
-              }
-            };
-            
-            img.onerror = () => reject(new Error('Failed to load image for BlazeFace'));
-            img.src = frameData;
-          });
-          
-          return result;
-          
-        } catch (blazeFaceError) {
-          console.log('⚠️ BlazeFace failed, using advanced fallback algorithm:', blazeFaceError);
-          
-          // Final fallback to advanced algorithm
-          try {
-            const faces = await this.detectFacesWithAdvancedAlgorithm(frameData);
-            if (faces.length > 0) {
-              console.log('✅ Fallback algorithm detected', faces.length, 'face(s)');
-              return { faces, frameData };
+              };
+
+              img.onerror = () => reject(new Error('Failed to load image for BlazeFace'));
+              img.src = variant.data;
+            }).catch((error) => {
+              console.log('BlazeFace attempt failed:', error);
+              return null;
+            });
+
+            if (blazeResult && blazeResult.faces.length > 0) {
+              return blazeResult;
             }
-          } catch (fallbackError) {
-            console.error('❌ All face detection methods failed:', fallbackError);
           }
+        } catch (error) {
+          console.log('BlazeFace detection failed:', error);
         }
+
+        return null;
+      };
+
+      const blazeFaceResult = await tryBlazeFace();
+      if (blazeFaceResult) {
+        return blazeFaceResult;
       }
 
-      // Should not reach here, but just in case
+      const tryFaceLandmarks = async (): Promise<{ faces: DetectedFace[]; frameData: string } | null> => {
+        try {
+          const faceLandmarks = await import('@tensorflow-models/face-landmarks-detection');
+          const tf = await import('@tensorflow/tfjs');
+
+          await tf.ready();
+          const detector = await faceLandmarks.createDetector(faceLandmarks.SupportedModels.MediaPipeFaceMesh);
+
+          for (const variant of frameVariants) {
+            const landmarkResult = await new Promise<{ faces: DetectedFace[]; frameData: string } | null>((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+
+              img.onload = async () => {
+                try {
+                  const predictions = await detector.estimateFaces(img);
+
+                  if (predictions && predictions.length > 0) {
+                    const faces = predictions.map((prediction: any, index: number) => {
+                      const keypoints = prediction.keypoints || [];
+                      let minX = Infinity;
+                      let minY = Infinity;
+                      let maxX = -Infinity;
+                      let maxY = -Infinity;
+
+                      keypoints.forEach((point: any) => {
+                        minX = Math.min(minX, point.x);
+                        maxX = Math.max(maxX, point.x);
+                        minY = Math.min(minY, point.y);
+                        maxY = Math.max(maxY, point.y);
+                      });
+
+                      const face: DetectedFace = {
+                        x: minX,
+                        y: minY,
+                        width: Math.max(0, maxX - minX),
+                        height: Math.max(0, maxY - minY),
+                        confidence: 0.85
+                      };
+
+                      console.log(`Face Landmarks ${index + 1}:`, face);
+                      return face;
+                    });
+
+                    resolve({ faces, frameData: variant.data });
+                  } else {
+                    resolve(null);
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              };
+
+              img.onerror = () => reject(new Error('Failed to load image for Face Landmarks'));
+              img.src = variant.data;
+            }).catch((error) => {
+              console.log('Face Landmarks attempt failed:', error);
+              return null;
+            });
+
+            if (landmarkResult && landmarkResult.faces.length > 0) {
+              return landmarkResult;
+            }
+          }
+        } catch (error) {
+          console.log('Face Landmarks detection failed:', error);
+        }
+
+        return null;
+      };
+
+      const faceLandmarksResult = await tryFaceLandmarks();
+      if (faceLandmarksResult) {
+        return faceLandmarksResult;
+      }
+
+      const tryBrowserVision = async (): Promise<{ faces: DetectedFace[]; frameData: string } | null> => {
+        if (typeof window === 'undefined') {
+          return null;
+        }
+
+        const anyNavigator = navigator as any;
+        const faceDetectorCtor = anyNavigator?.vision?.FaceDetector || (window as any)?.FaceDetector;
+        if (!faceDetectorCtor) {
+          return null;
+        }
+
+        try {
+          for (const variant of frameVariants) {
+            const visionResult = await new Promise<{ faces: DetectedFace[]; frameData: string } | null>((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+
+              img.onload = async () => {
+                try {
+                  const detector = new faceDetectorCtor();
+                  const faces = await detector.detect(img);
+
+                  if (faces && faces.length > 0) {
+                    const mappedFaces = faces.map((face: any, index: number) => {
+                      const bbox = face.boundingBox;
+                      const detectedFace: DetectedFace = {
+                        x: bbox.x,
+                        y: bbox.y,
+                        width: bbox.width,
+                        height: bbox.height,
+                        confidence: 0.9
+                      };
+
+                      console.log(`Browser Vision API ${index + 1}:`, detectedFace);
+                      return detectedFace;
+                    });
+
+                    resolve({ faces: mappedFaces, frameData: variant.data });
+                  } else {
+                    resolve(null);
+                  }
+                } catch (error) {
+                  reject(error);
+                }
+              };
+
+              img.onerror = () => reject(new Error('Failed to load image for Browser Vision API'));
+              img.src = variant.data;
+            }).catch((error) => {
+              console.log('Browser Vision API attempt failed:', error);
+              return null;
+            });
+
+            if (visionResult && visionResult.faces.length > 0) {
+              return visionResult;
+            }
+          }
+        } catch (error) {
+          console.log('Browser Vision API detection failed:', error);
+        }
+
+        return null;
+      };
+
+      const browserVisionResult = await tryBrowserVision();
+      if (browserVisionResult) {
+        return browserVisionResult;
+      }
+
+      const fallbackFrame = frameVariants[0]?.data ?? enhancedFrame;
+      const fallbackFaces = await this.detectFacesWithAdvancedAlgorithm(fallbackFrame);
+
+      if (fallbackFaces.length > 0) {
+        console.log('Fallback algorithm detected', fallbackFaces.length, 'face(s)');
+        return { faces: fallbackFaces, frameData: fallbackFrame };
+      }
+
       throw new Error('All face detection methods failed');
-      
     } catch (error) {
       console.error('Face detection failed:', error);
       throw error;
