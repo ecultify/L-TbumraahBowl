@@ -2,12 +2,14 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { getFaceDetectionService, storeCroppedHeadImage } from '@/lib/utils/faceDetection';
 import { getGeminiTorsoService, storeGeneratedTorsoImage } from '@/lib/utils/geminiService';
 import { GlassBackButton } from '@/components/GlassBackButton';
 
 export default function VideoPreviewPage() {
+  const router = useRouter();
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<string>('00:00');
   const [fileName, setFileName] = useState<string>('');
@@ -636,7 +638,7 @@ export default function VideoPreviewPage() {
                               console.error('❌ Error storing video data:', error);
                             }
                           }
-                          window.location.href = '/details';
+                          router.push('/details');
                         }}
                         className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                         style={{
@@ -912,7 +914,7 @@ export default function VideoPreviewPage() {
                           console.error('❌ Error storing video data:', error);
                         }
                       }
-                      window.location.href = '/details';
+                      router.push('/details');
                     }}
                     className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                     style={{
