@@ -7,7 +7,7 @@ const bulletPoints = [
   "Release point must be visible.",
   "Record in vertical mode.",
   "Capture full run-up to follow-through.",
-  "Good lighting = accurate speed.",
+  "Good lighting = accurate analysis",
 ];
 
 export default function InstructionsPage() {
@@ -22,7 +22,8 @@ export default function InstructionsPage() {
       }}
     >
       {/* Desktop Layout */}
-      <div className="hidden md:flex flex-col min-h-screen" style={{
+      <div className="hidden md:flex flex-col" style={{
+        minHeight: "100vh",
         backgroundImage: "url(/images/Desktop.png)",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -41,7 +42,7 @@ export default function InstructionsPage() {
         </div>
 
         {/* Main content area */}
-        <div className="flex-1 flex items-stretch px-8 relative">
+        <div className="flex-1 flex items-stretch relative" style={{ minHeight: '90vh' }}>
           {/* Left side - Bumrah Image */}
           <div className="flex-1 relative">
             <img
@@ -52,8 +53,8 @@ export default function InstructionsPage() {
                 bottom: 0,
                 left: '60%',
                 transform: 'translateX(-50%)',
-                width: '500px', 
-                height: '600px', 
+                width: '480px', 
+                height: '580px', 
                 margin: 0,
                 padding: 0,
                 display: 'block',
@@ -63,93 +64,155 @@ export default function InstructionsPage() {
             />
           </div>
 
-          {/* Right side - Glass Box Content */}
-          <div className="flex-1 flex justify-center items-center py-16" style={{ marginTop: '50px' }}>
-            <div className="relative" style={{ maxWidth: 420 }}>
+          {/* Right side - Large Glass Box Container */}
+          <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
+            <div className="relative" style={{ width: 740, height: '100%' }}>
+              {/* Large Glass Box Background */}
               <div
-                className="w-full"
                 style={{
-                  position: "relative",
-                  borderRadius: 16,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   backgroundColor: "#FFFFFF80",
                   backdropFilter: "blur(12px)",
                   WebkitBackdropFilter: "blur(12px)",
                   boxShadow: "inset 0 0 0 1px #FFFFFF",
-                  padding: 16,
+                  borderTopLeftRadius: 60,
+                  borderBottomLeftRadius: 60,
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                  zIndex: 1,
+                }}
+              />
+
+              {/* Back Button - Top Left Corner of Large Glass Box */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "24px",
+                  left: "24px",
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "20px",
+                  backgroundColor: "#0095D740",
+                  border: "2px solid #0095D74D",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
-                  gap: 10,
-                  zIndex: 2,
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  zIndex: 10,
+                  transition: "all 0.2s ease"
+                }}
+                onClick={() => window.history.back()}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#0095D760";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#0095D740";
                 }}
               >
-                {/* Universal Back Arrow Box - Top Left */}
-                <GlassBackButton />
-                <div
-                  style={{
-                    position: "relative",
-                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                    fontWeight: 800,
-                    fontStyle: "italic",
-                    fontSize: 16,
-                    textTransform: "uppercase",
-                    color: "#0A0A0A",
-                    lineHeight: 1.1,
-                    marginBottom: 3,
-                  }}
-                >
-                  <img
-                    src="/images/newhomepage/woosh.svg"
-                    alt=""
-                    aria-hidden
-                    style={{ position: "absolute", left: -18, top: "50%", transform: "translateY(-50%)", height: 14, filter: "brightness(0) saturate(100%)" }}
+                {/* Left Arrow Icon */}
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                  <path 
+                    d="M15 18L9 12L15 6" 
+                    stroke="#0095D7" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
                   />
-                  INSTRUCTIONS
-                </div>
+                </svg>
+              </div>
 
-                <div className="grid grid-cols-2 gap-2 w-full">
-                  <img src="/images/instructions/good.png" alt="Good" className="w-full h-auto rounded-md" />
-                  <img src="/images/instructions/failed.png" alt="Failed" className="w-full h-auto rounded-md" />
-                </div>
-
-                <ul style={{ width: "100%", paddingInlineStart: 14, margin: 0, listStyle: "disc", color: "#0A0A0A" }}>
-                  {bulletPoints.map((text) => (
-                    <li
-                      key={text}
-                      style={{
-                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                        fontWeight: 400,
-                        fontSize: 11,
-                        lineHeight: "14px",
-                        marginBottom: 3,
-                      }}
-                    >
-                      {text}
-                    </li>
-                  ))}
-                </ul>
-
+              {/* Instructions Glass Box - Centered */}
+              <div className="relative flex flex-col items-center justify-center" style={{ height: '100%', paddingTop: 40, paddingBottom: 40, zIndex: 2 }}>
                 <div
+                  className="w-full"
                   style={{
-                    width: "100%",
-                    borderRadius: 8,
-                    backgroundColor: "rgba(0, 149, 215, 0.15)",
+                    maxWidth: 420,
+                    borderRadius: 16,
+                    backgroundColor: "#FFFFFF80",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    boxShadow: "inset 0 0 0 1px #FFFFFF",
+                    padding: 16,
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
-                    textAlign: "center",
-                    padding: "8px 10px",
+                    gap: 10,
                   }}
                 >
-                  <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 10, color: "#000", lineHeight: "12px" }}>
-                    Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
-                  </span>
+                  <div
+                    style={{
+                      position: "relative",
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: 800,
+                      fontStyle: "italic",
+                      fontSize: 16,
+                      textTransform: "uppercase",
+                      color: "#0A0A0A",
+                      lineHeight: 1.1,
+                      marginBottom: 3,
+                    }}
+                  >
+                    <img
+                      src="/images/newhomepage/woosh.svg"
+                      alt=""
+                      aria-hidden
+                      style={{ position: "absolute", left: -18, top: "50%", transform: "translateY(-50%)", height: 14, filter: "brightness(0) saturate(100%)" }}
+                    />
+                    INSTRUCTIONS
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 w-full">
+                    <img src="/images/instructions/good.png" alt="Good" className="w-full h-auto rounded-md" />
+                    <img src="/images/instructions/failed.png" alt="Failed" className="w-full h-auto rounded-md" />
+                  </div>
+
+                  <ul style={{ width: "100%", paddingInlineStart: 14, margin: 0, listStyle: "disc", color: "#0A0A0A" }}>
+                    {bulletPoints.map((text) => (
+                      <li
+                        key={text}
+                        style={{
+                          fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                          fontWeight: 400,
+                          fontSize: 11,
+                          lineHeight: "14px",
+                          marginBottom: 3,
+                        }}
+                      >
+                        {text}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div
+                    style={{
+                      width: "100%",
+                      borderRadius: 8,
+                      backgroundColor: "rgba(0, 149, 215, 0.15)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      textAlign: "center",
+                      padding: "8px 10px",
+                    }}
+                  >
+                    <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 10, color: "#000", lineHeight: "12px" }}>
+                      Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
+                    </span>
+                  </div>
                 </div>
 
+                {/* I'm Ready, Proceed Button - Below Instructions Box */}
                 <Link
                   href="/record-upload"
-                  className="w-full mt-1"
+                  className="mt-4"
                   style={{
+                    width: 420,
                     backgroundColor: "#FFC315",
                     borderRadius: 20,
                     height: 38,
@@ -219,8 +282,8 @@ export default function InstructionsPage() {
 
             <div style={{ position: "relative", width: "100%" }}>
               <img
-                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
-                alt="Bumrah Ball in Hand"
+                src="/images/instructions/loanapproved.png"
+                alt="Loan Approved"
                 style={{ position: "absolute", top: -170, right: -8, width: 150, height: "auto", zIndex: 1, pointerEvents: "none" }}
               />
 

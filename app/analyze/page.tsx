@@ -689,7 +689,8 @@ export default function SimplifiedAnalyzePage() {
       </div>
 
       {/* Desktop Layout */}
-      <div className="hidden md:flex flex-col min-h-screen" style={{
+      <div className="hidden md:flex flex-col" style={{
+        minHeight: "100vh",
         backgroundImage: "url(/images/Desktop.png)",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -716,19 +717,19 @@ export default function SimplifiedAnalyzePage() {
         </div>
 
         {/* Main content area */}
-        <div className="flex-1 flex items-stretch px-8 relative">
+        <div className="flex-1 flex items-stretch relative" style={{ minHeight: '90vh' }}>
           {/* Left side - Bumrah Image */}
           <div className="flex-1 relative">
             <img
               src="/images/Bumrah%205.png"
               alt="Bumrah"
-              style={{ 
+              style={{
                 position: 'absolute',
                 bottom: 0,
                 left: '60%',
                 transform: 'translateX(-50%)',
-                width: '500px', 
-                height: '600px', 
+                width: '480px',
+                height: '580px',
                 margin: 0,
                 padding: 0,
                 display: 'block',
@@ -738,122 +739,171 @@ export default function SimplifiedAnalyzePage() {
             />
           </div>
 
-          {/* Right side - Glass Box Content */}
-          <div className="flex-1 flex justify-center items-center py-8" style={{ marginTop: '20px' }}>
-            <div className="relative" style={{ maxWidth: 420, width: '100%' }}>
+          {/* Right side - Large Glass Box Container */}
+          <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
+            <div className="relative" style={{ width: 740, height: '100%' }}>
+              {/* Large Glass Box Background */}
               <div
-                className="w-full"
                 style={{
-                  position: "relative",
-                  borderRadius: 16,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   backgroundColor: "#FFFFFF80",
                   backdropFilter: "blur(12px)",
                   WebkitBackdropFilter: "blur(12px)",
                   boxShadow: "inset 0 0 0 1px #FFFFFF",
-                  padding: 16,
+                  borderTopLeftRadius: 60,
+                  borderBottomLeftRadius: 60,
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                  zIndex: 1,
+                }}
+              />
+
+              {/* Back Button - Top Left Corner of Large Glass Box */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "24px",
+                  left: "24px",
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "20px",
+                  backgroundColor: "#0095D740",
+                  border: "2px solid #0095D74D",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
-                  gap: 10,
-                  zIndex: 2,
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  zIndex: 10,
+                  transition: "all 0.2s ease"
+                }}
+                onClick={() => {
+                  console.log('⬅️ Back button clicked - going to video-preview...');
+                  window.location.href = '/video-preview';
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#0095D760";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#0095D740";
                 }}
               >
-                {/* Universal Back Arrow Box - Top Left */}
+                {/* Left Arrow Icon */}
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M15 18L9 12L15 6"
+                    stroke="#0095D7"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+
+              {/* Analyze Glass Box - Centered */}
+              <div className="relative flex flex-col items-center justify-center" style={{ height: '100%', paddingTop: 40, paddingBottom: 40, zIndex: 2 }}>
                 <div
-                  onClick={() => {
-                    console.log('⬅️ Back button clicked - going to video-preview...');
-                    window.location.href = '/video-preview';
-                  }}
+                  className="w-full"
                   style={{
-                    position: "absolute",
-                    top: "10px",
-                    left: "10px",
-                    width: "30px",
-                    height: "30px",
-                    border: "1px solid white",
-                    borderRadius: "4px",
-                    backgroundColor: "rgba(0,0,0,0.1)",
-                    backdropFilter: "blur(8px)",
-                    WebkitBackdropFilter: "blur(8px)",
+                    maxWidth: 500,
+                    borderRadius: 18,
+                    backgroundColor: "#FFFFFF80",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    boxShadow: "inset 0 0 0 1px #FFFFFF",
+                    padding: 20,
                     display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    zIndex: 10,
-                    transition: "all 0.2s ease"
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = "rgba(0,0,0,0.1)";
+                    gap: 12,
                   }}
                 >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                    <path 
-                      d="M15 18L9 12L15 6" 
-                      stroke="white" 
-                      strokeWidth="2" 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                </div>
-                
-                {/* Desktop Analyze Content */}
-                <div className="w-full">
-                  {/* Headline */}
-                  <div className="mb-4 text-center">
-                    <div
-                      style={{
-                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                        fontWeight: 800,
-                        fontStyle: "italic",
-                        fontSize: 18,
-                        color: "#000000",
-                        lineHeight: 1.1,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Your #BumrahKiSpeedPar<br />Report is Ready!
+                  {/* Desktop Analyze Content */}
+                  <div className="w-full">
+                    {/* Headline */}
+                    <div className="mb-4 text-center">
+                      <div
+                        style={{
+                          fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                          fontWeight: 800,
+                          fontStyle: "italic",
+                          fontSize: 18,
+                          color: "#000000",
+                          lineHeight: 1.1,
+                          marginBottom: 4,
+                        }}
+                      >
+                        Your #BumrahKiSpeedPar<br />Report is Ready!
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Composite Card - Always shown when there are results */}
-                  <CompositeCard
-                    accuracyDisplay={accuracyDisplay}
-                    runUpScore={runUpScore}
-                    deliveryScore={deliveryScore}
-                    followThroughScore={followThroughScore}
-                    playerName={sessionAnalysisData?.playerName || playerName || "PLAYER NAME"}
-                    kmhValue={kmhValue}
-                    armSwingScore={armSwingScore}
-                    bodyMovementScore={bodyMovementScore}
-                    rhythmScore={rhythmScore}
-                    releasePointScore={releasePointScore}
-                    recommendations={
-                      (benchmarkDetailedData?.recommendations?.length || sessionAnalysisData?.recommendations?.length) > 0
-                        ? (benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || []).join(' ')
-                        : "Great technique! Keep practicing to maintain consistency."
-                    }
-                  />
-                  
-                  {/* Action Buttons - Inside glass box */}
-                  <div className="mb-2" style={{ width: '100%', marginTop: '12px' }}>
-                    {accuracyDisplay > 85 ? (
-                      // 3 buttons when score > 85%
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <Link href="/leaderboard" style={{ flex: 1 }}>
+                    {/* Composite Card - Always shown when there are results */}
+                    <CompositeCard
+                      accuracyDisplay={accuracyDisplay}
+                      runUpScore={runUpScore}
+                      deliveryScore={deliveryScore}
+                      followThroughScore={followThroughScore}
+                      playerName={sessionAnalysisData?.playerName || playerName || "PLAYER NAME"}
+                      kmhValue={kmhValue}
+                      armSwingScore={armSwingScore}
+                      bodyMovementScore={bodyMovementScore}
+                      rhythmScore={rhythmScore}
+                      releasePointScore={releasePointScore}
+                      recommendations={
+                        (benchmarkDetailedData?.recommendations?.length || sessionAnalysisData?.recommendations?.length) > 0
+                          ? (benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || []).join(' ')
+                          : "Great technique! Keep practicing to maintain consistency."
+                      }
+                    />
+                    
+                    {/* Action Buttons - Inside glass box */}
+                    <div className="mb-2" style={{ width: '100%', marginTop: '12px' }}>
+                      {accuracyDisplay > 85 ? (
+                        // 3 buttons when score > 85%
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Link href="/leaderboard" style={{ flex: 1 }}>
+                            <button
+                              className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                              style={{
+                                width: "100%",
+                                backgroundColor: '#CCEAF7',
+                                borderRadius: '22px',
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: '700',
+                                fontSize: '13px',
+                                color: 'black',
+                                padding: '8px 12px',
+                                border: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6
+                              }}
+                            >
+                              <img
+                                src="/frontend-images/homepage/Vector.svg"
+                                alt="Leaderboard"
+                                style={{ width: 16, height: 16 }}
+                              />
+                              Leaderboard
+                            </button>
+                          </Link>
+
                           <button
                             className="transition-all duration-300 hover:brightness-110 hover:scale-105"
                             style={{
-                              width: "100%",
-                              backgroundColor: '#CCEAF7',
+                              flex: 1,
+                              backgroundColor: '#28a745',
                               borderRadius: '22px',
                               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                               fontWeight: '700',
                               fontSize: '13px',
-                              color: 'black',
+                              color: 'white',
                               padding: '8px 12px',
                               border: 'none',
                               display: 'flex',
@@ -861,113 +911,87 @@ export default function SimplifiedAnalyzePage() {
                               justifyContent: 'center',
                               gap: 6
                             }}
+                            onClick={() => {
+                              console.log('🎥 View Video button clicked');
+                              // Add your video viewing logic here
+                              setIsViewingVideo(true);
+                            }}
                           >
-                            <img
-                              src="/frontend-images/homepage/Vector.svg"
-                              alt="Leaderboard"
-                              style={{ width: 16, height: 16 }}
-                            />
-                            Leaderboard
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5v14l11-7z"/>
+                            </svg>
+                            View Video
                           </button>
-                        </Link>
 
-                        <button
-                          className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                          style={{
-                            flex: 1,
-                            backgroundColor: '#28a745',
-                            borderRadius: '22px',
-                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                            fontWeight: '700',
-                            fontSize: '13px',
-                            color: 'white',
-                            padding: '8px 12px',
-                            border: 'none',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            gap: 6
-                          }}
-                          onClick={() => {
-                            console.log('🎥 View Video button clicked');
-                            // Add your video viewing logic here
-                            setIsViewingVideo(true);
-                          }}
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M8 5v14l11-7z"/>
-                          </svg>
-                          View Video
-                        </button>
-
-                        <button
-                          className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                          style={{
-                            flex: 1,
-                            backgroundColor: '#FDC217',
-                            borderRadius: '22px',
-                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                            fontWeight: '700',
-                            fontSize: '13px',
-                            color: 'black',
-                            padding: '8px 12px',
-                            border: 'none'
-                          }}
-                          onClick={downloadCompositeCard}
-                        >
-                          Download Report
-                        </button>
-                      </div>
-                    ) : (
-                      // 2 buttons when score <= 85%
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <Link href="/leaderboard" style={{ flex: 1 }}>
                           <button
                             className="transition-all duration-300 hover:brightness-110 hover:scale-105"
                             style={{
-                              width: "100%",
-                              backgroundColor: '#CCEAF7',
+                              flex: 1,
+                              backgroundColor: '#FDC217',
                               borderRadius: '22px',
                               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                               fontWeight: '700',
                               fontSize: '13px',
                               color: 'black',
                               padding: '8px 12px',
-                              border: 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 6
+                              border: 'none'
                             }}
+                            onClick={downloadCompositeCard}
                           >
-                            <img
-                              src="/frontend-images/homepage/Vector.svg"
-                              alt="Leaderboard"
-                              style={{ width: 16, height: 16 }}
-                            />
-                            Leaderboard
+                            Download Report
                           </button>
-                        </Link>
+                        </div>
+                      ) : (
+                        // 2 buttons when score <= 85%
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <Link href="/leaderboard" style={{ flex: 1 }}>
+                            <button
+                              className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                              style={{
+                                width: "100%",
+                                backgroundColor: '#CCEAF7',
+                                borderRadius: '22px',
+                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                                fontWeight: '700',
+                                fontSize: '13px',
+                                color: 'black',
+                                padding: '8px 12px',
+                                border: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6
+                              }}
+                            >
+                              <img
+                                src="/frontend-images/homepage/Vector.svg"
+                                alt="Leaderboard"
+                                style={{ width: 16, height: 16 }}
+                              />
+                              Leaderboard
+                            </button>
+                          </Link>
 
-                        <button
-                          className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                          style={{
-                            flex: 1,
-                            backgroundColor: '#FDC217',
-                            borderRadius: '22px',
-                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                            fontWeight: '700',
-                            fontSize: '13px',
-                            color: 'black',
-                            padding: '8px 12px',
-                            border: 'none'
-                          }}
-                          onClick={downloadCompositeCard}
-                        >
-                          Download Report
-                        </button>
-                      </div>
-                    )}
+                          <button
+                            className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                            style={{
+                              flex: 1,
+                              backgroundColor: '#FDC217',
+                              borderRadius: '22px',
+                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                              fontWeight: '700',
+                              fontSize: '13px',
+                              color: 'black',
+                              padding: '8px 12px',
+                              border: 'none'
+                            }}
+                            onClick={downloadCompositeCard}
+                          >
+                            Download Report
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
 

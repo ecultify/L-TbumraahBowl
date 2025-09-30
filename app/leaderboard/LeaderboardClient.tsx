@@ -192,7 +192,7 @@ export default function LeaderboardClient() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 400,
                     fontStyle: "normal",
-                    fontSize: "clamp(10px, 2.5vw, 12px)",
+                    fontSize: "clamp(12px, 3vw, 14px)", // increased from clamp(10px, 2.5vw, 12px)
                     color: "#000000",
                     lineHeight: 1.3,
                     margin: 0
@@ -561,16 +561,16 @@ export default function LeaderboardClient() {
               </div>
 
               {/* Missed Your Mark Section */}
-              <div className="mt-4 text-center">
+              <div className="mt-2 text-center" style={{ marginTop: 2 }}>
                 <div
                   style={{
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 800,
                     fontStyle: "normal",
-                    fontSize: "clamp(12px, 2.5vw, 14px)",
+                    fontSize: "clamp(14px, 3vw, 16px)", // increased from clamp(12px, 2.5vw, 14px)
                     color: "#13264A",
                     lineHeight: 1.2,
-                    marginBottom: 2
+                    marginBottom: 4 // increased from 2
                   }}
                 >
                   Missed your mark?
@@ -580,7 +580,7 @@ export default function LeaderboardClient() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 400,
                     fontStyle: "normal",
-                    fontSize: "clamp(11px, 2.5vw, 14px)",
+                    fontSize: "clamp(13px, 3vw, 15px)", // increased from clamp(11px, 2.5vw, 14px)
                     color: "#13264A",
                     lineHeight: 1.2,
                     marginBottom: 16

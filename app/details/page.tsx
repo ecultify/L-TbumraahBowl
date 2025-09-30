@@ -685,7 +685,8 @@ export default function DetailsPage() {
       {/* Analysis Loading Overlay */}
       <AnalysisLoader isVisible={state.isAnalyzing} progress={state.progress} />
       {/* Desktop Layout */}
-      <div className="hidden md:flex flex-col min-h-screen" style={{
+      <div className="hidden md:flex flex-col" style={{
+        minHeight: "100vh",
         backgroundImage: "url(/images/Desktop.png)",
         backgroundSize: "cover",
         backgroundPosition: "center",
@@ -695,7 +696,6 @@ export default function DetailsPage() {
         <div className="absolute top-6 left-6 z-20">
           <div
             onClick={() => {
-              // Clear all session data and reload page
               console.log('🏠 Homepage logo clicked - clearing session data and reloading...');
               if (typeof window !== 'undefined') {
                 sessionStorage.clear();
@@ -713,19 +713,19 @@ export default function DetailsPage() {
         </div>
 
         {/* Main content area */}
-        <div className="flex-1 flex items-stretch px-8 relative">
+        <div className="flex-1 flex items-stretch relative" style={{ minHeight: '90vh' }}>
           {/* Left side - Bumrah Image */}
           <div className="flex-1 relative">
             <img
               src="/images/Bumrah%205.png"
               alt="Bumrah"
-              style={{ 
+              style={{
                 position: 'absolute',
                 bottom: 0,
                 left: '60%',
                 transform: 'translateX(-50%)',
-                width: '500px', 
-                height: '600px', 
+                width: '480px',
+                height: '580px',
                 margin: 0,
                 padding: 0,
                 display: 'block',
@@ -735,48 +735,107 @@ export default function DetailsPage() {
             />
           </div>
 
-          {/* Right side - Glass Box Content */}
-          <div className="flex-1 flex justify-center items-center py-16" style={{ marginTop: '50px' }}>
-            <div className="relative" style={{ maxWidth: 500 }}>
+          {/* Right side - Large Glass Box Container */}
+          <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
+            <div className="relative" style={{ width: 740, height: '100%' }}>
+              {/* Large Glass Box Background */}
               <div
-                className="w-full"
                 style={{
-                  position: "relative",
-                  borderRadius: 18,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
                   backgroundColor: "#FFFFFF80",
                   backdropFilter: "blur(12px)",
                   WebkitBackdropFilter: "blur(12px)",
                   boxShadow: "inset 0 0 0 1px #FFFFFF",
-                  padding: 20,
+                  borderTopLeftRadius: 60,
+                  borderBottomLeftRadius: 60,
+                  borderTopRightRadius: 0,
+                  borderBottomRightRadius: 0,
+                  zIndex: 1,
+                }}
+              />
+
+              {/* Back Button - Top Left Corner of Large Glass Box */}
+              <div
+                style={{
+                  position: "absolute",
+                  top: "24px",
+                  left: "24px",
+                  width: "60px",
+                  height: "60px",
+                  borderRadius: "20px",
+                  backgroundColor: "#0095D740",
+                  border: "2px solid #0095D74D",
+                  backdropFilter: "blur(8px)",
+                  WebkitBackdropFilter: "blur(8px)",
                   display: "flex",
-                  flexDirection: "column",
                   alignItems: "center",
-                  gap: 12,
-                  zIndex: 2,
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  zIndex: 10,
+                  transition: "all 0.2s ease"
+                }}
+                onClick={() => window.history.back()}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#0095D760";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#0095D740";
                 }}
               >
-                {/* Universal Back Arrow Box - Top Left */}
-                <GlassBackButton />
-
-                {/* Desktop Details Content */}
-                <div className="w-full">
-                  <DetailsCard
-                    submitLabel={'Analyze Video'}
-                    onSubmit={async (payload) => {
-                      // Store player name and details
-                      if (typeof window !== 'undefined') {
-                        window.sessionStorage.setItem('detailsCompleted', 'true');
-                        window.sessionStorage.setItem('playerName', payload.name);
-                        window.sessionStorage.setItem('playerPhone', payload.phone || '');
-                        console.log('✅ Details completed - flag set in sessionStorage');
-                        console.log('✅ Player name stored:', payload.name);
-                      }
-                      
-                      // Always start fresh analysis for the current video
-                      console.log('🎬 Submit clicked - Starting fresh analysis');
-                      await startAnalysis();
-                    }}
+                {/* Left Arrow Icon */}
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                  <path
+                    d="M15 18L9 12L15 6"
+                    stroke="#0095D7"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                   />
+                </svg>
+              </div>
+
+              {/* Details Glass Box - Centered */}
+              <div className="relative flex flex-col items-center justify-center" style={{ height: '100%', paddingTop: 40, paddingBottom: 40, zIndex: 2 }}>
+                <div
+                  className="w-full"
+                  style={{
+                    maxWidth: 500,
+                    borderRadius: 18,
+                    backgroundColor: "#FFFFFF80",
+                    backdropFilter: "blur(12px)",
+                    WebkitBackdropFilter: "blur(12px)",
+                    boxShadow: "inset 0 0 0 1px #FFFFFF",
+                    padding: 20,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                  }}
+                >
+                  {/* Desktop Details Content */}
+                  <div className="w-full">
+                    <DetailsCard
+                      submitLabel={'Analyze Video'}
+                      onSubmit={async (payload) => {
+                        // Store player name and details
+                        if (typeof window !== 'undefined') {
+                          window.sessionStorage.setItem('detailsCompleted', 'true');
+                          window.sessionStorage.setItem('playerName', payload.name);
+                          window.sessionStorage.setItem('playerPhone', payload.phone || '');
+                          console.log('✅ Details completed - flag set in sessionStorage');
+                          console.log('✅ Player name stored:', payload.name);
+                        }
+                        
+                        // Always start fresh analysis for the current video
+                        console.log('🎬 Submit clicked - Starting fresh analysis');
+                        await startAnalysis();
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
             </div>

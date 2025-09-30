@@ -38,7 +38,7 @@ export default function Home() {
   // Hero background container (bottom corners rounded)
   const heroContainerStyle: CSSProperties = {
     minHeight: 740,
-    paddingTop: 44,
+    paddingTop: 20, // reduced from 44 to pull content up
     backgroundImage: 'url("/images/newhomepage/front%20bg.jpg")',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
@@ -106,7 +106,7 @@ export default function Home() {
     position: 'relative',
     overflow: 'hidden',
     padding: 0,
-    marginTop: 18, // push panel down a bit more
+    marginTop: 2, // further reduced from 8 to bring it even closer to the text above
   };
 
   const heroCopyStyle: CSSProperties = {
@@ -132,7 +132,7 @@ export default function Home() {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: -4, // move down together with panel (keep relative spacing)
+    marginTop: -12, // reduced from -4 to bring button closer to yellow panel
   };
 
   // Hero "WIN" word (replaces image), styled like TAKE CHALLENGE
@@ -177,7 +177,7 @@ export default function Home() {
               style={heroSubtextStyle}
               className={`animate-fadeInUp animate-delay-300 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             >
-              <div style={{ transform: 'rotate(-0.5deg)', transformOrigin: 'center', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ transform: 'rotate(-0.5deg)', transformOrigin: 'center', display: 'flex', justifyContent: 'center', marginTop: '-15px' }}>
                 <img
                   src="/images/newhomepage/bolw like me.png"
                   alt="Bowl Like Me and Get a Chance to Meet Me"
@@ -185,7 +185,7 @@ export default function Home() {
                     width: 'auto',
                     height: 'auto',
                     maxWidth: '100%',
-                    maxHeight: '60px'
+                    maxHeight: '75px'
                   }}
                 />
               </div>
@@ -224,7 +224,7 @@ export default function Home() {
             {/* And also Win word with woosh icon attached to A */}
             <div style={{...winWordStyle, marginTop: 8}}>
               <img
-                src="/images/newhomepage/andalsowin.svg"
+                src="/images/newhomepage/andalsowin1.png"
                 alt="And Also Win"
                 style={{
                   height: 18,
@@ -239,11 +239,11 @@ export default function Home() {
               style={{
                 fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                 fontWeight: 400,
-                fontSize: 'clamp(12px, 3vw, 16px)',
+                fontSize: 'clamp(14px, 3.5vw, 18px)', // increased from clamp(12px, 3vw, 16px)
                 color: '#000000',
-                lineHeight: 1.2,
+                lineHeight: 1.1, // reduced from 1.2 for tighter spacing
                 textAlign: 'center',
-                marginTop: -10
+                marginTop: -15 // reduced from -10 for closer spacing
               }}
             >
               Bumrah's signed gear & voucher
@@ -278,7 +278,7 @@ export default function Home() {
             position: 'absolute',
             left: '50%',
             top: '100%',
-            transform: 'translate(-50%, -30%)', // back to previous position
+            transform: 'translate(-50%, -40%)', // moved up by 10px (from -30% to -40%)
             width: 320,
             height: 140,
             zIndex: 2, // above hero background so upper half is in front
@@ -496,7 +496,7 @@ export default function Home() {
       </div>
 
       {/* Responsive Analysis Steps Section */}
-      <div className="md:hidden w-full px-4 py-12" ref={secondSection.ref} style={{ marginTop: 120, paddingBottom: 'calc(3rem + 60px)' }}>
+      <div className="md:hidden w-full px-4 py-12" ref={secondSection.ref} style={{ marginTop: 80, paddingBottom: 'calc(3rem + 60px)' }}>
         {/* Section Title */}
         <div className="text-center mb-8">
           {/* Take challenge image */}
@@ -639,21 +639,21 @@ export default function Home() {
         </div>
 
         {/* Report card carousel */}
-        <div className="mx-auto w-full max-w-sm md:max-w-md lg:max-w-lg">
+        <div className="mx-auto w-full flex flex-col items-center">
           <Carousel
             opts={{ align: 'center', loop: true, skipSnaps: false }}
             setApi={setCarouselApi}
-            className="w-full"
+            className="w-full max-w-[400px]"
           >
-            <CarouselContent className="-ml-2 md:-ml-4">
+            <CarouselContent className="-ml-3 md:-ml-4">
               {Array.from({ length: 2 }).map((_, i) => (
-                <CarouselItem key={i} className="pl-2 md:pl-4 basis-1/2">
+                <CarouselItem key={i} className="pl-3 md:pl-4 basis-1/2">
                   <div className="flex items-center justify-center">
                     <img
                       src="/images/newhomepage/Report Card.png"
                       alt={`Report card ${i + 1}`}
                       className="w-full h-auto object-contain rounded-xl"
-                      style={{ maxWidth: 220, aspectRatio: '185/325' }}
+                      style={{ maxWidth: 250, aspectRatio: '185/325' }}
                     />
                   </div>
                 </CarouselItem>
@@ -1103,7 +1103,7 @@ export default function Home() {
             style={{
               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
               fontWeight: 700,
-              fontSize: 'clamp(12px, 3vw, 14.29px)',
+              fontSize: 'clamp(14px, 3.5vw, 16px)', // increased from clamp(12px, 3vw, 14.29px)
               color: '#FFFFFF',
               lineHeight: 1.2,
               marginBottom: 24
@@ -1322,7 +1322,7 @@ export default function Home() {
       </div>
 
       {/* Responsive About Section */}
-      <div className="md:hidden w-full relative overflow-hidden" style={{ minHeight: 'auto', marginTop: 0, paddingBottom: '0px', marginBottom: 0 }} ref={fourthSection.ref}>
+      <div className="md:hidden w-full relative overflow-hidden" style={{ minHeight: 'auto', marginTop: -40, paddingBottom: '0px', marginBottom: 0 }} ref={fourthSection.ref}>
         {/* Vector 10 background */}
         <div 
           className="absolute inset-0 z-0"
@@ -1355,7 +1355,7 @@ export default function Home() {
             <p 
               style={{
                 color: 'white', 
-                fontSize: 'clamp(12px, 3vw, 14px)', 
+                fontSize: 'clamp(14px, 3vw, 16px)', // increased from clamp(12px, 3vw, 14px)
                 fontFamily: "'Frutiger LT Pro', Inter, sans-serif", 
                 fontWeight: '700',
                 fontStyle: 'normal',
@@ -1371,7 +1371,7 @@ export default function Home() {
             <p 
               style={{
                 color: 'white', 
-                fontSize: 'clamp(10px, 2.5vw, 12px)', 
+                fontSize: 'clamp(12px, 2.5vw, 14px)', // increased from clamp(10px, 2.5vw, 12px)
                 fontFamily: "'Frutiger LT Pro', Inter, sans-serif", 
                 fontWeight: '400',
                 fontStyle: 'normal',
@@ -1387,7 +1387,7 @@ export default function Home() {
             <p 
               style={{
                 color: 'white', 
-                fontSize: 'clamp(10px, 2.5vw, 12px)', 
+                fontSize: 'clamp(12px, 2.5vw, 14px)', // increased from clamp(10px, 2.5vw, 12px)
                 fontFamily: "'Frutiger LT Pro', Inter, sans-serif", 
                 fontWeight: '400',
                 fontStyle: 'normal',
@@ -1404,7 +1404,7 @@ export default function Home() {
             <p 
               style={{
                 color: 'white', 
-                fontSize: 'clamp(10px, 2.5vw, 12px)', 
+                fontSize: 'clamp(12px, 2.5vw, 14px)', // increased from clamp(10px, 2.5vw, 12px)
                 fontFamily: "'Frutiger LT Pro', Inter, sans-serif", 
                 fontWeight: '400',
                 fontStyle: 'normal',
