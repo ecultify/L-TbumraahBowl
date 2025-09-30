@@ -20,8 +20,22 @@ export default function VideoPreviewPage() {
   const [isPortraitVideo, setIsPortraitVideo] = useState(false);
   const [hasAnalysisData, setHasAnalysisData] = useState(false);
   const [isFaceDetectionRunning, setIsFaceDetectionRunning] = useState(false);
+  const [faceDetectionCompleted, setFaceDetectionCompleted] = useState(false);
   const { state } = useAnalysis();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Check if face detection data already exists in sessionStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const existingCroppedHead = sessionStorage.getItem('croppedHeadImage');
+      const existingTorso = sessionStorage.getItem('generatedTorsoImage');
+      
+      if (existingCroppedHead || existingTorso) {
+        console.log('✅ Face detection data already exists in sessionStorage - skipping detection');
+        setFaceDetectionCompleted(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -288,17 +302,22 @@ export default function VideoPreviewPage() {
         throw new Error(torsoResult.error || 'Failed to generate torso image');
       }
 
+      // Mark face detection as completed successfully
+      setFaceDetectionCompleted(true);
+
     } catch (error) {
       console.error('❌ Background face detection or torso generation failed:', error);
+      // Mark as completed even on failure to prevent infinite retries
+      setFaceDetectionCompleted(true);
       // Silently continue - don't block the main flow
     } finally {
       setIsFaceDetectionRunning(false);
     }
   }, [videoUrl]);
 
-  // Auto-trigger face detection when video is loaded and ready (background process)
+  // Auto-trigger face detection when video is loaded and ready (background process) - RUNS ONLY ONCE
   useEffect(() => {
-    if (videoRef.current && videoUrl && !isFaceDetectionRunning && !hasAnalysisData) {
+    if (videoRef.current && videoUrl && !isFaceDetectionRunning && !hasAnalysisData && !faceDetectionCompleted) {
       // Auto-start face detection after video loads (runs in background)
       const video = videoRef.current;
       const handleLoadedData = () => {
@@ -316,7 +335,7 @@ export default function VideoPreviewPage() {
         return () => video.removeEventListener('loadeddata', handleLoadedData);
       }
     }
-  }, [videoUrl, detectFaceAndGenerateTorso, isFaceDetectionRunning, hasAnalysisData]);
+  }, [videoUrl, detectFaceAndGenerateTorso, isFaceDetectionRunning, hasAnalysisData, faceDetectionCompleted]);
 
   return (
     <>
