@@ -22,7 +22,6 @@ export default function DetailsPage() {
   const [fileSizeLabel, setFileSizeLabel] = useState<string | null>(null);
   const [isPortraitVideo, setIsPortraitVideo] = useState(false);
   const [hasAnalysisData, setHasAnalysisData] = useState(false);
-  const [isVideoReady, setIsVideoReady] = useState(false);
   const { state, dispatch } = useAnalysis();
   const videoRef = useRef<HTMLVideoElement>(null);
   const frameSamplerRef = useRef<FrameSampler | null>(null);
@@ -49,154 +48,44 @@ export default function DetailsPage() {
     console.log('📊 storedFileName:', storedFileName);
     console.log('📊 storedSource:', storedSource);
 
-    // Recreate video URL from stored data if blob URL is invalid or missing
-    const setupVideoUrl = async () => {
-      // Strategy 1: Use temporary file reference (most reliable for same-session navigation)
-      if (typeof window !== 'undefined' && (window as any).tempVideoFile) {
-        try {
-          const tempFile = (window as any).tempVideoFile;
-          // Validate the file is still accessible
-          if (tempFile instanceof File && tempFile.size > 0) {
-            const newVideoUrl = URL.createObjectURL(tempFile);
-            setVideoUrl(newVideoUrl);
-            console.log('✅ Using temporary file reference to create fresh blob URL');
-            return;
-          }
-        } catch (error) {
-          console.error('❌ Error using temporary file reference:', error);
+    // Recreate video URL from stored file reference if available
+    if (typeof window !== 'undefined' && (window as any).tempVideoFile) {
+      try {
+        const tempFile = (window as any).tempVideoFile;
+        const newVideoUrl = URL.createObjectURL(tempFile);
+        setVideoUrl(newVideoUrl);
+        console.log('✅ Using temporary file reference to create fresh blob URL');
+      } catch (error) {
+        console.error('❌ Error using temporary file reference:', error);
+        // Fallback to stored URL
+        if (storedVideoUrl) {
+          setVideoUrl(storedVideoUrl);
+          console.log('✅ Fallback: Using stored video URL');
         }
       }
-      
-      // Strategy 2: Recreate from base64 data (most reliable for persistence)
-      if (storedVideoData && storedVideoData.startsWith('data:')) {
-        try {
-          // Convert base64 data back to blob
-          const response = await fetch(storedVideoData);
-          const blob = await response.blob();
-          if (blob.size > 0) {
-            const newVideoUrl = URL.createObjectURL(blob);
-            setVideoUrl(newVideoUrl);
-            // Also store the temp file reference for consistency
-            (window as any).tempVideoFile = new File([blob], storedFileName || 'video.mp4', {
-              type: blob.type || 'video/mp4'
-            });
-            console.log('✅ Video URL recreated from stored base64 data');
-            return;
-          }
-        } catch (error) {
-          console.error('❌ Error recreating video URL from stored data:', error);
-        }
-      }
-      
-      // Strategy 3: Check file reference indicators
-      if (storedVideoData === 'file-reference-available' || storedVideoData === 'file-reference-only') {
-        if (typeof window !== 'undefined' && (window as any).tempVideoFile) {
-          try {
-            const tempFile = (window as any).tempVideoFile;
-            const newVideoUrl = URL.createObjectURL(tempFile);
-            setVideoUrl(newVideoUrl);
-            console.log('✅ Using temp file from file reference indicator');
-            return;
-          } catch (error) {
-            console.error('❌ Error using temp file from indicator:', error);
-          }
-        }
-      }
-      
-      // Strategy 4: Test original blob URL validity (least reliable)
-      if (storedVideoUrl && storedVideoUrl.startsWith('blob:')) {
-        try {
-          // Try to test the blob URL by creating a temporary video element
-          const testVideo = document.createElement('video');
-          testVideo.preload = 'metadata';
-          
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error('Blob URL test timeout'));
-            }, 5000);
-            
-            testVideo.addEventListener('loadedmetadata', () => {
-              clearTimeout(timeout);
-              setVideoUrl(storedVideoUrl!);
-              console.log('✅ Original blob URL is still valid');
-              resolve(true);
-            }, { once: true });
-            
-            testVideo.addEventListener('error', (error) => {
-              clearTimeout(timeout);
-              reject(error);
-            }, { once: true });
-            
-            testVideo.src = storedVideoUrl!;
-          });
-          
-          return; // Success
-        } catch (error) {
-          console.log('🔄 Original blob URL is invalid:', error);
-        }
-      }
-      
-      // If all strategies failed, log error but don't show popup immediately
-      // Give the page more time to load on mobile devices
-      console.error('❌ No valid video data found - all recovery strategies failed');
-      console.log('📊 Debug info:', {
-        hasStoredVideoUrl: !!storedVideoUrl,
-        hasStoredVideoData: !!storedVideoData,
-        storedVideoDataLength: storedVideoData?.length || 0,
-        hasTempFile: !!(typeof window !== 'undefined' && (window as any).tempVideoFile),
-        storedVideoDataType: storedVideoData ? (storedVideoData.startsWith('data:') ? 'base64' : 'indicator') : 'none',
-        sessionStorageKeys: Object.keys(sessionStorage)
-      });
-      
-      // On mobile, video data might take longer to load - wait before showing error
-      console.log('⏳ Video data not immediately available - will check again before analysis');
-    };
-
-    if (storedVideoUrl || storedVideoData) {
-      // Setup video URL with proper ready state tracking
-      setupVideoUrl().then(() => {
-        console.log('📹 Video setup completed successfully');
-        setIsVideoReady(true);
-      }).catch((error) => {
-        console.error('❌ Video setup failed:', error);
-        setIsVideoReady(false);
-      });
-      
-      if (storedSource === 'record' || storedSource === 'upload') {
-        setVideoSource(storedSource);
-      }
-
-      if (storedMimeType) {
-        setMimeType(storedMimeType);
-      }
-
-      if (storedFileSize) {
-        const parsedSize = parseInt(storedFileSize, 10);
-        if (!Number.isNaN(parsedSize)) {
-          const sizeInMb = parsedSize / (1024 * 1024);
-          setFileSizeLabel(`${sizeInMb.toFixed(2)} MB`);
-        }
-      }
-
-      const fallbackName = storedSource === 'record' ? 'recording.webm' : 'uploaded-video.mp4';
-      setFileName(storedFileName || fallbackName);
-      
-      // CRITICAL FIX: Clear any existing analysis data when loading a new video (async)
-      setTimeout(() => {
-        console.log('🧹 Clearing existing analysis data for new video');
-        window.sessionStorage.removeItem('analysisVideoData');
-        window.sessionStorage.removeItem('analysisVideoData_backup');
-        window.sessionStorage.removeItem('benchmarkDetailedData');
-        window.sessionStorage.removeItem('detailsCompleted');
-        window.sessionStorage.removeItem('pendingLeaderboardEntry');
-        window.sessionStorage.removeItem('noBowlingActionDetected');
-        console.log('✅ Analysis data cleared - ready for fresh analysis');
-      }, 5); // Make storage operations non-blocking
-    } else {
-      console.warn('⚠️ No video data found in sessionStorage');
-      console.log('📊 Available sessionStorage keys:', Object.keys(sessionStorage));
-      console.log('📊 Temporary file available:', !!(typeof window !== 'undefined' && (window as any).tempVideoFile));
+    } else if (storedVideoUrl) {
+      setVideoUrl(storedVideoUrl);
+      console.log('✅ Using stored video URL directly');
     }
+    
+    if (storedSource === 'record' || storedSource === 'upload') {
+      setVideoSource(storedSource);
+    }
+
+    if (storedMimeType) {
+      setMimeType(storedMimeType);
+    }
+
+    if (storedFileSize) {
+      const parsedSize = parseInt(storedFileSize, 10);
+      if (!Number.isNaN(parsedSize)) {
+        const sizeInMb = parsedSize / (1024 * 1024);
+        setFileSizeLabel(`${sizeInMb.toFixed(2)} MB`);
+      }
+    }
+
+    const fallbackName = storedSource === 'record' ? 'recording.webm' : 'uploaded-video.mp4';
+    setFileName(storedFileName || fallbackName);
 
     // Check if analysis data exists and details are completed (user returning from details page)
     const analysisData = window.sessionStorage.getItem('analysisVideoData');
@@ -259,7 +148,6 @@ export default function DetailsPage() {
     const seconds = Math.floor(duration % 60);
     setVideoDuration(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     setIsPortraitVideo(video.videoHeight > video.videoWidth);
-    setIsVideoReady(true);
     console.log('✅ Video loaded successfully:', {
       duration: `${minutes}:${seconds}`,
       dimensions: `${video.videoWidth}x${video.videoHeight}`,
@@ -276,60 +164,16 @@ export default function DetailsPage() {
   };
 
   const startAnalysis = useCallback(async () => {
-    console.log('🚀🚀🚀 DETAILS PAGE: STARTING ANALYSIS - DEBUG MODE 🚀🚀🚀');
-    console.log('📊 Video URL available:', !!videoUrl, 'URL:', videoUrl);
-    console.log('📊 Video ref current:', !!videoRef.current);
-    console.log('📊 Analysis state before start:', { isAnalyzing: state.isAnalyzing, progress: state.progress });
-    
-    // CRITICAL DEBUG: Check all preconditions
-    console.log('🔍 PRECONDITION CHECKS:');
-    console.log('  - videoRef.current exists:', !!videoRef.current);
-    console.log('  - videoUrl exists:', !!videoUrl);
-    console.log('  - videoUrl value:', videoUrl);
-    console.log('  - videoRef.current.src:', videoRef.current?.src);
-    console.log('  - videoRef.current.readyState:', videoRef.current?.readyState);
-    console.log('  - videoRef.current.duration:', videoRef.current?.duration);
+    console.log('🚀 Starting video analysis...');
     
     if (!videoRef.current || !videoUrl) {
       console.error('❌ No video available for analysis');
-      console.log('📊 Debug info:', { 
-        hasVideoRef: !!videoRef.current, 
-        hasVideoUrl: !!videoUrl,
-        videoUrl: videoUrl
-      });
-      
-      // Show user-friendly error and redirect
-      if (typeof window !== 'undefined') {
-        alert('Video is not ready yet. Please wait a moment and try again, or re-upload your video.');
-        // Don't auto-redirect, let user decide
-      }
-      throw new Error('Video not ready for analysis');
-    }
-    
-    // Wait for video to be ready if it's not loaded yet
-    if (videoRef.current.readyState < 2) {
-      console.log('🔄 Video not ready, waiting for loadedmetadata...');
-      await new Promise<void>((resolve) => {
-        const video = videoRef.current!;
-        if (video.readyState >= 2) {
-          resolve();
-          return;
-        }
-        const handleLoadedMetadata = () => {
-          video.removeEventListener('loadedmetadata', handleLoadedMetadata);
-          console.log('✅ Video metadata loaded, ready for analysis');
-          resolve();
-        };
-        video.addEventListener('loadedmetadata', handleLoadedMetadata);
-      });
+      return;
     }
 
-    console.log('✅ Dispatching START_ANALYSIS...');
-    
     // Clear any previous no bowling action flag
     if (typeof window !== 'undefined') {
       window.sessionStorage.removeItem('noBowlingActionDetected');
-      console.log('🗑️ Cleared noBowlingActionDetected flag');
     }
     
     dispatch({ type: 'START_ANALYSIS' });
@@ -808,20 +652,8 @@ export default function DetailsPage() {
                   <div className="w-full">
                 <DetailsCard
                   submitLabel={'Analyze Video'}
-                  loading={!isVideoReady}
+                  loading={state.isAnalyzing}
                   onSubmit={async (payload) => {
-                    // Check if video is ready before proceeding
-                    if (!isVideoReady || !videoUrl) {
-                      console.warn('⚠️ Video not ready, waiting...');
-                      // Wait a bit for video to load
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                      
-                      // Check again
-                      if (!videoUrl || !videoRef.current) {
-                        throw new Error('Video is not ready. Please wait a moment and try again.');
-                      }
-                    }
-                    
                     // Store player name and details
                     if (typeof window !== 'undefined') {
                       window.sessionStorage.setItem('detailsCompleted', 'true');
@@ -927,20 +759,8 @@ export default function DetailsPage() {
                 <GlassBackButton />
                 <DetailsCard
                   submitLabel={'Analyze Video'}
-                  loading={!isVideoReady}
+                  loading={state.isAnalyzing}
                   onSubmit={async (payload) => {
-                    // Check if video is ready before proceeding
-                    if (!isVideoReady || !videoUrl) {
-                      console.warn('⚠️ Video not ready, waiting...');
-                      // Wait a bit for video to load
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                      
-                      // Check again
-                      if (!videoUrl || !videoRef.current) {
-                        throw new Error('Video is not ready. Please wait a moment and try again.');
-                      }
-                    }
-                    
                     // Store player name and details
                     if (typeof window !== 'undefined') {
                       window.sessionStorage.setItem('detailsCompleted', 'true');
