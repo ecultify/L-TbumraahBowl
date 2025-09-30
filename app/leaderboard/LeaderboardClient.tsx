@@ -160,7 +160,7 @@ export default function LeaderboardClient() {
                     margin: 0
                   }}
                 >
-                  Higher the rank, closer you are to meeting<br />Bumrah & winning signed gear.
+                  Higher the rank, closer you are to meeting<br />Bumrah & also win Bumrah's signed gears and amazon voucher.
                 </p>
               </div>
 

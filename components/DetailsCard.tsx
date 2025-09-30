@@ -181,40 +181,13 @@ export function DetailsCard({
   const CardContent = (
     <>
       <div className="mb-6 text-center">
-        {/* ALMOST THERE headline with woosh */}
-        <div
-          style={{
-            position: "relative",
-            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-            fontWeight: 800,
-            fontStyle: "italic",
-            fontSize: "clamp(16px, 4vw, 19.65px)",
-            color: "#000000",
-            lineHeight: 1.1,
-            marginBottom: 6,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "8px"
-          }}
-        >
-          <span style={{ position: "relative" }}>
-            <img
-              src="/images/newhomepage/woosh.svg"
-              alt=""
-              aria-hidden
-              style={{
-                position: "absolute",
-                left: -22,
-                top: "40%",
-                transform: "translateY(-50%)",
-                height: 18,
-                filter: "brightness(0) saturate(100%)"
-              }}
-            />
-            ALMOST
-          </span>
-          <span>THERE</span>
+        {/* ALMOST THERE headline image */}
+        <div style={{ marginBottom: 6, display: "flex", justifyContent: "center" }}>
+          <img
+            src="/images/newhomepage/Almost there.png"
+            alt="Almost There"
+            style={{ width: "70%", height: "auto" }}
+          />
         </div>
 
         {/* Subtitle */}
@@ -357,10 +330,10 @@ export function DetailsCard({
 
       <div className="mb-6 flex justify-center">
         <div className="w-full max-w-xs md:max-w-sm">
-          <label className="flex items-start gap-3 cursor-pointer">
+          <label className="flex items-center gap-3 cursor-pointer">
             <input
               type="checkbox"
-              className="mt-1 w-4 h-4 rounded border-gray-400 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+              className="w-4 h-4 rounded border-gray-400 text-blue-600 focus:ring-blue-500 flex-shrink-0"
               checked={consent}
               onChange={(event) => setConsent(event.target.checked)}
               disabled={isSubmitDisabled && !!onSubmit}

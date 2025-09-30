@@ -78,28 +78,16 @@ export default function GalleryPage() {
               <GlassBackButton />
 
               {/* Gallery Title Image */}
-              <div className="w-full flex justify-center mb-4" style={{ marginTop: 20 }}>
+              <div className="w-full flex justify-center mb-1" style={{ marginTop: 20 }}>
                 <img
                   src="/images/newhomepage/Group 1437254106 (1).png"
                   alt="Gallery"
-                  style={{ width: "auto", maxWidth: "100%", height: "auto" }}
+                  style={{ width: "70%", height: "auto" }}
                 />
               </div>
 
               {/* Subline Text */}
-              <p
-                style={{
-                  fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                  fontWeight: 400,
-                  fontSize: "clamp(11px, 2.5vw, 12px)",
-                  lineHeight: "14px",
-                  color: "#000000",
-                  textAlign: "center",
-                  marginBottom: 8,
-                }}
-              >
-                Fill in your details so we can send you your personalised bowling analysis.
-              </p>
+              
 
               {/* Report Card Carousel */}
               <div className="w-full relative" style={{ marginTop: 12 }}>

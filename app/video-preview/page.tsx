@@ -470,14 +470,15 @@ export default function VideoPreviewPage() {
                   {/* Desktop Video Preview Content */}
                   <div className="text-center w-full">
                     {/* Preview Your Delivery headline */}
-                    <div className="mb-4">
-                      <div className="flex justify-center mb-2">
+                    <div className="mb-2">
+                      <div className="flex justify-center mb-1">
                         <img
                           src="/images/newhomepage/previewyourdelivery.png"
                           alt="Preview Your Delivery"
                           style={{
                             maxWidth: "280px",
-                            height: "auto"
+                            height: "auto",
+                            marginLeft: "10px"
                           }}
                         />
                       </div>
@@ -486,7 +487,7 @@ export default function VideoPreviewPage() {
                         style={{
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: 400,
-                          fontSize: 11,
+                          fontSize: 14,
                           color: "#0A0A0A",
                           lineHeight: 1.3,
                           margin: 0,
@@ -745,7 +746,7 @@ export default function VideoPreviewPage() {
                 <GlassBackButton />
                 {/* Preview Your Delivery headline */}
                 <div className="mb-6 text-center">
-                  <div className="flex justify-center mb-3">
+                  <div className="flex justify-center mb-1">
                     <img
                       src="/images/newhomepage/previewyourdelivery.png"
                       alt="Preview Your Delivery"

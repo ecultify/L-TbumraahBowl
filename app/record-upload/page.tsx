@@ -467,7 +467,7 @@ export default function RecordUploadPage() {
                         style={{
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: 400,
-                          fontSize: 12,
+                          fontSize: 14,
                           color: "#000000",
                           lineHeight: 1.3,
                           margin: 0

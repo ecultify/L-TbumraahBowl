@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { GlassBackButton } from '@/components/GlassBackButton';
+import { Footer } from '@/components/Footer';
 
 const bulletPoints = [
   "Release point must be visible.",
@@ -145,32 +146,18 @@ export default function InstructionsPage() {
                     gap: 10,
                   }}
                 >
-                  <div
-                    style={{
-                      position: "relative",
-                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                      fontWeight: 800,
-                      fontStyle: "italic",
-                      fontSize: 16,
-                      textTransform: "uppercase",
-                      color: "#0A0A0A",
-                      lineHeight: 1.1,
-                      marginBottom: 3,
-                    }}
-                  >
-                    <img
-                      src="/images/newhomepage/woosh.svg"
-                      alt=""
-                      aria-hidden
-                      style={{ position: "absolute", left: -18, top: "50%", transform: "translateY(-50%)", height: 14, filter: "brightness(0) saturate(100%)" }}
-                    />
-                    INSTRUCTIONS
-                  </div>
+                <div style={{ marginBottom: 3 }}>
+                  <img
+                    src="/images/newhomepage/instructions.png"
+                    alt="Instructions"
+                    style={{ width: "70%", height: "auto" }}
+                  />
+                </div>
 
-                  <div className="grid grid-cols-2 gap-2 w-full">
-                    <img src="/images/instructions/good.png" alt="Good" className="w-full h-auto rounded-md" />
-                    <img src="/images/instructions/failed.png" alt="Failed" className="w-full h-auto rounded-md" />
-                  </div>
+                <div className="grid grid-cols-2 gap-2 w-full">
+                  <img src="/images/newhomepage/Good (1).png" alt="Good" className="w-full h-auto rounded-md" />
+                  <img src="/images/newhomepage/Failed (1).png" alt="Failed" className="w-full h-auto rounded-md" />
+                </div>
 
                   <ul style={{ width: "100%", paddingInlineStart: 14, margin: 0, listStyle: "disc", color: "#0A0A0A" }}>
                     {bulletPoints.map((text) => (
@@ -201,7 +188,7 @@ export default function InstructionsPage() {
                       padding: "8px 10px",
                     }}
                   >
-                    <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 10, color: "#000", lineHeight: "12px" }}>
+                    <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 12, color: "#000", lineHeight: "14px" }}>
                       Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
                     </span>
                   </div>
@@ -307,32 +294,18 @@ export default function InstructionsPage() {
               >
                 {/* Universal Back Arrow Box - Top Left */}
                 <GlassBackButton />
-                <div
-                  style={{
-                    position: "relative",
-                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                    fontWeight: 800,
-                    fontStyle: "italic",
-                    fontSize: "clamp(16px, 4vw, 19.65px)",
-                    textTransform: "uppercase",
-                    color: "#0A0A0A",
-                    lineHeight: 1.1,
-                    marginBottom: 6,
-                  }}
-                >
+                <div style={{ marginBottom: 6, width: "100%" }}>
                   <img
-                    src="/images/newhomepage/woosh.svg"
-                    alt=""
-                    aria-hidden
-                    style={{ position: "absolute", left: -22, top: "50%", transform: "translateY(-50%)", height: 18, filter: "brightness(0) saturate(100%)" }}
+                    src="/images/newhomepage/instructions.png"
+                    alt="Instructions"
+                    style={{ width: "70%", height: "auto", margin: "0 auto", display: "block" }}
                   />
-                  INSTRUCTIONS
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 w-full max-w-md">
-                  <img src="/images/instructions/good.png" alt="Good" className="w-full h-auto rounded-lg" />
-                  <img src="/images/instructions/failed.png" alt="Failed" className="w-full h-auto rounded-lg" />
-                </div>
+              <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                <img src="/images/newhomepage/Good (1).png" alt="Good" className="w-full h-auto rounded-lg" />
+                <img src="/images/newhomepage/Failed (1).png" alt="Failed" className="w-full h-auto rounded-lg" />
+              </div>
 
                 <ul style={{ width: "100%", paddingInlineStart: 18, margin: 0, listStyle: "disc", color: "#0A0A0A" }}>
                   {bulletPoints.map((text) => (
@@ -351,22 +324,22 @@ export default function InstructionsPage() {
                   ))}
                 </ul>
 
-                <div
-                  style={{
-                    width: "100%",
-                    borderRadius: 10,
-                    backgroundColor: "rgba(0, 149, 215, 0.15)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    textAlign: "center",
-                    padding: "10px 12px",
-                  }}
-                >
-                  <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(10.5px, calc(2vw + 1.5px), 11.5px)", color: "#000", lineHeight: "14px" }}>
-                    Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
-                  </span>
-                </div>
+              <div
+                style={{
+                  width: "100%",
+                  borderRadius: 10,
+                  backgroundColor: "rgba(0, 149, 215, 0.15)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  padding: "10px 12px",
+                }}
+              >
+                <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(12.5px, calc(2vw + 1.5px), 13.5px)", color: "#000", lineHeight: "16px" }}>
+                  Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
+                </span>
+              </div>
 
                 <Link
                   href="/record-upload"

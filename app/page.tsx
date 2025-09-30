@@ -1411,7 +1411,7 @@ export default function Home() {
                 margin: '0'
               }}
             >
-              Get a chance to meet Bumrah,<br/>& also win Bumrah's signed gear,<br/>and exciting voucher!
+              Get a chance to meet Bumrah,<br/>& also win Bumrah's signed gears,<br/>and exciting voucher!
             </p>
           </div>
         </div>

@@ -386,7 +386,7 @@ export default function SimplifiedAnalyzePage() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 800,
                     fontStyle: "italic",
-                    fontSize: 19.65,
+                    fontSize: 17.5,
                     color: "#000000",
                     lineHeight: 1.1,
                     marginBottom: 2,
@@ -560,7 +560,7 @@ export default function SimplifiedAnalyzePage() {
                     fontSize: '14px',
                     color: '#FFFFFF',
                     margin: 0,
-                    marginBottom: '4px'
+                    marginBottom: '1px'
                   }}>
                     You've just missed the benchmark
                   </p>
@@ -589,11 +589,11 @@ export default function SimplifiedAnalyzePage() {
                     color: 'white',
                     border: 'none',
                     display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  cursor: 'pointer'
-                }}
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    cursor: 'pointer'
+                  }}
                 onClick={() => {
                   console.log('🔄 Retry button clicked');
                   // Clear session data and redirect to record-upload
