@@ -37,6 +37,17 @@ export default function Home() {
 
   // Video modal state
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Detect mobile view
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Hero background container (bottom corners rounded)
   const heroContainerStyle: CSSProperties = {
@@ -2075,19 +2086,33 @@ export default function Home() {
                 ×
               </button>
               
-              {/* Video iframe */}
+              {/* Video content - Direct video for mobile, iframe for desktop */}
               <div 
                 className="relative w-full h-full"
                 onClick={(e) => e.stopPropagation()}
               >
-                <iframe
-                  src="https://drive.google.com/file/d/1e5JBpCXiH4TMg-Tw9x2KOlrhlY9xReGD/preview?autoplay=1"
-                  className="w-full h-full rounded-lg"
-                  allow="autoplay; fullscreen"
-                  allowFullScreen
-                  style={{ border: 'none' }}
-                  loading="lazy"
-                />
+                {isMobile ? (
+                  // Mobile: Use direct video file
+                  <video
+                    className="w-full h-full rounded-lg"
+                    controls
+                    playsInline
+                    style={{ border: 'none', objectFit: 'contain' }}
+                  >
+                    <source src="/how to video.mp4" type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
+                ) : (
+                  // Desktop: Use Google Drive iframe
+                  <iframe
+                    src="https://drive.google.com/file/d/1e5JBpCXiH4TMg-Tw9x2KOlrhlY9xReGD/preview?autoplay=1"
+                    className="w-full h-full rounded-lg"
+                    allow="autoplay; fullscreen"
+                    allowFullScreen
+                    style={{ border: 'none' }}
+                    loading="lazy"
+                  />
+                )}
               </div>
             </div>
           </div>
