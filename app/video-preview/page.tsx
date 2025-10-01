@@ -529,7 +529,7 @@ export default function VideoPreviewPage() {
                           src="/images/newhomepage/previewyourdelivery.png"
                           alt="Preview Your Delivery"
                           style={{
-                            maxWidth: "280px",
+                            maxWidth: "340px",
                             height: "auto",
                             marginLeft: "10px"
                           }}
@@ -540,7 +540,7 @@ export default function VideoPreviewPage() {
                         style={{
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: 400,
-                          fontSize: 14,
+                          fontSize: 18,
                           color: "#0A0A0A",
                           lineHeight: 1.3,
                           margin: 0,
@@ -719,7 +719,7 @@ export default function VideoPreviewPage() {
         <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{
@@ -839,7 +839,8 @@ export default function VideoPreviewPage() {
                       src="/images/newhomepage/previewyourdelivery.png"
                       alt="Preview Your Delivery"
                       style={{
-                        maxWidth: "250px",
+                        width: "85%",
+                        maxWidth: "360px",
                         height: "auto",
                         marginLeft: "10px"
                       }}
@@ -851,8 +852,8 @@ export default function VideoPreviewPage() {
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 400,
                       fontStyle: "normal",
-                      fontSize: "clamp(11px, 2.5vw, 12px)",
-                      lineHeight: "14px",
+                      fontSize: "18px",
+                      lineHeight: "22px",
                       color: "#000000",
                     }}
                   >
@@ -1028,7 +1029,7 @@ export default function VideoPreviewPage() {
         <footer className="md:hidden mt-auto w-full bg-black px-4 md:px-8 pt-4 pb-6">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{

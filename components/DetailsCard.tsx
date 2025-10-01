@@ -186,7 +186,7 @@ export function DetailsCard({
           <img
             src="/images/newhomepage/Almost there.png"
             alt="Almost There"
-            style={{ width: "70%", height: "auto" }}
+            style={{ width: "85%", maxWidth: "360px", height: "auto" }}
           />
         </div>
 
@@ -196,8 +196,8 @@ export function DetailsCard({
             fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
             fontWeight: 400,
             fontStyle: "normal",
-            fontSize: "clamp(11px, 2.5vw, 12px)",
-            lineHeight: "14px",
+            fontSize: "18px",
+            lineHeight: "16px",
             color: "#000000",
           }}
         >

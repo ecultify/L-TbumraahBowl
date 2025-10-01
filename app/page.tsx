@@ -35,6 +35,9 @@ export default function Home() {
     };
   }, [carouselApi]);
 
+  // Video modal state
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+
   // Hero background container (bottom corners rounded)
   const heroContainerStyle: CSSProperties = {
     minHeight: 740,
@@ -184,8 +187,8 @@ export default function Home() {
                   style={{
                     width: 'auto',
                     height: 'auto',
-                    maxWidth: '100%',
-                    maxHeight: '100px'
+                    maxWidth: '120%',
+                    maxHeight: '120px'
                   }}
                 />
               </div>
@@ -227,7 +230,7 @@ export default function Home() {
                 src="/images/andalsowinasterisk.png"
                 alt="And Also Win"
                 style={{
-                  height: 18,
+                  height: 24,
                   width: 'auto',
                   pointerEvents: 'none',
                 }}
@@ -239,7 +242,7 @@ export default function Home() {
               style={{
                 fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                 fontWeight: 400,
-                fontSize: 'clamp(14px, 3.5vw, 18px)', // increased from clamp(12px, 3vw, 16px)
+                fontSize: 'clamp(16px, 3.5vw, 20px)', // increased from clamp(12px, 3vw, 16px)
                 color: '#000000',
                 lineHeight: 1.1, // reduced from 1.2 for tighter spacing
                 textAlign: 'center',
@@ -570,18 +573,18 @@ export default function Home() {
                 {/* Right-aligned text vertically centered to circle */}
                 <div style={{ marginLeft: 2, textAlign: 'left', display: 'flex', alignItems: 'center', minHeight: 34.22657012939453, flex: 1 }}>
                   {n === 1 && (
-                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
-                      Upload your bowling video
+                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(16px, 4vw, 20px)', lineHeight: 1.2, color: '#0A0A0A' }}>
+                      Upload your Bowling Video
                     </div>
                   )}
                   {n === 2 && (
-                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
+                    <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(16px, 4vw, 20px)', lineHeight: 1.2, color: '#0A0A0A' }}>
                       Get a Personalized Analysis Matched with Bumrah
                     </div>
                   )}
                   {n === 3 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
-                      <div style={{ fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2 }}>Share your Analysis on Instagram with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span>, Tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>, and Hit Follow.</div>
+                      <div style={{ fontSize: 'clamp(16px, 4vw, 20px)', lineHeight: 1.2 }}>Share your Analysis on Instagram with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span>, Tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>, and Hit Follow.</div>
                     </div>
                   )}
                 </div>
@@ -592,12 +595,12 @@ export default function Home() {
         </div>
 
         {/* Wall of Fame Image */}
-        <div className="mx-auto mb-2 flex justify-center">
+        <div className="mx-auto mb-6 flex justify-center">
           <img
             src="/images/newhomepage/walloffame.png"
             alt="Wall of Fame"
             className="w-auto h-auto"
-            style={{ maxHeight: '90px' }}
+            style={{ maxHeight: '120px' }}
           />
         </div>
 
@@ -1022,12 +1025,12 @@ export default function Home() {
           <div className="hidden md:block" style={{ height: '200px' }} />
 
           {/* Wall of Fame Image - pushed further down to clear vector boundary */}
-          <div className="mx-auto mb-8 flex justify-center" style={{ marginTop: '50px' }}>
+          <div className="mx-auto mb-12 flex justify-center" style={{ marginTop: '50px' }}>
             <img
               src="/images/newhomepage/walloffame.png"
               alt="Wall of Fame"
               className="w-auto h-auto"
-              style={{ maxHeight: '230px' }}
+              style={{ maxHeight: '280px' }}
                 />
               </div>
 
@@ -1095,7 +1098,7 @@ export default function Home() {
                   src="/images/newhomepage/watchhow.png" 
                   alt="Watch How"
                   className="w-auto h-auto"
-                  style={{ maxHeight: 230 }}
+                  style={{ maxHeight: 300 }}
                 />
               </div>
               <p 
@@ -1132,17 +1135,22 @@ export default function Home() {
 
                 {/* Main video box */}
                 <div 
-                  className="relative w-full h-full"
+                  onClick={() => setIsVideoModalOpen(true)}
+                  className="relative w-full h-full block cursor-pointer group"
                 style={{
                     borderRadius: 20,
-                    background: 'linear-gradient(180deg, #1E75B3 0%, #014F87 100%)',
                     overflow: 'hidden',
                     zIndex: 2,
                   }}
                 >
-                  <div className="w-full h-full flex items-center justify-center">
-                      <div 
-                      className="flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-300"
+                  <img 
+                    src="/images/thumbnail.png" 
+                    alt="Video Thumbnail"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div 
+                      className="flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
                 style={{
                           width: 100,
                           height: 100,
@@ -1300,7 +1308,7 @@ export default function Home() {
               src="/images/newhomepage/watchhow.png" 
               alt="Watch How" 
               className="w-auto h-auto mx-auto"
-              style={{ maxHeight: '90px' }}
+              style={{ maxHeight: '120px' }}
             />
           </div>
           
@@ -1344,20 +1352,25 @@ export default function Home() {
             
             {/* Main Video Box */}
             <div 
-              className="relative w-full h-full"
+              onClick={() => setIsVideoModalOpen(true)}
+              className="relative w-full h-full block cursor-pointer group"
               style={{
                 borderRadius: '20px',
-                background: 'linear-gradient(180deg, #1E75B3 0%, #014F87 100%)',
                 overflow: 'hidden',
                 zIndex: 27,
                 top: '0',
                 left: '0'
               }}
             >
+              <img 
+                src="/images/thumbnail.png" 
+                alt="Video Thumbnail"
+                className="w-full h-full object-cover"
+              />
               {/* Play Button */}
-              <div className="w-full h-full flex items-center justify-center">
+              <div className="absolute inset-0 flex items-center justify-center">
                 <div 
-                  className="flex items-center justify-center cursor-pointer hover:scale-110 transition-transform duration-300"
+                  className="flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
                   style={{
                     width: '80px',
                     height: '80px',
@@ -1527,7 +1540,7 @@ export default function Home() {
       <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6" ref={footerSection.ref}>
         <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
           {/* Copyright Text */}
-          <div className={`text-left animate-fadeInLeft ${footerSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
+          <div className={`text-center animate-fadeInLeft ${footerSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <p 
               className="text-white text-xs"
               style={{
@@ -2045,6 +2058,40 @@ export default function Home() {
             </div>
           </div>
         </footer>
+
+        {/* Video Modal */}
+        {isVideoModalOpen && (
+          <div 
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-90"
+            onClick={() => setIsVideoModalOpen(false)}
+          >
+            <div className="relative w-full h-full max-w-6xl max-h-[90vh] m-4 md:m-8">
+              {/* Close button */}
+              <button
+                onClick={() => setIsVideoModalOpen(false)}
+                className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors z-[10000]"
+                style={{ fontSize: '36px', lineHeight: 1 }}
+              >
+                ×
+              </button>
+              
+              {/* Video iframe */}
+              <div 
+                className="relative w-full h-full"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <iframe
+                  src="https://drive.google.com/file/d/1e5JBpCXiH4TMg-Tw9x2KOlrhlY9xReGD/preview?autoplay=1"
+                  className="w-full h-full rounded-lg"
+                  allow="autoplay; fullscreen"
+                  allowFullScreen
+                  style={{ border: 'none' }}
+                  loading="lazy"
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

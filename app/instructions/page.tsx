@@ -221,7 +221,7 @@ export default function InstructionsPage() {
         <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{
@@ -344,19 +344,32 @@ export default function InstructionsPage() {
                 <img src="/images/newhomepage/Failed (1).png" alt="Failed" className="w-full h-auto rounded-lg" />
               </div>
 
-                <ul style={{ width: "100%", paddingInlineStart: 18, margin: 0, listStyle: "disc", color: "#0A0A0A" }}>
+                <ul style={{ width: "100%", paddingInlineStart: 0, margin: 0, listStyle: "none", color: "#0A0A0A" }}>
                   {bulletPoints.map((text) => (
                     <li
                       key={text}
                       style={{
                         fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                         fontWeight: 400,
-                        fontSize: "clamp(11px, 2.5vw, 12px)",
-                        lineHeight: "16px",
-                        marginBottom: 4,
+                        fontSize: "clamp(17px, 3.5vw, 19px)",
+                        lineHeight: "24px",
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 8,
                       }}
                     >
-                      {text}
+                      <img 
+                        src="/images/accept.png" 
+                        alt="" 
+                        style={{ 
+                          width: 20, 
+                          height: 20, 
+                          marginTop: 2,
+                          flexShrink: 0 
+                        }} 
+                      />
+                      <span>{text}</span>
                     </li>
                   ))}
                 </ul>
@@ -373,7 +386,7 @@ export default function InstructionsPage() {
                   padding: "10px 12px",
                 }}
               >
-                <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(12.5px, calc(2vw + 1.5px), 13.5px)", color: "#000", lineHeight: "16px" }}>
+                <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: "clamp(16px, calc(2.5vw + 2px), 18px)", color: "#000", lineHeight: "22px" }}>
                   Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
                 </span>
               </div>
@@ -407,7 +420,7 @@ export default function InstructionsPage() {
       <footer className="md:hidden mt-auto w-full bg-black px-4 md:px-8 pt-4 pb-6">
         <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
           {/* Copyright Text */}
-          <div className="text-left">
+          <div className="text-center">
             <p 
               className="text-white text-xs"
               style={{

@@ -705,7 +705,7 @@ export default function DetailsPage() {
         <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{
@@ -844,7 +844,7 @@ export default function DetailsPage() {
         <footer className="md:hidden mt-auto w-full bg-black px-4 md:px-8 pt-4 pb-6">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{

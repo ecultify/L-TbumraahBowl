@@ -587,7 +587,7 @@ export default function SimplifiedAnalyzePage() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 800,
                     fontStyle: "italic",
-                    fontSize: 17.5,
+                    fontSize: 22,
                     color: "#000000",
                     lineHeight: 1.1,
                     marginBottom: 2,
@@ -679,7 +679,7 @@ export default function SimplifiedAnalyzePage() {
                       className="transition-all duration-300 hover:brightness-110 hover:scale-105"
                       style={{
                         width: "100%",
-                        backgroundColor: '#28a745',
+                        backgroundColor: '#0095d7',
                         borderRadius: '25.62px',
                         fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                         fontWeight: '700',
@@ -828,7 +828,7 @@ export default function SimplifiedAnalyzePage() {
         {/* Mobile Footer */}
         <footer className="md:hidden mt-auto w-full bg-black px-4 md:px-8 pt-4 pb-6">
         <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
-          <div className="text-left">
+          <div className="text-center">
             <p 
               className="text-white text-xs"
               style={{
@@ -1088,7 +1088,7 @@ export default function SimplifiedAnalyzePage() {
                             className="transition-all duration-300 hover:brightness-110 hover:scale-105"
                             style={{
                               flex: 1,
-                              backgroundColor: '#28a745',
+                              backgroundColor: '#0095d7',
                               borderRadius: '22px',
                               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                               fontWeight: '700',
@@ -1235,7 +1235,7 @@ export default function SimplifiedAnalyzePage() {
         {/* Desktop Footer */}
         <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
-            <div className="text-left">
+            <div className="text-center">
               <p 
               className="text-white text-xs"
               style={{

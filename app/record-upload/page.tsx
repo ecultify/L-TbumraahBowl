@@ -458,7 +458,7 @@ export default function RecordUploadPage() {
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: 800,
                           fontStyle: "italic",
-                          fontSize: 18,
+                          fontSize: 20,
                           color: "#000000",
                           lineHeight: 1.1,
                           marginBottom: 4,
@@ -807,7 +807,7 @@ export default function RecordUploadPage() {
         <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{
@@ -923,10 +923,11 @@ export default function RecordUploadPage() {
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 800,
                       fontStyle: "italic",
-                      fontSize: "clamp(16px, 4vw, 19.65px)",
+                      fontSize: "clamp(20px, 5vw, 24px)",
                       color: "#000000",
                       lineHeight: 1.1,
                       marginBottom: 2,
+                      marginLeft: "10px",
                     }}
                   >
                     LIGHTS, CAMERA, BOWL!
@@ -935,7 +936,7 @@ export default function RecordUploadPage() {
                     style={{
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 400,
-                      fontSize: "clamp(11px, 2.5vw, 12px)",
+                      fontSize: "clamp(14px, 3vw, 16px)",
                       color: "#000000",
                       lineHeight: 1.3,
                       margin: 0,
@@ -1078,7 +1079,7 @@ export default function RecordUploadPage() {
                           style={{
                             fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                             fontWeight: 400,
-                            fontSize: '11px',
+                            fontSize: '15px',
                             color: '#666666',
                             lineHeight: 1.3,
                             textAlign: 'center',
@@ -1099,7 +1100,8 @@ export default function RecordUploadPage() {
                             color: "black",
                             border: "none",
                             cursor: "pointer",
-                            minWidth: '120px'
+                            minWidth: '120px',
+                            marginBottom: '12px'
                           }}
                         >
                           Start Camera
@@ -1157,7 +1159,7 @@ export default function RecordUploadPage() {
                             style={{
                               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                               fontWeight: 400,
-                              fontSize: '11px',
+                              fontSize: '15px',
                               color: '#666666',
                               lineHeight: 1.3,
                               textAlign: 'center',
@@ -1181,7 +1183,8 @@ export default function RecordUploadPage() {
                               color: "black",
                               border: "none",
                               cursor: "pointer",
-                              minWidth: '120px'
+                              minWidth: '120px',
+                              marginBottom: '12px'
                             }}
                           >
                             Choose File
@@ -1270,7 +1273,7 @@ export default function RecordUploadPage() {
         <footer className="mt-auto w-full bg-black px-4 md:px-8 pt-4 pb-6">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             {/* Copyright Text */}
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{

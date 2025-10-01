@@ -128,7 +128,7 @@ export default function LeaderboardClient() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 800,
                     fontStyle: "italic",
-                    fontSize: "clamp(16px, 4vw, 19.65px)",
+                    fontSize: "clamp(20px, 5vw, 24px)",
                     color: "#000000",
                     lineHeight: 1.1,
                     marginBottom: 2,
@@ -145,13 +145,13 @@ export default function LeaderboardClient() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 400,
                     fontStyle: "normal",
-            fontSize: "clamp(12px, 3vw, 14px)",
+            fontSize: "clamp(16px, 3.5vw, 18px)",
                     color: "#000000",
-                    lineHeight: 1.3,
+                    lineHeight: 1.1,
                     margin: 0
                   }}
                 >
-                  Higher the rank, closer you are to meeting<br />Bumrah & also win Bumrah's signed gears and amazon voucher.
+                  Higher the rank, closer you are to meeting<br />Bumrah & also win Bumrah's signed gears and amazon vouchers.
                 </p>
               </div>
 
@@ -578,7 +578,7 @@ export default function LeaderboardClient() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 800,
                     fontStyle: "normal",
-            fontSize: "clamp(14px, 3vw, 16px)",
+            fontSize: "clamp(18px, 4vw, 20px)",
                     color: "#13264A",
                     lineHeight: 1.2,
             marginBottom: 4
@@ -591,7 +591,7 @@ export default function LeaderboardClient() {
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                     fontWeight: 400,
                     fontStyle: "normal",
-            fontSize: "clamp(13px, 3vw, 15px)",
+            fontSize: "clamp(17px, 3.5vw, 19px)",
                     color: "#13264A",
                     lineHeight: 1.2,
                     marginBottom: 16
@@ -824,7 +824,7 @@ export default function LeaderboardClient() {
         {/* Desktop Footer */}
         <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
-            <div className="text-left">
+            <div className="text-center">
               <p 
                 className="text-white text-xs"
                 style={{
@@ -917,7 +917,7 @@ export default function LeaderboardClient() {
       {/* Mobile Footer */}
       <footer className="md:hidden mt-auto w-full bg-black px-4 md:px-8 pt-4 pb-6">
         <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
-          <div className="text-left">
+          <div className="text-center">
             <p 
               className="text-white text-xs"
               style={{
