@@ -31,6 +31,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   recommendations
 }) => {
   const [generatedTorsoImage, setGeneratedTorsoImage] = useState<string | null>(null);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const [scale, setScale] = useState(1);
   const [isReady, setIsReady] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -39,8 +40,16 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   useEffect(() => {
     const torsoImage = getGeneratedTorsoImage();
     if (torsoImage) {
-      setGeneratedTorsoImage(torsoImage);
-      console.log('✅ Loaded generated torso image for composite card');
+      // Validate image data URL before setting
+      if (torsoImage.startsWith('data:image/')) {
+        setGeneratedTorsoImage(torsoImage);
+        console.log('✅ Loaded generated torso image for composite card');
+      } else {
+        console.error('❌ Invalid torso image data URL format');
+        setImageLoadError(true);
+      }
+    } else {
+      console.warn('⚠️ No generated torso image found in session storage');
     }
   }, []);
 
@@ -125,7 +134,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
         }}
       />
       {/* Generated Torso Image - positioned between upper and bottom parts */}
-      {generatedTorsoImage && (
+      {generatedTorsoImage && !imageLoadError && (
         <img
           src={generatedTorsoImage}
           alt="Generated Cricket Player Torso"
@@ -140,6 +149,15 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
             zIndex: 1.5,
             objectFit: "contain",
             objectPosition: "center top"
+          }}
+          onError={(e) => {
+            console.error('❌ Failed to load torso image in composite card');
+            setImageLoadError(true);
+            // Hide the image element
+            e.currentTarget.style.display = 'none';
+          }}
+          onLoad={() => {
+            console.log('✅ Torso image loaded successfully in composite card');
           }}
         />
       )}

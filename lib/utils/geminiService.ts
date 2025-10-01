@@ -166,7 +166,10 @@ export class GeminiTorsoService {
     try {
       return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        // Don't set crossOrigin for data URLs - causes issues on iOS
+        if (!imageUrl.startsWith('data:')) {
+          img.crossOrigin = 'anonymous';
+        }
         
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -186,9 +189,12 @@ export class GeminiTorsoService {
           ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
           
-          // Convert to data URL
-          const resizedImageUrl = canvas.toDataURL('image/png');
-          console.log(`✅ Image resized to ${targetWidth}x${targetHeight}`);
+          // Convert to data URL with compression for iOS compatibility
+          // Use JPEG for smaller file size, with quality adjusted for iOS
+          const quality = this.isIOS() ? 0.7 : 0.85; // Lower quality on iOS
+          const format = this.isIOS() ? 'image/jpeg' : 'image/png'; // JPEG is smaller on iOS
+          const resizedImageUrl = canvas.toDataURL(format, quality);
+          console.log(`✅ Image resized to ${targetWidth}x${targetHeight}, format: ${format}, quality: ${quality}`);
           resolve(resizedImageUrl);
         };
         
@@ -205,12 +211,22 @@ export class GeminiTorsoService {
     }
   }
 
+  // Detect iOS devices
+  private isIOS(): boolean {
+    if (typeof window === 'undefined') return false;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+           (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
   // Remove background from image to make it fully transparent
   private async removeBackground(imageUrl: string): Promise<string> {
     try {
       return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        // Don't set crossOrigin for data URLs - causes issues on iOS
+        if (!imageUrl.startsWith('data:')) {
+          img.crossOrigin = 'anonymous';
+        }
         
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -226,6 +242,14 @@ export class GeminiTorsoService {
           
           // Draw image
           ctx.drawImage(img, 0, 0);
+          
+          // Skip background removal on iOS to reduce processing load
+          if (this.isIOS()) {
+            console.log('⚠️ Skipping background removal on iOS for performance');
+            const simpleImageUrl = canvas.toDataURL('image/jpeg', 0.7);
+            resolve(simpleImageUrl);
+            return;
+          }
           
           // Get image data
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);

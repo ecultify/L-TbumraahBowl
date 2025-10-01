@@ -40,6 +40,8 @@ export function DetailsCard({
   const [error, setError] = useState<string | null>(null);
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -66,34 +68,118 @@ export function DetailsCard({
     setOtpValues(Array(OTP_BOX_COUNT).fill(''));
     setRemainingTime(59);
     setIsTimerActive(false);
+    setOtpVerified(false);
   }, []);
 
-  const handleGetOtp = useCallback(() => {
-    setShowOtpBoxes(true);
-    setIsTimerActive(true);
-    setRemainingTime(59);
-    setOtpValues(Array(OTP_BOX_COUNT).fill(''));
-  }, []);
+  const handleGetOtp = useCallback(async () => {
+    // Validate phone number
+    if (!phone || phone.length !== 10) {
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
 
-  const handleResend = useCallback(() => {
-    setRemainingTime(59);
-    setIsTimerActive(true);
-    setOtpValues(Array(OTP_BOX_COUNT).fill(''));
-  }, []);
+    setOtpSending(true);
+    setError(null);
 
-  const handleOtpChange = useCallback((index: number, value: string) => {
+    try {
+      // Call send OTP API
+      const response = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          body: `ve+dp06Wd9abVgUrYeFZtBAmLN5iDZJeZXq5pFRY8/QTZikEPcQm04Msvl5GUqM0ZmIv+M50deNvhmOAqjzTal3O4z9TqvY/OpOKlTXSoDdryXRlcnKpLfV/pxVhEXMtmV88BIfzIkn99z+ye+0liybSwb8sQS2weJrnvFNovQyYUpDlr8MXkAc3Di72RdED`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send OTP');
+      }
+
+      setShowOtpBoxes(true);
+      setIsTimerActive(true);
+      setRemainingTime(59);
+      setOtpValues(Array(OTP_BOX_COUNT).fill(''));
+      setOtpVerified(false); // Reset verification status
+      
+      // Show success alert
+      if (typeof window !== 'undefined') {
+        alert('OTP sent successfully!');
+      }
+    } catch (error: any) {
+      console.error('Error sending OTP:', error);
+      setError(error.message || 'Failed to send OTP. Please try again.');
+      
+      // Show error alert
+      if (typeof window !== 'undefined') {
+        alert('Failed to send OTP. Please try again.');
+      }
+    } finally {
+      setOtpSending(false);
+    }
+  }, [phone]);
+
+  const handleResend = useCallback(async () => {
+    await handleGetOtp();
+  }, [handleGetOtp]);
+
+  const handleOtpChange = useCallback(async (index: number, value: string) => {
     if (value.length > 1) return;
-    setOtpValues((prev) => {
-      const updated = [...prev];
-      updated[index] = value;
-      return updated;
-    });
+    
+    const newOtpValues = [...otpValues];
+    newOtpValues[index] = value;
+    setOtpValues(newOtpValues);
 
     if (value && index < OTP_BOX_COUNT - 1) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       nextInput?.focus();
     }
-  }, []);
+
+    // Check if all OTP boxes are filled
+    if (newOtpValues.every(val => val !== '') && index === OTP_BOX_COUNT - 1) {
+      // Verify OTP
+      try {
+        const response = await fetch('/api/verify-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            body: 'Pkblal8hw+rvOmXrantfYKAGT56Ys3loUwBKHl8UFD0pNF7s2J58AWinA6jC/zr/8ImTDpfQuKyBwEkNJOdqSw==',
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to verify OTP');
+        }
+
+        setOtpVerified(true);
+        setError(null);
+        
+        // Show success alert
+        if (typeof window !== 'undefined') {
+          alert('OTP verified successfully!');
+        }
+      } catch (error: any) {
+        console.error('Error verifying OTP:', error);
+        setError(error.message || 'Invalid OTP. Please try again.');
+        setOtpVerified(false);
+        
+        // Show error alert
+        if (typeof window !== 'undefined') {
+          alert('Invalid OTP. Please try again.');
+        }
+        
+        // Clear OTP fields
+        setOtpValues(Array(OTP_BOX_COUNT).fill(''));
+      }
+    }
+  }, [otpValues]);
 
   const isSubmitDisabled = loading || submitting;
 
@@ -102,9 +188,37 @@ export function DetailsCard({
       if (!onSubmit) return;
       event.preventDefault();
 
+      // Validation
       const trimmedName = name.trim();
       if (!trimmedName) {
         setError('Please enter your full name.');
+        if (typeof window !== 'undefined') {
+          alert('Please enter your full name.');
+        }
+        return;
+      }
+
+      if (!phone || phone.length !== 10) {
+        setError('Please enter a valid 10-digit phone number.');
+        if (typeof window !== 'undefined') {
+          alert('Please enter a valid 10-digit phone number.');
+        }
+        return;
+      }
+
+      if (!consent) {
+        setError('Please accept the Terms & Conditions to proceed.');
+        if (typeof window !== 'undefined') {
+          alert('Please accept the Terms & Conditions to proceed.');
+        }
+        return;
+      }
+
+      if (!otpVerified) {
+        setError('Please verify OTP before proceeding.');
+        if (typeof window !== 'undefined') {
+          alert('Please verify OTP before proceeding.');
+        }
         return;
       }
 
@@ -114,7 +228,7 @@ export function DetailsCard({
       try {
         await onSubmit({
           name: trimmedName,
-          phone: phone.trim() || undefined,
+          phone: phone.trim(),
           consent,
           otpValues,
         });
@@ -126,11 +240,14 @@ export function DetailsCard({
       } catch (submitError: any) {
         const message = submitError?.message || 'Something went wrong. Please try again.';
         setError(message);
+        if (typeof window !== 'undefined') {
+          alert(message);
+        }
       } finally {
         setSubmitting(false);
       }
     },
-    [consent, name, onSubmit, otpValues, phone, resetOtp]
+    [consent, name, onSubmit, otpValues, phone, resetOtp, otpVerified]
   );
 
   const renderSubmitControl = useMemo(() => {
@@ -251,7 +368,13 @@ export function DetailsCard({
               type="tel"
               placeholder="Phone Number"
               value={phone}
-              onChange={(event) => setPhone(event.target.value)}
+              onChange={(event) => {
+                const value = event.target.value.replace(/\D/g, ''); // Only numbers
+                if (value.length <= 10) {
+                  setPhone(value);
+                }
+              }}
+              maxLength={10}
               className="w-full h-full pl-12 pr-4 text-black placeholder-black bg-white border border-gray-400 focus:border-blue-500 focus:outline-none"
               style={{
                 borderRadius: '20px',
@@ -261,13 +384,14 @@ export function DetailsCard({
                 color: 'black'
               }}
               disabled={isSubmitDisabled && !!onSubmit}
+              required={!!onSubmit}
             />
           </div>
 
           <button
             type="button"
             onClick={handleGetOtp}
-            disabled={(showOtpBoxes && isTimerActive) || (isSubmitDisabled && !!onSubmit)}
+            disabled={otpSending || (showOtpBoxes && isTimerActive) || (isSubmitDisabled && !!onSubmit)}
             className="text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             style={{
               minWidth: '70px',
@@ -281,7 +405,7 @@ export function DetailsCard({
               padding: '0 12px'
             }}
           >
-            {showOtpBoxes && isTimerActive ? 'OTP Sent' : 'Get OTP'}
+            {otpSending ? 'Sending...' : (showOtpBoxes && isTimerActive ? 'OTP Sent' : 'Get OTP')}
           </button>
         </div>
       </div>
@@ -294,9 +418,14 @@ export function DetailsCard({
                 key={index}
                 id={`otp-${index}`}
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={1}
                 value={value}
-                onChange={(event) => handleOtpChange(index, event.target.value)}
+                onChange={(event) => {
+                  const val = event.target.value.replace(/\D/g, ''); // Only numbers
+                  handleOtpChange(index, val);
+                }}
                 className="text-center text-black font-bold border-0 focus:outline-none focus:ring-2 focus:ring-blue-300"
                 style={{
                   width: '34.06px',

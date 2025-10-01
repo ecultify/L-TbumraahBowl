@@ -332,10 +332,10 @@ export default function Home() {
             {/* Hero Content Grid */}
             <div className="grid lg:grid-cols-2 gap-16 items-center">
               {/* Left Column - Content */}
-              <div className="space-y-8">
+              <div className="space-y-6">
                 {/* Main Heading */}
                 <div 
-                  className="space-y-4"
+                  className="space-y-2"
                   style={{
                     marginTop: '10px'
                   }}
@@ -343,7 +343,7 @@ export default function Home() {
                   <img
                     src="/images/bowlkarbumrahkispeedpar.png"
                     alt="Bowl Kar Bumraah Ki Speed Par"
-                    className="h-16 md:h-20 lg:h-24 w-auto"
+                    className="h-20 md:h-24 lg:h-32 w-auto"
                   />
                   <div
                     className="text-white leading-tight"
@@ -351,12 +351,13 @@ export default function Home() {
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 800,
                       fontStyle: 'italic',
-                      fontSize: '30px',
+                      fontSize: '36px',
                       lineHeight: 1.2,
                       textTransform: 'uppercase',
                       transform: 'rotate(-3.48deg)',
                       transformOrigin: 'center',
-                      maxWidth: '500px'
+                      maxWidth: '500px',
+                      marginTop: '-10px'
                     }}
                   >
                     SHOW OFF YOUR BOWLING STYLE AND GET A CHANCE TO MEET ME
@@ -375,7 +376,7 @@ export default function Home() {
                       fontWeight: '700',
                       fontSize: '18px',
                       color: 'black',
-                      padding: '16px 40px'
+                      padding: '12px 40px'
                     }}
                   >
                     <strong>Get Started</strong>
@@ -384,20 +385,21 @@ export default function Home() {
 
                 {/* WIN Section replaced with andalsowin + subline + desktop gratifications (Desktop only) */}
                 <div 
-                  className="hidden md:flex flex-col items-start gap-2 mt-16"
+                  className="hidden md:flex flex-col items-start gap-2"
+                  style={{ marginTop: 'calc(4rem + 85px)' }}
                 >
                   {/* And Also Win banner */}
                   <img
-                    src="/images/newhomepage/andalsowin.svg"
+                    src="/images/andalsowindesktop2.png"
                     alt="And Also Win"
-                    style={{ height: 24, width: 'auto', filter: 'brightness(0) invert(1)', marginLeft: '-30px' }}
+                    style={{ height: 27, width: 'auto', marginLeft: '-30px' }}
                   />
                   {/* Subline from mobile */}
                   <div 
                     style={{
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: 400,
-                      fontSize: '14px',
+                      fontSize: '21px',
                       color: '#FFFFFF',
                       lineHeight: 1.1,
                       textTransform: 'none',
@@ -410,7 +412,7 @@ export default function Home() {
                   <img
                     src="/images/desktop%20gratifiecation.png"
                     alt="Gratifications"
-                    style={{ width: 420, height: 'auto', marginTop: '10px' }}
+                    style={{ width: 520, height: 'auto', marginTop: '10px' }}
                   />
                 </div>
               </div>
@@ -907,17 +909,17 @@ export default function Home() {
         {/* Take Challenge Image - Positioned on top of vector image */}
         <div className="absolute left-1/2 transform -translate-x-1/2" style={{ top: '-100px', zIndex: 5 }}>
           <img 
-            src="/images/newhomepage/takechallenge.png" 
-            alt="Take Challenge" 
+            src="/images/takethechallenge.png" 
+            alt="Take The Challenge" 
             className="w-auto h-auto mx-auto"
-            style={{ maxHeight: '100px' }}
+            style={{ maxHeight: '280px' }}
             loading="eager"
           />
         </div>
 
-        <div className="w-full px-8 py-16 pt-14">
-          {/* Glass box container with decorative balls */}
-          <div className="relative mx-auto mb-8" style={{ width: 900 }}>
+         <div className="w-full px-8 py-16" style={{ paddingTop: '120px' }}>
+           {/* Glass box container with decorative balls */}
+           <div className="relative mx-auto mb-8" style={{ width: 1100 }}>
             {/* Left Ball - Far left corner */}
             <img 
               src="/images/ball1.png" 
@@ -946,23 +948,23 @@ export default function Home() {
               }}
             />
 
-            {/* Glassmorphism container */}
-            <div
-              className="relative z-10"
-              style={{
-                width: 900,
-                height: 450,
-                borderRadius: 40,
-                backgroundColor: '#FFFFFF80',
-                backdropFilter: 'blur(12px)',
-                WebkitBackdropFilter: 'blur(12px)',
-                boxShadow: 'inset 0 0 0 1px #FFFFFF',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'stretch',
-                justifyContent: 'flex-start',
-              }}
-            >
+             {/* Glassmorphism container */}
+             <div
+               className="relative z-10"
+               style={{
+                 width: 1100,
+                 height: 450,
+                 borderRadius: 40,
+                 backgroundColor: '#FFFFFF80',
+                 backdropFilter: 'blur(12px)',
+                 WebkitBackdropFilter: 'blur(12px)',
+                 boxShadow: 'inset 0 0 0 1px #FFFFFF',
+                 border: 'none',
+                 display: 'flex',
+                 alignItems: 'stretch',
+                 justifyContent: 'flex-start',
+               }}
+             >
               <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', padding: '50px 60px', gap: 40, alignItems: 'flex-start', justifyContent: 'center' }}>
                 {[1, 2, 3].map((n) => (
                   <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 30 }}>
@@ -1012,19 +1014,19 @@ export default function Home() {
                     <div style={{ marginLeft: 8, textAlign: 'left', display: 'flex', alignItems: 'center', minHeight: 80, flex: 1 }}>
                       {n === 1 && (
                         <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: '26px', lineHeight: 1.3, color: '#0A0A0A' }}>
-                          Upload Your Bowling Video
+                          Upload your Bowling Video
                         </div>
                       )}
                       {n === 2 && (
                         <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: '26px', lineHeight: 1.3, color: '#0A0A0A' }}>
-                          Get a personalized Analysis Matched with Bumrah
+                          Get a Personalized Analysis Matched with Bumrah
                         </div>
                       )}
-                      {n === 3 && (
-                        <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
-                          <div style={{ fontSize: '26px', lineHeight: 1.3 }}>Share your analysis on Instagram with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span>, tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>, and hit follow.</div>
-                        </div>
-                      )}
+                       {n === 3 && (
+                         <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
+                           <div style={{ fontSize: '26px', lineHeight: 1.3, maxWidth: '900px' }}>Share your Analysis on Instagram with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span>, Tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>, and Hit Follow.</div>
+                         </div>
+                       )}
                     </div>
                   </div>
                 ))}
@@ -1035,15 +1037,15 @@ export default function Home() {
           {/* Spacer to push Wall of Fame and carousel down on desktop */}
           <div className="hidden md:block" style={{ height: '200px' }} />
 
-          {/* Wall of Fame Image - pushed further down to clear vector boundary */}
-          <div className="mx-auto mb-12 flex justify-center" style={{ marginTop: '50px' }}>
-            <img
-              src="/images/newhomepage/walloffame.png"
-              alt="Wall of Fame"
-              className="w-auto h-auto"
-              style={{ maxHeight: '280px' }}
-                />
-              </div>
+           {/* Wall of Fame Image - pushed further down to clear vector boundary */}
+           <div className="mx-auto mb-12 flex justify-center" style={{ marginTop: '50px' }}>
+             <img
+               src="/images/newhomepage/walloffame.png"
+               alt="Wall of Fame"
+               className="w-auto h-auto"
+               style={{ maxHeight: '240px' }}
+                 />
+               </div>
 
           {/* Report card carousel */}
           <div className="mx-auto w-full flex flex-col items-center" style={{ marginTop: '70px' }}>
@@ -1053,14 +1055,14 @@ export default function Home() {
               className="w-full max-w-[1320px]"
             >
               <CarouselContent className="ml-0">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <CarouselItem key={i} className="pl-0 basis-1/3">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <CarouselItem key={i} className="pl-0 basis-1/4">
                     <div className="flex items-center justify-center">
                       <img
                         src="/images/newhomepage/Report Card.png"
                         alt={`Report card ${i + 1}`}
                         className="w-full h-auto object-contain rounded-xl"
-                        style={{ maxWidth: 420, aspectRatio: '185/325' }}
+                        style={{ maxWidth: 300, aspectRatio: '185/325' }}
                       />
                     </div>
                   </CarouselItem>
@@ -1070,7 +1072,7 @@ export default function Home() {
               <CarouselNext className="hidden" />
             </Carousel>
             <div className="mt-6 flex justify-center gap-3">
-              {Array.from({ length: 3 }).map((_, i) => (
+              {Array.from({ length: 4 }).map((_, i) => (
                 <span
                   key={i}
                 style={{
@@ -1103,13 +1105,13 @@ export default function Home() {
           <div className="mx-auto px-8 h-full flex items-center" style={{ maxWidth: '1600px' }}>
             <div className="grid grid-cols-12 items-center w-full gap-2 py-12">
             {/* Left: Watch How title and subline */}
-            <div className="col-span-12 lg:col-span-6 flex flex-col items-center text-center">
+            <div className="col-span-12 lg:col-span-6 flex flex-col items-center text-center" style={{ marginTop: '-30px' }}>
               <div className="mb-8">
                 <img 
                   src="/images/newhomepage/watchhow.png" 
                   alt="Watch How"
                   className="w-auto h-auto"
-                  style={{ maxHeight: 300 }}
+                  style={{ maxHeight: '240px' }}
                 />
               </div>
               <p 
@@ -1123,6 +1125,25 @@ export default function Home() {
               >
                 Your quick guide to bowling,<br />sharing & winning.
               </p>
+              {/* Moved Get Started button under subline (from right column) */}
+              <div className="mt-8">
+                <a
+                  href="/instructions"
+                  className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl text-center"
+                  style={{
+                    backgroundColor: '#FFC315',
+                    borderRadius: 25,
+                    fontFamily: 'Frutiger, Inter, sans-serif',
+                    fontWeight: 700,
+                    fontSize: 18,
+                    color: 'black',
+                    display: 'block',
+                    padding: '12px 32px'
+                  }}
+                >
+                  Get Started
+                </a>
+              </div>
             </div>
 
             {/* Right: Vertical video box */}
@@ -1146,7 +1167,11 @@ export default function Home() {
 
                 {/* Main video box */}
                 <div 
-                  onClick={() => setIsVideoModalOpen(true)}
+                  onClick={() => {
+                    console.log('🎬 [DESKTOP] Video play button clicked');
+                    console.log('📊 Opening video modal...');
+                    setIsVideoModalOpen(true);
+                  }}
                   className="relative w-full h-full block cursor-pointer group"
                 style={{
                     borderRadius: 20,
@@ -1177,26 +1202,7 @@ export default function Home() {
                 </div>
             </div>
 
-                {/* Get Started button matching video width */}
-                <div style={{ width: 460 }}>
-                  <a
-                    href="/instructions"
-                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-[1.02] hover:shadow-xl text-center"
-                style={{
-                  backgroundColor: '#FFC315',
-                      borderRadius: 25,
-                      fontFamily: 'Frutiger, Inter, sans-serif',
-                      fontWeight: 700,
-                      fontSize: 18,
-                      color: 'black',
-                      display: 'block',
-                      padding: '12px 0',
-                      width: '100%'
-                    }}
-                  >
-                    Get Started
-                  </a>
-                </div>
+                {/* Get Started button removed from under the video on desktop as requested */}
               </div>
             </div>
             </div>
@@ -1231,7 +1237,7 @@ export default function Home() {
               </div>
               
               {/* Text Content */}
-              <div className="max-w-4xl mx-auto space-y-6">
+              <div className="max-w-6xl mx-auto space-y-6">
                 {/* First paragraph - Header text */}
                 <p 
                 style={{
@@ -1275,7 +1281,7 @@ export default function Home() {
                   }}
                 >
                   Climb the leaderboard by sharing your video,<br/>tagging & following L&T Finance on Instagram with{' '}
-                  <span style={{ color: '#FFC315', fontWeight: 700 }}>#BumrahKiSpeedPar</span>.
+                  <span style={{ color: '#FFC315', fontWeight: 700 }}>#BumrahKiSpeedPar</span><span style={{ color: '#FFC315' }}>.</span>
                 </p>
                 
                 {/* Fourth paragraph - Win prizes */}
@@ -1289,7 +1295,7 @@ export default function Home() {
                     lineHeight: 1.2,
                   }}
                 >
-                  Get a chance to meet Bumrah,<br/>& also win Bumrah's signed gears,<br/>and exciting voucher!
+                  Get a chance to meet Bumrah,<br/>& also win Bumrah's signed gears,<br/>and exciting vouchers!
                 </p>
               </div>
             </div>
@@ -1363,7 +1369,11 @@ export default function Home() {
             
             {/* Main Video Box */}
             <div 
-              onClick={() => setIsVideoModalOpen(true)}
+              onClick={() => {
+                console.log('🎬 [MOBILE] Video play button clicked');
+                console.log('📊 Opening video modal...');
+                setIsVideoModalOpen(true);
+              }}
               className="relative w-full h-full block cursor-pointer group"
               style={{
                 borderRadius: '20px',
@@ -2074,45 +2084,56 @@ export default function Home() {
         {isVideoModalOpen && (
           <div 
             className="fixed inset-0 z-[9999] flex items-center justify-center bg-black bg-opacity-90"
-            onClick={() => setIsVideoModalOpen(false)}
+            onClick={() => {
+              console.log('❌ Video modal background clicked - closing modal');
+              setIsVideoModalOpen(false);
+            }}
           >
             <div className="relative w-full h-full max-w-6xl max-h-[90vh] m-4 md:m-8">
               {/* Close button */}
               <button
-                onClick={() => setIsVideoModalOpen(false)}
+                onClick={() => {
+                  console.log('❌ Close button clicked - closing modal');
+                  setIsVideoModalOpen(false);
+                }}
                 className="absolute -top-12 right-0 text-white hover:text-gray-300 transition-colors z-[10000]"
                 style={{ fontSize: '36px', lineHeight: 1 }}
               >
                 ×
               </button>
               
-              {/* Video content - Direct video for mobile, iframe for desktop */}
+              {/* Video content - Local video file */}
               <div 
                 className="relative w-full h-full"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  console.log('🎥 Video content area clicked (propagation stopped)');
+                  e.stopPropagation();
+                }}
               >
-                {isMobile ? (
-                  // Mobile: Use direct video file
-                  <video
-                    className="w-full h-full rounded-lg"
-                    controls
-                    playsInline
-                    style={{ border: 'none', objectFit: 'contain' }}
-                  >
-                    <source src="/how to video.mp4" type="video/mp4" />
-                    Your browser does not support the video tag.
-                  </video>
-                ) : (
-                  // Desktop: Use Google Drive iframe
-                  <iframe
-                    src="https://drive.google.com/file/d/1e5JBpCXiH4TMg-Tw9x2KOlrhlY9xReGD/preview?autoplay=1"
-                    className="w-full h-full rounded-lg"
-                    allow="autoplay; fullscreen"
-                    allowFullScreen
-                    style={{ border: 'none' }}
-                    loading="lazy"
-                  />
-                )}
+                {/* Local video file - Works perfectly on all devices */}
+                <video
+                  className="w-full h-full rounded-lg"
+                  controls
+                  playsInline
+                  autoPlay
+                  style={{ border: 'none', objectFit: 'contain', backgroundColor: '#000' }}
+                  onLoadStart={() => {
+                    console.log('🎬 Video loading started from local file...');
+                  }}
+                  onLoadedMetadata={() => {
+                    console.log('✅ Video metadata loaded successfully');
+                  }}
+                  onCanPlay={() => {
+                    console.log('✅ Video is ready to play');
+                  }}
+                  onError={(e) => {
+                    console.error('❌ Video failed to load');
+                    console.error('Error details:', e.currentTarget.error);
+                  }}
+                >
+                  <source src="/how to video.mp4" type="video/mp4" />
+                  Your browser does not support the video tag.
+                </video>
               </div>
             </div>
           </div>

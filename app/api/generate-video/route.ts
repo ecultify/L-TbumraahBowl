@@ -70,10 +70,46 @@ export async function POST(request: NextRequest) {
 
     const command = `"${remotionBin}" render remotion/index.ts first-frame "${outputPath}" --props="${propsPath}"`;
     
-    const { stdout, stderr } = await execAsync(command, {
-      cwd: process.cwd(),
-      maxBuffer: 1024 * 1024 * 10, // 10MB buffer
-    });
+    console.log('Executing Remotion command:', command);
+    
+    let stdout, stderr;
+    try {
+      const result = await execAsync(command, {
+        cwd: process.cwd(),
+        maxBuffer: 1024 * 1024 * 10, // 10MB buffer
+        timeout: 120000, // 2 minute timeout
+      });
+      stdout = result.stdout;
+      stderr = result.stderr;
+    } catch (execError: any) {
+      console.error('Remotion CLI execution failed:', execError);
+      
+      // Clean up temporary props file
+      try {
+        require('fs').unlinkSync(propsPath);
+      } catch (e) {
+        console.warn('Could not delete temp props file:', e);
+      }
+      
+      // Provide detailed error information
+      const errorDetails = {
+        message: execError.message || 'Unknown error',
+        stdout: execError.stdout || '',
+        stderr: execError.stderr || '',
+        code: execError.code
+      };
+      
+      console.error('Remotion error details:', errorDetails);
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: `Remotion render failed: ${execError.message || 'Unknown error'}`,
+          details: errorDetails
+        },
+        { status: 500 }
+      );
+    }
 
     // Clean up temporary props file
     try {
@@ -82,17 +118,49 @@ export async function POST(request: NextRequest) {
       console.warn('Could not delete temp props file:', e);
     }
 
-    if (stderr && !stderr.includes('Warning')) {
-      console.error('Remotion CLI stderr:', stderr);
+    // Log all output for debugging
+    if (stderr) {
+      console.log('Remotion CLI stderr:', stderr);
+    }
+    console.log('Remotion CLI stdout:', stdout);
+
+    // Verify the output file was actually created
+    if (!existsSync(outputPath)) {
+      console.error('Output video file was not created at:', outputPath);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Video file was not created. Remotion render may have failed silently.',
+          stdout: stdout,
+          stderr: stderr
+        },
+        { status: 500 }
+      );
     }
 
-    console.log('Remotion CLI stdout:', stdout);
-    console.log('Video rendered successfully:', publicUrl);
+    // Verify the file has content (not empty)
+    const fs = require('fs');
+    const stats = fs.statSync(outputPath);
+    if (stats.size === 0) {
+      console.error('Output video file is empty:', outputPath);
+      return NextResponse.json(
+        { 
+          success: false, 
+          error: 'Generated video file is empty',
+          stdout: stdout,
+          stderr: stderr
+        },
+        { status: 500 }
+      );
+    }
+
+    console.log('✅ Video rendered successfully:', publicUrl, `(${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
     return NextResponse.json({
       success: true,
       videoUrl: publicUrl,
-      message: 'Video generated successfully'
+      message: 'Video generated successfully',
+      fileSize: stats.size
     });
 
   } catch (error) {
