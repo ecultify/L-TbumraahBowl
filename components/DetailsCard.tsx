@@ -451,7 +451,7 @@ export function DetailsCard({
             padding: '0 4px'
           }}
         >
-          I hereby consent to L&T Finance Limited and its affiliates to use, edit, reproduce, and publish the photographs, videos, audio recordings, contact numbers, and any AI-generated or campaign-related content featuring me or submitted by me, for marketing, promotional, and other commercial purposes related to the 'Bowl Kar Bumrah ki Speed Par' campaign, across any media platforms including digital, print, outdoor, or broadcast, without any compensation or further approval.
+          I hereby consent to L&T Finance, along with its affiliates, representatives, and authorized partners, to use, edit, adapt, reproduce, and publish my photographs, videos, audio recordings, contact details, social media handles, and any AI-generated or campaign-related content featuring me or submitted by me, in connection with "Bowl kar Bumrah Ki Speed Par" campaign. Such content may be used for marketing, promotional, publicity, and other commercial purposes across any media platforms, including but not limited to digital, print, outdoor, and broadcast, without any compensation, prior notice, further approval, or consequences. I understand that LTF will exercise this right responsibly and in good faith.
         </div>
 
         {/* Action Buttons */}

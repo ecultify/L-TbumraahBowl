@@ -48,9 +48,24 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   useEffect(() => {
     const updateScale = () => {
       if (containerRef.current) {
-        const cardWidth = containerRef.current.offsetWidth;
+        // Get parent container width
+        const parent = containerRef.current.parentElement;
+        const cardWidth = parent ? parent.offsetWidth : containerRef.current.offsetWidth;
+        
+        // Fallback to offsetWidth if parent width is 0
+        const actualWidth = cardWidth > 0 ? cardWidth : containerRef.current.offsetWidth;
+        
         const referenceWidth = 346; // Perfect layout width from 430x932 viewport
-        const newScale = cardWidth / referenceWidth;
+        const newScale = actualWidth / referenceWidth;
+        
+        console.log('📏 CompositeCard scale calculation:', {
+          parentWidth: parent?.offsetWidth,
+          containerWidth: containerRef.current.offsetWidth,
+          actualWidth,
+          referenceWidth,
+          newScale
+        });
+        
         setScale(newScale);
         
         // Store scale as data attribute for html2canvas cloning
@@ -65,12 +80,16 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
       }
     };
 
-    // Initial calculation with delay to ensure container is measured correctly
-    const timer = setTimeout(updateScale, 100);
+    // Initial calculation with multiple attempts to ensure proper measurement
+    const timer1 = setTimeout(updateScale, 50);
+    const timer2 = setTimeout(updateScale, 200);
+    const timer3 = setTimeout(updateScale, 500);
     
     window.addEventListener('resize', updateScale);
     return () => {
-      clearTimeout(timer);
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      clearTimeout(timer3);
       window.removeEventListener('resize', updateScale);
     };
   }, []);

@@ -5,6 +5,7 @@ import {interpolate, staticFile, useCurrentFrame, useVideoConfig, Sequence, Vide
 import {loadFont} from '@remotion/google-fonts/RobotoCondensed';
 import {getVideoMetadata} from '@remotion/media-utils';
 import {SpeedMeter} from './SpeedMeter';
+import {getVideoThumbnail} from '../lib/utils/videoThumbnailExtractor';
 
 interface FrameIntensity {
   timestamp: number;
@@ -86,6 +87,14 @@ const useVideoMetadataCompat = (src: string | null) => {
 };
 
 export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
+  // Load video thumbnail from localStorage
+  const [videoThumbnail, setVideoThumbnail] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const thumbnail = getVideoThumbnail();
+    setVideoThumbnail(thumbnail);
+  }, []);
+
   // Use dynamic data or fallback to static values
   const data: AnalysisData = analysisData || {
     intensity: 86,
@@ -218,7 +227,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
 
   const portraitVideoGap = 0; // No gap between videos
   const maxPortraitWidth = (width * 0.6) / 2; // Reduce total width to 60% of screen
-  const maxPortraitHeight = height * 0.70;
+  const maxPortraitHeight = height * 0.85; // Increased height from 0.70 to 0.85
   const portraitVideoWidth = Math.min(maxPortraitWidth, maxPortraitHeight * (9 / 16));
   const portraitVideoHeight = portraitVideoWidth * (16 / 9);
   const videoRowWidth = portraitVideoWidth * 2 + portraitVideoGap;
@@ -230,12 +239,12 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
   const cardStackTop = height * 0.05;
   const CARD_GAP = 20;
 
-  const cardImageBorderRadius = 32;
+  const cardImageBorderRadius = 0; // Removed rounded corners
 
   const userVideoSrc = staticFile('VID-20250923-WA0000.mp4');
   const benchmarkVideoSrc = staticFile('bumrah bowling action (1).mp4');
-  const cardTopSrc = staticFile('Card 2.png');
-  const cardBaseSrc = staticFile('Cards.png');
+  const cardTopSrc = staticFile('Card 2 (1).png');
+  const cardBaseSrc = staticFile('Cards (1).png');
   const sponsoredVideoSrc = staticFile('L&T Finanace 6sec CLEAN 9x16.mp4');
 
   const userVideoMetadata = useVideoMetadataCompat(userVideoSrc);
@@ -613,333 +622,309 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
         <div
           style={{
             position: 'absolute',
-            left: cardStackLeft,
-            top: cardStackTop,
-            width: CARD_STACK_WIDTH,
+            left: 0,
+            top: 0,
+            width: width,
+            height: height,
             display: 'flex',
             flexDirection: 'column',
-            gap: CARD_GAP,
+            gap: 40,
             opacity: thirdAppear * thirdFadeOut2,
             pointerEvents: 'none',
             alignItems: 'center',
+            justifyContent: 'center',
+            padding: '80px 60px',
           }}
         >
+          {/* User video thumbnail box at the top - slide in from right */}
           <div
             style={{
-              position: 'relative',
-              width: '35%',
-              maxWidth: '300px',
-              alignSelf: 'center',
+              width: '234px',
+              height: '234px',
+              backgroundColor: videoThumbnail ? '#000' : 'transparent',
+              border: videoThumbnail ? 'none' : '2px dashed rgba(255, 255, 255, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              borderRadius: '8px',
+              transform: `translateX(${interpolate(intoThird, [0, Math.round(fps * 0.5)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`,
+              opacity: interpolate(intoThird, [0, Math.round(fps * 0.5)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
             }}
           >
-            <img
-              src={cardTopSrc}
-              alt="Analysis headline"
-              style={{width: '100%', height: 'auto', display: 'block'}}
-            />
+            {videoThumbnail && (
+              <img
+                src={videoThumbnail}
+                alt="User video thumbnail"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            )}
           </div>
 
-          {/* First Cards.png - Detailed Analysis */}
-          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+          {/* First Card - Detailed Analysis - slide in from right */}
+          <div style={{position: 'relative', width: '60%', maxWidth: '650px', transform: `translateX(${interpolate(intoThird, [Math.round(fps * 0.2), Math.round(fps * 0.7)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`, opacity: interpolate(intoThird, [Math.round(fps * 0.2), Math.round(fps * 0.7)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
             <img
               src={cardBaseSrc}
-              alt="Detailed analysis card"
+              alt="First card"
               style={{width: '100%', height: 'auto', display: 'block'}}
             />
-            {/* Content overlay directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                padding: '36px 42px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 22,
-                color: '#225884',
-                fontFamily: condensedFontFamily,
-                pointerEvents: 'none',
-              }}
-            >
-              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase', textAlign: 'left'}}>Detailed Analysis</div>
-              <div style={{display: 'flex', flexDirection: 'column', gap: 10}}>
-                <span style={{fontWeight: 700, fontSize: 52}}>{similarityValue}%</span>
-                <span style={{fontWeight: 500, fontSize: 18, opacity: 0.85}}>Overall similarity to benchmark</span>
+            {/* Shine effect */}
+            <div style={{position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none'}}>
+              <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - THIRD_START) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
+            </div>
+            <div style={{position: 'absolute', inset: 0, padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15}}>
+              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Detailed Analysis</div>
+              <div style={{background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '15px 25px', textAlign: 'center'}}>
+                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 38, color: '#fff'}}>{similarityValue}%</div>
+                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 12, color: '#fff', marginTop: 3}}>Overall similarity to benchmark</div>
               </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 14,
-                  justifyContent: 'space-between',
-                  width: '100%',
-                }}
-              >
+              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 600, fontSize: 16, color: '#fff', textAlign: 'center', marginTop: 5}}>Bowling Phases</div>
+              <div style={{display: 'flex', gap: 8, width: '100%', justifyContent: 'space-around'}}>
                 {phases.map((phase) => (
-                  <div
-                    key={phase.label}
-                    style={{
-                      flex: 1,
-                      padding: '14px 10px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: 4,
-                    }}
-                  >
-                    <span style={{fontWeight: 700, fontSize: 32}}>{phase.value}%</span>
-                    <span style={{fontWeight: 500, fontSize: 15, opacity: 0.9, textAlign: 'center'}}>{phase.label}</span>
+                  <div key={phase.label} style={{background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '12px 15px', textAlign: 'center', flex: 1}}>
+                    <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 24, color: '#fff'}}>{phase.value}%</div>
+                    <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 11, color: '#fff', marginTop: 2}}>{phase.label}</div>
                   </div>
                 ))}
               </div>
             </div>
-            {/* Shine effect directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '-40%',
-                  bottom: '-40%',
-                  width: '45%',
-                  background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 50%, rgba(255,255,255,0) 100%)',
-                  transform: `translateX(${thirdShineTranslate}%) rotate(18deg)`,
-                  opacity: 0.55,
-                }}
-              />
-            </div>
           </div>
 
-          {/* Second Cards.png - Technical Breakdown */}
-          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+          {/* Second Card - Technical Breakdown - slide in from right */}
+          <div style={{position: 'relative', width: '60%', maxWidth: '650px', transform: `translateX(${interpolate(intoThird, [Math.round(fps * 0.4), Math.round(fps * 0.9)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`, opacity: interpolate(intoThird, [Math.round(fps * 0.4), Math.round(fps * 0.9)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
             <img
               src={cardBaseSrc}
-              alt="Technical breakdown card"
+              alt="Second card"
               style={{width: '100%', height: 'auto', display: 'block'}}
             />
-            {/* Content overlay directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                padding: '36px 42px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 20,
-                color: '#225884',
-                fontFamily: condensedFontFamily,
-                pointerEvents: 'none',
-              }}
-            >
-              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Technical Breakdown</div>
+            {/* Shine effect */}
+            <div style={{position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none'}}>
+              <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - THIRD_START + 30) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
+            </div>
+            <div style={{position: 'absolute', inset: 0, padding: '35px 45px', display: 'flex', flexDirection: 'column', gap: 18}}>
+              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase', marginBottom: 5}}>Technical Breakdown</div>
               <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
                 {technicalRows.map((row) => {
                   const barFill = Math.min(100, Math.max(0, row.value * thirdMetricProgress));
                   const currentValue = Math.round(row.value * thirdMetricProgress);
-                  const gradient = row.scheme === 'blue'
-                    ? 'linear-gradient(90deg, #0F62B0 0%, #1178D9 100%)'
-                    : 'linear-gradient(90deg, #F9B233 0%, #FFD180 100%)';
+                  const gradient = row.scheme === 'blue' ? 'linear-gradient(90deg, #0F62B0 0%, #1178D9 100%)' : 'linear-gradient(90deg, #F9B233 0%, #FFD180 100%)';
                   return (
-                    <div key={row.label} style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', fontWeight: 500, fontSize: 18}}>
+                    <div key={row.label} style={{display: 'flex', flexDirection: 'column', gap: 6}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 500, fontSize: 16, color: '#fff'}}>
                         <span>{row.label}</span>
                         <span>{currentValue}%</span>
                       </div>
-                      <div style={{width: '100%', height: 18, borderRadius: 10, border: '2px solid rgba(255,255,255,0.3)', overflow: 'hidden'}}>
-                        <div style={{width: `${barFill}%`, height: '100%', background: gradient}} />
+                      <div style={{width: '100%', height: 14, borderRadius: 8, background: 'rgba(255, 255, 255, 0.2)', overflow: 'hidden'}}>
+                        <div style={{width: `${barFill}%`, height: '100%', background: gradient, transition: 'width 0.3s ease'}} />
                       </div>
                     </div>
                   );
                 })}
               </div>
             </div>
-            {/* Shine effect directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                overflow: 'hidden',
-              }}
-            >
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '-40%',
-                  bottom: '-40%',
-                  width: '45%',
-                  background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.5) 50%, rgba(255,255,255,0) 100%)',
-                  transform: `translateX(${thirdShineTranslate + 80}%) rotate(18deg)`,
-                  opacity: 0.5,
-                }}
-              />
-            </div>
           </div>
         </div>
       </Sequence>
 
-      {/* Fourth frame: Speed insights */}
+      {/* Fourth frame: Speed Meter Analysis */}
       <Sequence from={FOURTH_START}>
         <div
           style={{
             position: 'absolute',
-            left: cardStackLeft,
-            top: cardStackTop,
-            width: CARD_STACK_WIDTH,
+            left: 0,
+            top: 0,
+            width: width,
+            height: height,
             display: 'flex',
             flexDirection: 'column',
-            gap: CARD_GAP,
+            gap: 40,
             opacity: fourthAppear * fourthFadeOut2,
             pointerEvents: 'none',
             alignItems: 'center',
+            justifyContent: 'center',
+            padding: '80px 60px',
           }}
         >
+          {/* User video thumbnail box at the top */}
           <div
             style={{
-              position: 'relative',
-              width: '35%',
-              maxWidth: '300px',
-              alignSelf: 'center',
+              width: '234px',
+              height: '234px',
+              backgroundColor: videoThumbnail ? '#000' : 'transparent',
+              border: videoThumbnail ? 'none' : '2px dashed rgba(255, 255, 255, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              borderRadius: '8px',
             }}
           >
-            <img
-              src={cardTopSrc}
-              alt="Speed insights headline"
-              style={{width: '100%', height: 'auto', display: 'block'}}
-            />
+            {videoThumbnail && (
+              <img
+                src={videoThumbnail}
+                alt="User video thumbnail"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            )}
           </div>
 
-          {/* Speed Meter Analysis - Direct Cards.png */}
-          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+          {/* First Card - Speed Meter Analysis - slide in from right */}
+          <div style={{position: 'relative', width: '60%', maxWidth: '650px', transform: `translateX(${interpolate(intoFourth, [0, Math.round(fps * 0.5)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`, opacity: interpolate(intoFourth, [0, Math.round(fps * 0.5)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
             <img
               src={cardBaseSrc}
-              alt="Speed meter analysis"
+              alt="First card"
               style={{width: '100%', height: 'auto', display: 'block'}}
             />
-            {/* Content overlay directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                padding: '36px 42px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 24,
-                color: '#225884',
-                fontFamily: condensedFontFamily,
-                pointerEvents: 'none',
-              }}
-            >
-              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Speed Meter Analysis</div>
-              <div style={{display: 'flex', justifyContent: 'center'}}>
-                <div style={{width: '75%', maxWidth: 350}}>
-                  <SpeedMeter intensity={data.intensity} speedClass={data.speedClass} animated />
+            {/* Shine effect */}
+            <div style={{position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none'}}>
+              <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - FOURTH_START) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
+            </div>
+            <div style={{position: 'absolute', inset: 0, padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
+              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 30, color: '#fff', textAlign: 'center', textTransform: 'uppercase', marginBottom: 35}}>Speed Meter Analysis</div>
+              
+              {/* Speed meter container - bigger and properly centered */}
+              <div style={{position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
+                {/* Accuracy percentage above last block */}
+                <div style={{position: 'absolute', top: -28, left: (75 * 4) + (4 * 4), width: 75, fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 22, color: '#fff', textAlign: 'center'}}>
+                  {similarityValue}%
+                </div>
+                
+                {/* Color blocks - bigger */}
+                <div style={{display: 'flex', gap: 4, position: 'relative', zIndex: 2}}>
+                  {['#FCF0C4', '#F6E49E', '#FFCA04', '#118DC9', '#0F76A8'].map((color, i) => (
+                    <div key={i} style={{width: 75, height: 12, backgroundColor: color}} />
+                  ))}
+                </div>
+                
+                {/* White line below blocks - bigger */}
+                <div style={{position: 'relative', width: (75 * 5) + (4 * 4), height: 2.5, backgroundColor: 'white', marginTop: 5, zIndex: 1}}>
+                  {/* Ticker on the white line */}
+                  <div style={{position: 'absolute', top: -8, left: `${(similarityValue / 100) * 100}%`, width: 6, height: 18, backgroundColor: '#fff', transform: 'translateX(-50%)', borderRadius: 1}} />
                 </div>
               </div>
-              <div style={{fontWeight: 500, fontSize: 20, textAlign: 'center'}}>Current pace: {data.speedClass}</div>
             </div>
           </div>
 
-          {/* Top Speed - Direct Cards.png */}
-          <div style={{position: 'relative', width: '85%', alignSelf: 'center'}}>
+          {/* Second Card - Predicted Speed - slide in from right */}
+          <div style={{position: 'relative', width: '60%', maxWidth: '650px', transform: `translateX(${interpolate(intoFourth, [Math.round(fps * 0.2), Math.round(fps * 0.7)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`, opacity: interpolate(intoFourth, [Math.round(fps * 0.2), Math.round(fps * 0.7)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
             <img
               src={cardBaseSrc}
-              alt="Top speed card"
+              alt="Second card"
               style={{width: '100%', height: 'auto', display: 'block'}}
             />
-            {/* Content overlay directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                padding: '36px 42px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                gap: 16,
-                color: '#225884',
-                fontFamily: condensedFontFamily,
-                pointerEvents: 'none',
-              }}
-            >
-              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Top Speed</div>
-              <div style={{fontWeight: 700, fontSize: 72}}>{animatedTopSpeed} km/h</div>
+            {/* Shine effect */}
+            <div style={{position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none'}}>
+              <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - FOURTH_START + 30) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
+            </div>
+            <div style={{position: 'absolute', inset: 0, padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20}}>
+              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Predicted Speed</div>
+              <div style={{background: 'rgba(255, 255, 255, 0.5)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '25px 45px', textAlign: 'center', display: 'flex', alignItems: 'baseline', gap: 10}}>
+                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 56, color: '#fff'}}>{animatedTopSpeed}</div>
+                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 24, color: '#fff'}}>km/h</div>
+              </div>
             </div>
           </div>
         </div>
       </Sequence>
 
-      {/* Fifth frame: Recommendations focus */}
+      {/* Fifth frame: First card slides away, image box grows as square downward */}
       <Sequence from={FIFTH_START}>
         <div
           style={{
             position: 'absolute',
-            left: cardStackLeft,
-            top: cardStackTop,
-            width: CARD_STACK_WIDTH,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: CARD_GAP,
+            left: 0,
+            top: 0,
+            width: width,
+            height: height,
             opacity: fifthAppear * fifthFadeOut3,
             pointerEvents: 'none',
-            alignItems: 'center',
           }}
         >
+          {/* User video thumbnail grows as square - stays centered horizontally, top fixed, grows downward */}
           <div
             style={{
-              position: 'relative',
-              width: '35%',
-              maxWidth: '300px',
-              alignSelf: 'center',
-              transform: `scale(${topCardScaleInFifth})`,
-              transformOrigin: 'center top',
+              position: 'absolute',
+              left: (width - interpolate(intoFifth, [0, Math.round(fps * 0.8)], [234, 500], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              })) / 2,
+              top: 320,
+              width: interpolate(intoFifth, [0, Math.round(fps * 0.8)], [234, 500], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              }),
+              height: interpolate(intoFifth, [0, Math.round(fps * 0.8)], [234, 500], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              }),
+              backgroundColor: videoThumbnail ? '#000' : 'transparent',
+              border: videoThumbnail ? 'none' : '2px dashed rgba(255, 255, 255, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden',
+              borderRadius: '8px',
             }}
           >
-            <img
-              src={cardTopSrc}
-              alt="Recommendations headline"
-              style={{width: '100%', height: 'auto', display: 'block'}}
-            />
+            {videoThumbnail && (
+              <img
+                src={videoThumbnail}
+                alt="User video thumbnail"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            )}
           </div>
 
-          {/* Recommendations - Direct Cards.png */}
-          <div
+          {/* First Cards.png - slides away to the left */}
+          <img
+            src={cardBaseSrc}
+            alt="First card"
             style={{
-              position: 'relative',
-              width: '85%',
-              alignSelf: 'center',
-              transform: `translateY(${(1 - recommendationsLift) * 40}px)`,
+              position: 'absolute',
+              left: '50%',
+              top: 594,
+              transform: `translate(-50%, 0) translateX(${interpolate(intoFifth, [0, Math.round(fps * 0.8)], [0, -width], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              })}px)`,
+              width: '60%',
+              maxWidth: '650px',
+              height: 'auto',
+              opacity: interpolate(intoFifth, [0, Math.round(fps * 0.5)], [1, 0], {
+                extrapolateLeft: 'clamp',
+                extrapolateRight: 'clamp',
+              }),
             }}
-          >
+          />
+
+          {/* Second Card - Recommendations - slide in from bottom */}
+          <div style={{position: 'absolute', left: '50%', top: 868, transform: `translate(-50%, 0) translateY(${interpolate(intoFifth, [0, Math.round(fps * 0.6)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`, width: '60%', maxWidth: '650px', opacity: interpolate(intoFifth, [0, Math.round(fps * 0.6)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
             <img
               src={cardBaseSrc}
-              alt="Recommendations card"
+              alt="Second card"
               style={{width: '100%', height: 'auto', display: 'block'}}
             />
-            {/* Content overlay directly on image */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                padding: '36px 42px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                alignItems: 'center',
-                textAlign: 'center',
-                gap: 18,
-                color: '#225884',
-                fontFamily: condensedFontFamily,
-                pointerEvents: 'none',
-              }}
-            >
-              <div style={{fontWeight: 700, fontSize: 36, textTransform: 'uppercase'}}>Recommendations</div>
-              <span style={{fontWeight: 500, fontSize: 26, lineHeight: 1.35}}>{recommendationsText}</span>
+            {/* Shine effect */}
+            <div style={{position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none'}}>
+              <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - FIFTH_START) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
+            </div>
+            <div style={{position: 'absolute', inset: 0, padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20}}>
+              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Recommendations</div>
+              <div style={{background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '20px 30px', textAlign: 'center', width: '90%'}}>
+                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 16, color: '#fff', lineHeight: 1.5}}>{recommendationsText}</div>
+              </div>
             </div>
           </div>
         </div>

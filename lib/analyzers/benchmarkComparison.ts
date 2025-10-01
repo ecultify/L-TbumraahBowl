@@ -136,24 +136,52 @@ export class BenchmarkComparisonAnalyzer {
         }
       } catch {}
 
-      // ONLY USE /benchmarkPattern.json - NO FALLBACKS
-      const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
-      if (!res.ok) {
-        console.error('❌ Failed to load /benchmarkPattern.json - status:', res.status);
-        throw new Error(`Failed to load benchmark pattern: HTTP ${res.status}`);
+      // Load available benchmark pattern files (supports multiple versions in /public)
+      const patternFiles = Array.from(new Set([
+        '/benchmarkPattern.json',
+        '/benchmark_pattern_2025-09-25T10-45-51-635Z.json',
+      ]));
+
+      this.benchmarkPatterns = [];
+      this.benchmarkPattern = null;
+
+      for (const file of patternFiles) {
+        const normalizedFile = file.startsWith('/') ? file : `/${file}`;
+        try {
+          const res = await fetch(normalizedFile, { cache: 'no-cache' });
+          if (!res.ok) {
+            console.warn(`Skipping benchmark pattern ${normalizedFile}: HTTP ${res.status}`);
+            continue;
+          }
+
+          const data = await res.json() as SerializedPattern;
+          const pattern = this.deserializePattern(data);
+
+          if (!Array.isArray(pattern.overallIntensities) || pattern.overallIntensities.length === 0) {
+            console.warn(`Skipping benchmark pattern ${normalizedFile}: missing intensity data`);
+            continue;
+          }
+
+          this.benchmarkPatterns.push(pattern);
+          console.log('Loaded benchmark pattern:', normalizedFile, {
+            armSwingFrames: pattern.armSwingVelocities.length,
+            bodyMovementFrames: pattern.bodyMovementVelocities.length,
+            intensityFrames: pattern.overallIntensities.length,
+            releasePointFrame: pattern.releasePointFrame
+          });
+        } catch (patternError) {
+          console.warn(`Failed to load benchmark pattern ${normalizedFile}:`, patternError);
+        }
       }
 
-      const data = await res.json() as SerializedPattern;
-      this.benchmarkPattern = this.deserializePattern(data);
+      if (this.benchmarkPatterns.length === 0) {
+        throw new Error('No benchmark patterns could be loaded');
+      }
+
+      this.benchmarkPattern = this.benchmarkPatterns[0];
       this.isInitialized = true;
-      console.log('✅ Successfully loaded benchmark pattern from /benchmarkPattern.json');
-      console.log('📊 Benchmark pattern data:', {
-        armSwingVelocities: this.benchmarkPattern.armSwingVelocities.length,
-        bodyMovementVelocities: this.benchmarkPattern.bodyMovementVelocities.length,
-        overallIntensities: this.benchmarkPattern.overallIntensities.length,
-        releasePointFrame: this.benchmarkPattern.releasePointFrame
-      });
-      
+      console.log(`Successfully loaded ${this.benchmarkPatterns.length} benchmark pattern(s)`);
+
       return true;
     } catch (error) {
       console.error('❌ Error loading benchmark pattern from /benchmarkPattern.json:', error);
@@ -631,7 +659,9 @@ export class BenchmarkComparisonAnalyzer {
         if (poses.length > 0) {
           const pose = poses[0];
           const visibleKeypoints = pose.keypoints.filter(kp => kp.score && kp.score > 0.3);
+          const keypointNames = visibleKeypoints.map(kp => kp.name);
           console.log(`   - ${visibleKeypoints.length} visible keypoints out of ${pose.keypoints.length}`);
+          console.log(`   - Visible keypoints:`, keypointNames);
         }
       }
       
@@ -673,6 +703,27 @@ export class BenchmarkComparisonAnalyzer {
       console.warn('No benchmark pattern or input data for comparison');
       return 0;
     }
+
+    console.log('🔍 DEBUG: Starting getFinalIntensity analysis');
+    console.log('📊 Input pattern stats:', {
+      keypointsCount: this.inputPattern.keypoints.length,
+      armSwingVelocitiesCount: this.inputPattern.armSwingVelocities.length,
+      bodyMovementVelocitiesCount: this.inputPattern.bodyMovementVelocities.length,
+      overallIntensitiesCount: this.inputPattern.overallIntensities.length
+    });
+    console.log('📊 Benchmark pattern stats:', {
+      armSwingVelocitiesCount: this.benchmarkPattern.armSwingVelocities.length,
+      bodyMovementVelocitiesCount: this.benchmarkPattern.bodyMovementVelocities.length,
+      overallIntensitiesCount: this.benchmarkPattern.overallIntensities.length
+    });
+    
+    // Log sample velocities for comparison
+    console.log('📊 Input first 5 armSwingVelocities:', this.inputPattern.armSwingVelocities.slice(0, 5));
+    console.log('📊 Benchmark first 5 armSwingVelocities:', this.benchmarkPattern.armSwingVelocities.slice(0, 5));
+    console.log('📊 Input avg armSwingVelocity:', 
+      this.inputPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.inputPattern.armSwingVelocities.length || 1));
+    console.log('📊 Benchmark avg armSwingVelocity:', 
+      this.benchmarkPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.benchmarkPattern.armSwingVelocities.length || 1));
 
     // Check for required full body keypoints (BOTH upper and lower body)
     const hasRequiredFullBodyKeypoints = this.checkRequiredFullBodyKeypoints();
@@ -797,19 +848,35 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private calculateOverallSimilarityAgainst(benchmark: BowlingActionPattern): number {
+    console.log('🔍 DEBUG: Calculating overall similarity against benchmark');
+    
     // Check if this might be the benchmark video itself (very similar patterns)
     const inputFrameCount = this.inputPattern.keypoints.length;
     const benchmarkFrameCount = benchmark.armSwingVelocities.length;
     const frameCountSimilarity = Math.abs(inputFrameCount - benchmarkFrameCount) / Math.max(inputFrameCount, benchmarkFrameCount, 1);
+    
+    console.log('📊 Frame count comparison:', {
+      inputFrames: inputFrameCount,
+      benchmarkFrames: benchmarkFrameCount,
+      similarity: frameCountSimilarity
+    });
     
     if (frameCountSimilarity < 0.2) { // Frame counts are within 20%
       console.log('🔍 Detected potential benchmark video self-comparison (similar frame counts)');
     }
     
     // Calculate individual similarity metrics
+    console.log('🔍 Calculating armSwingSim...');
     const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, benchmark.armSwingVelocities);
+    console.log('📊 armSwingSim result:', armSwingSim);
+    
+    console.log('🔍 Calculating bodyMovementSim...');
     const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, benchmark.bodyMovementVelocities);
+    console.log('📊 bodyMovementSim result:', bodyMovementSim);
+    
+    console.log('🔍 Calculating rhythmSim...');
     const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, benchmark.overallIntensities);
+    console.log('📊 rhythmSim result:', rhythmSim);
 
     // Release point timing similarity
     let releasePointSim = 0;
@@ -836,6 +903,10 @@ export class BenchmarkComparisonAnalyzer {
     };
 
     const w = this.getWeights();
+    
+    console.log('🔍 DEBUG: Weights being used:', w);
+    console.log('🔍 DEBUG: Safe values before weighting:', safeValues);
+    
     const overallSimilarity = (
       safeValues.armSwing * w.armSwing +
       safeValues.releasePoint * w.releasePoint +
@@ -845,16 +916,26 @@ export class BenchmarkComparisonAnalyzer {
       safeValues.delivery * w.delivery
     );
 
-    console.log('Similarity breakdown:', {
-      armSwing: safeValues.armSwing.toFixed(3),
-      bodyMovement: safeValues.bodyMovement.toFixed(3),
-      releasePoint: safeValues.releasePoint.toFixed(3),
-      rhythm: safeValues.rhythm.toFixed(3),
-      followThrough: safeValues.followThrough.toFixed(3),
-      runUp: safeValues.runUp.toFixed(3),
-      delivery: safeValues.delivery.toFixed(3),
-      overall: overallSimilarity.toFixed(3)
-    });
+    console.log('📊 ========== SIMILARITY BREAKDOWN ==========');
+    console.log('Raw similarities (before weighting):');
+    console.log('  - armSwing:', safeValues.armSwing.toFixed(3));
+    console.log('  - bodyMovement:', safeValues.bodyMovement.toFixed(3));
+    console.log('  - releasePoint:', safeValues.releasePoint.toFixed(3));
+    console.log('  - rhythm:', safeValues.rhythm.toFixed(3));
+    console.log('  - followThrough:', safeValues.followThrough.toFixed(3));
+    console.log('  - runUp:', safeValues.runUp.toFixed(3));
+    console.log('  - delivery:', safeValues.delivery.toFixed(3));
+    console.log('');
+    console.log('Weighted contributions:');
+    console.log('  - armSwing:', (safeValues.armSwing * w.armSwing).toFixed(3), `(${(w.armSwing * 100).toFixed(0)}% weight)`);
+    console.log('  - releasePoint:', (safeValues.releasePoint * w.releasePoint).toFixed(3), `(${(w.releasePoint * 100).toFixed(0)}% weight)`);
+    console.log('  - rhythm:', (safeValues.rhythm * w.rhythm).toFixed(3), `(${(w.rhythm * 100).toFixed(0)}% weight)`);
+    console.log('  - followThrough:', (safeValues.followThrough * w.followThrough).toFixed(3), `(${(w.followThrough * 100).toFixed(0)}% weight)`);
+    console.log('  - runUp:', (safeValues.runUp * w.runUp).toFixed(3), `(${(w.runUp * 100).toFixed(0)}% weight)`);
+    console.log('  - delivery:', (safeValues.delivery * w.delivery).toFixed(3), `(${(w.delivery * 100).toFixed(0)}% weight)`);
+    console.log('');
+    console.log('📊 OVERALL SIMILARITY:', overallSimilarity.toFixed(3), `(${(overallSimilarity * 100).toFixed(1)}%)`);
+    console.log('==========================================');
 
     // Ensure the final result is valid
     if (isNaN(overallSimilarity) || !isFinite(overallSimilarity)) {
@@ -866,11 +947,22 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private compareArrays(arr1: number[], arr2: number[]): number {
-    if (arr1.length === 0 || arr2.length === 0) return 0;
+    console.log('🔍 DEBUG: compareArrays called with lengths:', arr1.length, arr2.length);
+    
+    if (arr1.length === 0 || arr2.length === 0) {
+      console.log('⚠️ compareArrays: One or both arrays are empty');
+      return 0;
+    }
     
     // Filter out NaN and infinite values
     const clean1 = arr1.filter(v => isFinite(v) && !isNaN(v));
     const clean2 = arr2.filter(v => isFinite(v) && !isNaN(v));
+    
+    console.log('📊 After cleaning - arr1:', clean1.length, 'arr2:', clean2.length);
+    console.log('📊 arr1 sample values:', clean1.slice(0, 5));
+    console.log('📊 arr2 sample values:', clean2.slice(0, 5));
+    console.log('📊 arr1 avg:', clean1.reduce((a, b) => a + b, 0) / (clean1.length || 1));
+    console.log('📊 arr2 avg:', clean2.reduce((a, b) => a + b, 0) / (clean2.length || 1));
     
     if (clean1.length === 0 || clean2.length === 0) {
       console.log('⚠️ compareArrays: No valid values after cleaning');
@@ -879,11 +971,15 @@ export class BenchmarkComparisonAnalyzer {
     
     // Normalize arrays to same length
     const targetLength = Math.min(clean1.length, clean2.length, 30);
+    console.log('📊 Target length for resampling:', targetLength);
+    
     // Smooth to reduce jitter, then linearly resample
     const sm1 = this.smoothArray(clean1, 5);
     const sm2 = this.smoothArray(clean2, 5);
     const resampled1 = this.resampleArray(sm1, targetLength);
     const resampled2 = this.resampleArray(sm2, targetLength);
+    
+    console.log('📊 Resampled arrays - arr1:', resampled1.length, 'arr2:', resampled2.length);
     
     // Check for identical or very similar arrays (benchmark vs itself case)
     let identicalCount = 0;

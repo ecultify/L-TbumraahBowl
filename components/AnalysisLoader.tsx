@@ -1,6 +1,8 @@
 'use client';
 
 import React from 'react';
+import Lottie from 'lottie-react';
+import bikeProgressAnimation from '../Bike Progress.json';
 
 // Add custom CSS for appear animation
 const appearStyle = `
@@ -103,18 +105,62 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
           </h2>
         </div>
 
-        {/* Loading container with blue balls */}
+        {/* Progress bar container */}
         <div 
-          className="relative overflow-hidden"
+          className="relative"
           style={{
-            width: '360px',
-            height: '60px',
-            borderRadius: '12.1px',
-            border: '2px solid #000',
-            backgroundColor: 'rgba(255, 255, 255, 0.1)'
+            width: '300px',
+            height: '90px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
         >
-          <BlueBallLoader />
+          {/* Progress bar background */}
+          <div 
+            className="relative"
+            style={{
+              width: '300px',
+              height: '8px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              border: '2px solid #000',
+              borderRadius: '20px',
+              overflow: 'visible'
+            }}
+          >
+            {/* Progress fill */}
+            <div 
+              className="h-full transition-all duration-300 ease-out"
+              style={{
+                width: `${progress}%`,
+                backgroundColor: '#007bff',
+                borderRadius: '18px'
+              }}
+            />
+          </div>
+          
+          {/* Lottie animation positioned on top of progress bar - outside the progress bar div */}
+          {progress > 0 && progress < 100 && (
+            <div 
+              className="absolute"
+              style={{
+                left: `${Math.max(0, Math.min(progress, 100))}%`,
+                bottom: 'calc(50% - 38px)',
+                transform: 'translate(-50%, 0) scaleX(-1)',
+                width: '100px',
+                height: '100px',
+                zIndex: 10,
+                transition: 'left 0.3s ease-out'
+              }}
+            >
+              <Lottie 
+                animationData={bikeProgressAnimation}
+                loop={true}
+                autoplay={true}
+                style={{ width: '100%', height: '100%' }}
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -142,54 +188,4 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
   );
 }
 
-// Blue ball loader component with 10 balls
-function BlueBallLoader() {
-  const ballWidth = 30; // Smaller balls to fit 10
-  const gap = 3;
-  const containerWidth = 360; // Inner container width
-  const totalBallsWidth = (10 * ballWidth) + (9 * gap); // 10 balls + 9 gaps
-  const startX = (containerWidth - totalBallsWidth) / 2; // Center the balls
-  
-  return (
-    <div className="flex items-center justify-center h-full relative">
-      {Array.from({ length: 10 }, (_, index) => {
-        const leftPosition = startX + (index * (ballWidth + gap));
-        // Slower timing to simulate TensorFlow initialization:
-        // First 9 balls appear progressively during TensorFlow loading (slower)
-        // 10th ball appears when TensorFlow completes (longer delay)
-        let delay;
-        if (index < 9) {
-          // First 9 balls appear every 800ms (slower for TensorFlow loading)
-          delay = index * 800;
-        } else {
-          // 10th ball appears after a longer delay (TensorFlow completion)
-          delay = 8 * 800 + 1500; // 8th ball delay + extra 1.5s for TensorFlow completion
-        }
-        
-        return (
-          <div 
-            key={index}
-            className="absolute animate-appear"
-            style={{
-              left: `${leftPosition}px`,
-              animationDelay: `${delay}ms`,
-              animationDuration: '0.6s', // Slightly longer appear animation
-              animationFillMode: 'forwards',
-              opacity: 0 // Start invisible
-            }}
-          >
-            <img 
-              src="/images/blueball.svg" 
-              alt="Loading" 
-              width={ballWidth} 
-              height={ballWidth} 
-              className="animate-spin"
-              style={{ animationDuration: '2s' }}
-            />
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 

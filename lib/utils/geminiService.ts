@@ -27,7 +27,12 @@ function dataURLToBase64(dataURL: string): string {
 
 // Enhanced prompt for generating Indian cricket jersey torso with chest-level crop (no hands visible)
 function createTorsoGenerationPrompt(): string {
-  return `GENERATE A PNG IMAGE WITH COMPLETELY TRANSPARENT BACKGROUND (ALPHA CHANNEL): Create a professional chest-level portrait of an Indian cricket player using the EXACT face from the provided image without any modifications. The person must be wearing an official Indian cricket team blue jersey with "INDIA" text only.
+  return `GENERATE A 300x300 PIXEL PNG IMAGE WITH COMPLETELY TRANSPARENT BACKGROUND (ALPHA CHANNEL): Create a professional chest-level portrait of an Indian cricket player using the EXACT face from the provided image without any modifications. The person must be wearing an official Indian cricket team blue jersey with "INDIA" text only.
+
+CRITICAL - IMAGE DIMENSIONS:
+- EXACT SIZE: 300 pixels wide by 300 pixels tall (300x300)
+- SQUARE FORMAT: Must be a perfect square
+- HIGH QUALITY: Maintain sharpness and clarity at this resolution
 
 CRITICAL - TRANSPARENT BACKGROUND:
 - MUST OUTPUT: PNG format with full alpha channel transparency
@@ -51,6 +56,7 @@ STYLING:
 - Clean edges with alpha transparency cutout
 
 MANDATORY OUTPUT SPECIFICATIONS:
+- Dimensions: Exactly 300x300 pixels
 - Format: PNG with transparency (not JPEG)
 - Background: Fully transparent alpha channel
 - Person cutout: Clean edges, no halo, no artifacts
@@ -129,9 +135,13 @@ export class GeminiTorsoService {
         console.log('Applying background removal for full transparency...');
         const transparentImageUrl = await this.removeBackground(responseData.imageUrl);
         
+        // Resize to 300x300 if not already
+        console.log('Resizing image to 300x300...');
+        const resizedImageUrl = await this.resizeImage(transparentImageUrl || responseData.imageUrl, 300, 300);
+        
         return {
           success: true,
-          imageUrl: transparentImageUrl || responseData.imageUrl
+          imageUrl: resizedImageUrl
         };
       } else {
         return {
@@ -148,6 +158,50 @@ export class GeminiTorsoService {
         success: false,
         error: errorMessage
       };
+    }
+  }
+
+  // Resize image to exact dimensions (300x300)
+  private async resizeImage(imageUrl: string, targetWidth: number, targetHeight: number): Promise<string> {
+    try {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            console.error('Canvas context not available');
+            resolve(imageUrl); // Return original on error
+            return;
+          }
+          
+          // Set exact dimensions
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          
+          // Draw image with high quality scaling
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          
+          // Convert to data URL
+          const resizedImageUrl = canvas.toDataURL('image/png');
+          console.log(`✅ Image resized to ${targetWidth}x${targetHeight}`);
+          resolve(resizedImageUrl);
+        };
+        
+        img.onerror = (error) => {
+          console.error('Failed to load image for resizing:', error);
+          resolve(imageUrl); // Return original on error
+        };
+        
+        img.src = imageUrl;
+      });
+    } catch (error) {
+      console.error('Image resize error:', error);
+      return imageUrl; // Return original on error
     }
   }
 
