@@ -15,6 +15,7 @@ type LeaderboardEntry = {
   similarity_percent: number | null;
   intensity_percent: number | null;
   speed_class: SpeedClass | null;
+  avatar_url?: string | null;
   meta?: any;
 };
 
@@ -171,9 +172,13 @@ export default function LeaderboardClient() {
                 {/* Table Header */}
                 <div
                   style={{
-                    display: "flex",
+                    display: "grid",
+                    gridTemplateColumns: "150px 75px 65px",
+                    gap: "0px",
                     alignItems: "center",
-                    marginBottom: 16
+                    marginBottom: 16,
+                    paddingLeft: 0,
+                    marginLeft: 0
                   }}
                 >
                   <span
@@ -183,8 +188,9 @@ export default function LeaderboardClient() {
                       fontStyle: "italic",
                       fontSize: "clamp(12px, 3vw, 16px)",
                       color: "white",
-                      width: "135px",
-                      textAlign: "left"
+                      textAlign: "left",
+                      overflow: "hidden",
+                      paddingLeft: 0
                     }}
                   >
                     PLAYER
@@ -196,8 +202,8 @@ export default function LeaderboardClient() {
                       fontStyle: "italic",
                       fontSize: "clamp(12px, 3vw, 16px)",
                       color: "white",
-                      flex: 1,
-                      textAlign: "center"
+                      textAlign: "center",
+                      overflow: "hidden"
                     }}
                   >
                     SPEED
@@ -209,8 +215,8 @@ export default function LeaderboardClient() {
                       fontStyle: "italic",
                       fontSize: "clamp(12px, 3vw, 16px)",
                       color: "white",
-                      flex: 1,
-                      textAlign: "center"
+                      textAlign: "center",
+                      overflow: "hidden"
                     }}
                   >
                     MATCH
@@ -305,18 +311,31 @@ export default function LeaderboardClient() {
                                     backgroundColor: "#1970AC",
                                     display: "flex",
                                     alignItems: "center",
-                                    justifyContent: "center"
+                                    justifyContent: "center",
+                                    overflow: "hidden"
                                   }}
                                 >
-                                  <img
-                                    src="/images/el_user.svg"
-                                    alt="User"
-                                    style={{
-                                      width: 20,
-                                      height: 20,
-                                      filter: "brightness(0) invert(1)"
-                                    }}
-                                  />
+                                  {entry.avatar_url ? (
+                                    <img
+                                      src={entry.avatar_url}
+                                      alt="Player Avatar"
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover"
+                                      }}
+                                    />
+                                  ) : (
+                                    <img
+                                      src="/images/el_user.svg"
+                                      alt="User"
+                                      style={{
+                                        width: 20,
+                                        height: 20,
+                                        filter: "brightness(0) invert(1)"
+                                      }}
+                                    />
+                                  )}
                                 </div>
                               </div>
                               
@@ -381,18 +400,27 @@ export default function LeaderboardClient() {
                               display: "flex",
                               alignItems: "center",
                               paddingLeft: 35,
-                              paddingRight: 30,
+                              paddingRight: 10,
                               zIndex: 1
                             }}
                           >
-                            {/* Content aligned under column headers */}
+                            {/* Content aligned under column headers - Using CSS Grid */}
                             <div style={{ 
-                              display: "flex", 
+                              display: "grid",
+                              gridTemplateColumns: "90px 75px 65px",
+                              gap: "0px",
                               width: "100%", 
                               alignItems: "center"
                             }}>
                               {/* Player Name - positioned after avatar with line breaks */}
-                              <div style={{ width: "135px", display: "flex", flexDirection: "column", justifyContent: "center", textAlign: "left", overflow: "hidden" }}>
+                              <div style={{ 
+                                display: "flex", 
+                                flexDirection: "column", 
+                                justifyContent: "center", 
+                                textAlign: "left", 
+                                overflow: "hidden",
+                                paddingRight: "4px"
+                              }}>
                                 {(() => {
                                   const words = name.split(' ');
                                   if (words.length > 1) {
@@ -459,18 +487,17 @@ export default function LeaderboardClient() {
 
                               {/* Speed - aligned under SPEED column */}
                               <div style={{ 
-                                flex: 1, 
                                 textAlign: "center",
-                                minWidth: 0,
-                                maxWidth: "100px",
-                                overflow: "hidden"
+                                overflow: "hidden",
+                                paddingLeft: "2px",
+                                paddingRight: "2px"
                               }}>
                                 <span
                                   style={{
                                     fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
                                     fontWeight: 800,
                                     fontStyle: "italic",
-                                    fontSize: "clamp(12px, 3vw, 16px)",
+                                    fontSize: "clamp(10px, 2.6vw, 13px)",
                                     color: "white",
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",
@@ -484,19 +511,17 @@ export default function LeaderboardClient() {
 
                               {/* Match - aligned under MATCH column */}
                               <div style={{ 
-                                flex: 1, 
-                                textAlign: "center", 
-                                paddingRight: "10px",
-                                minWidth: 0,
-                                maxWidth: "100px",
-                                overflow: "hidden"
+                                textAlign: "center",
+                                overflow: "hidden",
+                                paddingLeft: "2px",
+                                paddingRight: "2px"
                               }}>
                                 <span
                                   style={{
                                     fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
                                     fontWeight: 800,
                                     fontStyle: "italic",
-                                    fontSize: "clamp(12px, 3vw, 16px)",
+                                    fontSize: "clamp(10px, 2.6vw, 13px)",
                                     color: "white",
                                     whiteSpace: "nowrap",
                                     overflow: "hidden",

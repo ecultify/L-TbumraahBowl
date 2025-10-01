@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { getFaceDetectionService, storeCroppedHeadImage } from '@/lib/utils/faceDetection';
 import { getGeminiTorsoService, storeGeneratedTorsoImage } from '@/lib/utils/geminiService';
+import { uploadGeminiAvatar } from '@/lib/utils/avatarUpload';
 import { GlassBackButton } from '@/components/GlassBackButton';
 import { ProcessingModal } from '@/components/ProcessingModal';
 
@@ -293,10 +294,30 @@ export default function VideoPreviewPage() {
       if (torsoResult.success && torsoResult.imageUrl) {
         console.log('✅ Torso generation successful');
 
-        // Store generated torso image in session storage
+        // Store generated torso image in session storage (for local use)
         storeGeneratedTorsoImage(torsoResult.imageUrl);
 
         console.log('✅ Generated torso image stored in session storage - ready for composite card integration');
+
+        // Upload torso to Supabase to get public URL for leaderboard avatar
+        try {
+          const playerName = typeof window !== 'undefined' 
+            ? window.sessionStorage.getItem('playerName') || 'anonymous'
+            : 'anonymous';
+          
+          console.log('📤 Uploading torso to Supabase for avatar...');
+          const publicAvatarUrl = await uploadGeminiAvatar(torsoResult.imageUrl, playerName);
+          
+          if (publicAvatarUrl) {
+            console.log('✅ Avatar uploaded to Supabase successfully:', publicAvatarUrl);
+            // Note: uploadGeminiAvatar already stores this in sessionStorage as 'geminiAvatarUrl'
+          } else {
+            console.warn('⚠️ Failed to upload avatar to Supabase, will use default avatar');
+          }
+        } catch (uploadError) {
+          console.error('❌ Avatar upload error:', uploadError);
+          // Continue anyway - avatar is optional
+        }
 
       } else {
         throw new Error(torsoResult.error || 'Failed to generate torso image');

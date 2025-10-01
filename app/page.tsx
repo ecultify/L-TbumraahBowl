@@ -185,7 +185,7 @@ export default function Home() {
                     width: 'auto',
                     height: 'auto',
                     maxWidth: '100%',
-                    maxHeight: '75px'
+                    maxHeight: '100px'
                   }}
                 />
               </div>
@@ -200,7 +200,7 @@ export default function Home() {
                 style={{
                   position: 'absolute',
                   left: '50%',
-                  bottom: '-1px', // slight negative value to ensure it sticks to bottom
+                  bottom: '-5px', // increased negative value to close the gap
                   transform: 'translateX(-50%)',
                   height: '100%', // fill height to eliminate any bottom gap
                   width: 'auto',
@@ -571,17 +571,17 @@ export default function Home() {
                 <div style={{ marginLeft: 2, textAlign: 'left', display: 'flex', alignItems: 'center', minHeight: 34.22657012939453, flex: 1 }}>
                   {n === 1 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
-                      Upload Your Bowling Video
+                      Upload your bowling video
                     </div>
                   )}
                   {n === 2 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2, color: '#0A0A0A' }}>
-                      Get a personalized Analysis Matched with Bumrah
+                      Get a Personalized Analysis Matched with Bumrah
                     </div>
                   )}
                   {n === 3 && (
                     <div style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 400, color: '#0A0A0A' }}>
-                      <div style={{ fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2 }}>Share your analysis on Instagram with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span>, tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>, and hit follow.</div>
+                      <div style={{ fontSize: 'clamp(14px, 3.5vw, 18px)', lineHeight: 1.2 }}>Share your Analysis on Instagram with <span style={{ color: '#000000', fontWeight: 700 }}>#BumrahKiSpeedPar</span>, Tag <span style={{ color: '#000000', fontWeight: 700 }}>@LNTFinance</span>, and Hit Follow.</div>
                     </div>
                   )}
                 </div>

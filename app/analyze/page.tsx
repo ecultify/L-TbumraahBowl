@@ -7,7 +7,8 @@ import { intensityToKmh, classifySpeed } from '@/lib/utils/normalize';
 import { NoBowlingActionModal } from '@/components/NoBowlingActionModal';
 import { CompositeCard } from '@/components/CompositeCard';
 import { GlassBackButton } from '@/components/GlassBackButton';
-import html2canvas from 'html2canvas';
+import { downloadCompositeCardManual } from '@/lib/utils/downloadCompositeCard';
+import { supabase } from '@/lib/supabase/client';
 
 export default function SimplifiedAnalyzePage() {
   const { state } = useAnalysis();
@@ -17,9 +18,130 @@ export default function SimplifiedAnalyzePage() {
   const [isViewingVideo, setIsViewingVideo] = React.useState(false);
   const [isLoading, setIsLoading] = React.useState(true);
   const [showNoBowlingModal, setShowNoBowlingModal] = React.useState(false);
+  const [isRenderingVideo, setIsRenderingVideo] = React.useState(false);
+  const [renderProgress, setRenderProgress] = React.useState(0);
+  const [leaderboardEntryId, setLeaderboardEntryId] = React.useState<string | null>(null);
+  const [hasSubmittedToLeaderboard, setHasSubmittedToLeaderboard] = React.useState(false);
 
   // Player name state
   const [playerName, setPlayerName] = React.useState<string>('');
+
+  // Function to submit results to Supabase leaderboard
+  const submitToLeaderboard = React.useCallback(async () => {
+    // Prevent duplicate submissions
+    if (hasSubmittedToLeaderboard) {
+      console.log('⏭️ Already submitted to leaderboard, skipping...');
+      return;
+    }
+
+    try {
+      console.log('📤 Submitting analysis results to Supabase leaderboard...');
+
+      // Get Gemini avatar URL from sessionStorage if available
+      const geminiAvatarUrl = typeof window !== 'undefined' 
+        ? window.sessionStorage.getItem('geminiAvatarUrl') 
+        : null;
+
+      // Calculate scores here based on current data
+      const finalIntensityValue = sessionAnalysisData?.intensity || state.finalIntensity || 0;
+      const kmhValue = Math.round(sessionAnalysisData?.kmh || intensityToKmh(finalIntensityValue));
+      const classificationResult = classifySpeed(finalIntensityValue);
+      const speedLabel = sessionAnalysisData?.speedClass || state.speedClass || classificationResult.speedClass;
+
+      const accuracyScore = benchmarkDetailedData?.overall
+        ? Math.round(benchmarkDetailedData.overall * 100)
+        : benchmarkDetailedData?.overallSimilarity
+        ? Math.round(benchmarkDetailedData.overallSimilarity * 100)
+        : sessionAnalysisData?.similarity
+        ? Math.round(sessionAnalysisData.similarity)
+        : Math.max(0, Math.round(finalIntensityValue));
+      const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
+
+      const runUpScore = benchmarkDetailedData?.runUp
+        ? Math.round(benchmarkDetailedData.runUp * 100)
+        : (sessionAnalysisData?.phases?.runUp || 87);
+      const deliveryScore = benchmarkDetailedData?.delivery
+        ? Math.round(benchmarkDetailedData.delivery * 100)
+        : (sessionAnalysisData?.phases?.delivery || 79);
+      const followThroughScore = benchmarkDetailedData?.followThrough
+        ? Math.round(benchmarkDetailedData.followThrough * 100)
+        : (sessionAnalysisData?.phases?.followThrough || 81);
+
+      const armSwingScore = benchmarkDetailedData?.armSwing
+        ? Math.round(benchmarkDetailedData.armSwing * 100)
+        : (sessionAnalysisData?.technicalMetrics?.armSwing || 83);
+      const bodyMovementScore = benchmarkDetailedData?.bodyMovement
+        ? Math.round(benchmarkDetailedData.bodyMovement * 100)
+        : (sessionAnalysisData?.technicalMetrics?.bodyMovement || 88);
+      const rhythmScore = benchmarkDetailedData?.rhythm
+        ? Math.round(benchmarkDetailedData.rhythm * 100)
+        : (sessionAnalysisData?.technicalMetrics?.rhythm || 85);
+      const releasePointScore = benchmarkDetailedData?.releasePoint
+        ? Math.round(benchmarkDetailedData.releasePoint * 100)
+        : (sessionAnalysisData?.technicalMetrics?.releasePoint || 89);
+
+      // Prepare payload for Supabase
+      const payload = {
+        display_name: sessionAnalysisData?.playerName || playerName || 'Anonymous',
+        predicted_kmh: Number(kmhValue.toFixed(2)),
+        similarity_percent: Number(accuracyDisplay.toFixed(2)),
+        intensity_percent: Number(finalIntensityValue.toFixed(2)),
+        speed_class: speedLabel,
+        avatar_url: geminiAvatarUrl, // Store Gemini-generated avatar
+        meta: {
+          analyzer_mode: 'benchmark',
+          app: 'bowling-analyzer',
+          player_name: sessionAnalysisData?.playerName || playerName,
+          phases: {
+            runUp: runUpScore,
+            delivery: deliveryScore,
+            followThrough: followThroughScore
+          },
+          technicalMetrics: {
+            armSwing: armSwingScore,
+            bodyMovement: bodyMovementScore,
+            rhythm: rhythmScore,
+            releasePoint: releasePointScore
+          },
+          recommendations: benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations
+        }
+      };
+
+      console.log('📊 Leaderboard payload:', payload);
+
+      const { data, error } = await supabase
+        .from('bowling_attempts')
+        .insert(payload)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('❌ Supabase insert error:', error);
+        throw error;
+      }
+
+      if (data) {
+        console.log('✅ Successfully saved to leaderboard with ID:', data.id);
+        setLeaderboardEntryId(data.id);
+        setHasSubmittedToLeaderboard(true);
+        
+        // Store the entry ID for potential future reference
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('leaderboardEntryId', data.id);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to submit to leaderboard:', error);
+      // Don't throw - allow user to continue even if leaderboard submission fails
+    }
+  }, [
+    hasSubmittedToLeaderboard,
+    sessionAnalysisData,
+    playerName,
+    state.finalIntensity,
+    state.speedClass,
+    benchmarkDetailedData
+  ]);
 
   // Load data from sessionStorage on mount
   React.useEffect(() => {
@@ -70,6 +192,24 @@ export default function SimplifiedAnalyzePage() {
       // The modal will be shown based on the main detection logic below
     }
   }, []);
+
+  // Auto-submit to leaderboard when analysis data is loaded
+  React.useEffect(() => {
+    const shouldSubmit = 
+      !hasSubmittedToLeaderboard &&
+      sessionAnalysisData &&
+      sessionAnalysisData.intensity > 0 &&
+      sessionAnalysisData.speedClass !== 'No Action';
+
+    if (shouldSubmit) {
+      // Small delay to ensure all data is properly loaded
+      const timer = setTimeout(() => {
+        submitToLeaderboard();
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [sessionAnalysisData, hasSubmittedToLeaderboard, submitToLeaderboard]);
 
   // Handle no bowling action modal - all hooks must come before any conditional returns
   React.useEffect(() => {
@@ -194,150 +334,182 @@ export default function SimplifiedAnalyzePage() {
     ? Math.round(benchmarkDetailedData.releasePoint * 100)
     : (sessionAnalysisData?.technicalMetrics?.releasePoint || 89);
 
-  // Download composite card functionality
-  const downloadCompositeCard = async () => {
-    const cardElement = document.getElementById('composite-card');
-    if (!cardElement) {
-      console.error('Composite card element not found');
-      return;
-    }
-
+  // Handle View Video button click - Trigger video rendering
+  const handleViewVideo = async () => {
     try {
-      console.log('📥 Starting composite card download...');
-      
-      // Wait for fonts to load
-      try {
-        await document.fonts.ready;
-        console.log('✅ Fonts loaded');
-      } catch (e) {
-        console.log('⚠️ Font loading check skipped');
+      console.log('🎥 Starting video rendering process...');
+      setIsRenderingVideo(true);
+      setRenderProgress(10);
+
+      // Prepare analysis data for video rendering
+      const videoAnalysisData = {
+        intensity: finalIntensityValue,
+        speedClass: speedLabel,
+        kmh: kmhValue,
+        similarity: accuracyDisplay,
+        phases: {
+          runUp: runUpScore,
+          delivery: deliveryScore,
+          followThrough: followThroughScore
+        },
+        technicalMetrics: {
+          armSwing: armSwingScore,
+          bodyMovement: bodyMovementScore,
+          rhythm: rhythmScore,
+          releasePoint: releasePointScore
+        },
+        recommendations: benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || ['Great technique! Keep practicing to maintain consistency.'],
+        playerName: sessionAnalysisData?.playerName || playerName || 'Player'
+      };
+
+      console.log('📦 Analysis data prepared for video:', videoAnalysisData);
+      setRenderProgress(20);
+
+      // Call API to generate video
+      const response = await fetch('/api/generate-video', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ analysisData: videoAnalysisData }),
+      });
+
+      setRenderProgress(90);
+
+      if (!response.ok) {
+        throw new Error('Video generation failed');
       }
-      
-      // Wait for the card to be fully rendered with correct scale
-      const waitForReady = () => new Promise<void>((resolve) => {
-        const checkReady = () => {
-          if (cardElement.getAttribute('data-ready') === 'true') {
-            console.log('✅ Card is ready for capture');
-            resolve();
-          } else {
-            console.log('⏳ Waiting for card to render...');
-            setTimeout(checkReady, 100);
-          }
-        };
-        checkReady();
-      });
 
-      await waitForReady();
-      
-      // Get the scale from the card element
-      const scaleValue = parseFloat(cardElement.getAttribute('data-scale') || '1');
-      console.log('📐 Using scale:', scaleValue);
-      
-      // Force browser to recalculate and apply all styles
-      cardElement.offsetHeight; // Trigger reflow
-      
-      // Wait for browser to paint all changes
-      await new Promise(resolve => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            // Double RAF ensures paint is complete
-            setTimeout(resolve, 500);
-          });
-        });
-      });
-      
-      console.log('📸 Starting capture with dimensions:', {
-        width: cardElement.offsetWidth,
-        height: cardElement.offsetHeight,
-        scale: scaleValue
-      });
-      
-      // Configure html2canvas options for better quality
-      const canvas = await html2canvas(cardElement, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 2, // Higher resolution
-        backgroundColor: null, // Transparent background
-        imageTimeout: 0,
-        removeContainer: true,
-        logging: false,
-        width: cardElement.offsetWidth,
-        height: cardElement.offsetHeight,
-        scrollX: 0,
-        scrollY: 0,
-        windowWidth: cardElement.offsetWidth,
-        windowHeight: cardElement.offsetHeight,
-        onclone: (clonedDoc) => {
-          console.log('🖨️ Cloning document for capture...');
-          
-          // Find the cloned card and apply scale-dependent styles
-          const clonedCard = clonedDoc.getElementById('composite-card');
-          if (clonedCard) {
-            // Reset transforms that might interfere
-            clonedCard.style.transform = 'none';
-            clonedCard.style.isolation = 'auto';
-            clonedCard.style.willChange = 'auto';
-            clonedCard.style.overflow = 'visible';
-            
-            // Ensure the container maintains its dimensions
-            clonedCard.style.width = `${cardElement.offsetWidth}px`;
-            clonedCard.style.height = `${cardElement.offsetHeight}px`;
-            clonedCard.style.position = 'relative';
-            
-            // Get the stored scale value
-            const cloneScale = parseFloat(clonedCard.getAttribute('data-scale') || '1');
-            console.log('📐 Clone scale:', cloneScale);
-            
-            // Find all child elements and ensure they maintain their positions
-            const allElements = clonedCard.querySelectorAll('*');
-            allElements.forEach((el: any) => {
-              // Preserve computed styles for positioned elements
-              if (el.style.position === 'absolute') {
-                const computed = window.getComputedStyle(cardElement.querySelector(`#${el.id}`) || el);
-                
-                // Lock down the position explicitly
-                el.style.position = 'absolute';
-                el.style.top = el.style.top || computed.top;
-                el.style.left = el.style.left || computed.left;
-                el.style.right = el.style.right || computed.right;
-                el.style.bottom = el.style.bottom || computed.bottom;
-                
-                // Ensure no margin/padding interference
-                el.style.margin = '0';
-                el.style.transform = 'none';
-              }
-              
-              // Preserve image dimensions
-              if (el.tagName === 'IMG') {
-                const imgComputed = window.getComputedStyle(cardElement.querySelector(`img[src="${el.src}"]`) || el);
-                el.style.width = el.style.width || imgComputed.width;
-                el.style.height = el.style.height || imgComputed.height;
-                el.style.maxWidth = 'none';
-                el.style.maxHeight = 'none';
-              }
-            });
-          }
-        }
-      });
+      const result = await response.json();
+      console.log('✅ Video rendered successfully:', result);
+      setRenderProgress(100);
 
-      // Create download link
-      const link = document.createElement('a');
-      link.download = `bowling-analysis-report-${new Date().getTime()}.png`;
-      link.href = canvas.toDataURL('image/png', 1.0);
-      
-      // Trigger download
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      
-      console.log('✅ Composite card downloaded successfully');
+      // Store video URL in sessionStorage
+      if (typeof window !== 'undefined' && result.videoUrl) {
+        window.sessionStorage.setItem('generatedVideoUrl', result.videoUrl);
+        // Navigate to download video page
+        setTimeout(() => {
+          window.location.href = '/download-video';
+        }, 500);
+      }
+
     } catch (error) {
-      console.error('❌ Failed to download composite card:', error);
+      console.error('❌ Video rendering error:', error);
+      alert('Failed to generate video. Please try again.');
+      setIsRenderingVideo(false);
+      setRenderProgress(0);
+    }
+  };
+
+  // Download composite card functionality - Using manual canvas rendering
+  const downloadCompositeCard = async () => {
+    try {
+      await downloadCompositeCardManual({
+        accuracyDisplay,
+        runUpScore,
+        deliveryScore,
+        followThroughScore,
+        playerName: sessionAnalysisData?.playerName || playerName || "PLAYER NAME",
+        kmhValue,
+        armSwingScore,
+        bodyMovementScore,
+        rhythmScore,
+        releasePointScore,
+        recommendations: (benchmarkDetailedData?.recommendations?.length || sessionAnalysisData?.recommendations?.length) > 0
+          ? (benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || []).join(' ')
+          : "Great technique! Keep practicing to maintain consistency.",
+        sessionAnalysisData
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      alert('Failed to download the report. Please try again.');
     }
   };
 
   return (
     <>
+      {/* Video Rendering Loader Overlay */}
+      {isRenderingVideo && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            backdropFilter: 'blur(8px)',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 24
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: '50%',
+                border: '4px solid rgba(255, 255, 255, 0.2)',
+                borderTop: '4px solid #FDC217',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto 20px'
+              }}
+            />
+            <h2
+              style={{
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontWeight: 700,
+                fontSize: 24,
+                color: '#fff',
+                marginBottom: 12
+              }}
+            >
+              Generating Your Video
+            </h2>
+            <p
+              style={{
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontSize: 16,
+                color: 'rgba(255, 255, 255, 0.8)',
+                marginBottom: 24
+              }}
+            >
+              Please wait while we create your bowling analysis video...
+            </p>
+            <div
+              style={{
+                width: 300,
+                height: 8,
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                borderRadius: 4,
+                overflow: 'hidden',
+                margin: '0 auto'
+              }}
+            >
+              <div
+                style={{
+                  width: `${renderProgress}%`,
+                  height: '100%',
+                  backgroundColor: '#FDC217',
+                  transition: 'width 0.3s ease'
+                }}
+              />
+            </div>
+            <p
+              style={{
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontSize: 14,
+                color: 'rgba(255, 255, 255, 0.6)',
+                marginTop: 12
+              }}
+            >
+              {renderProgress}%
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Layout */}
       <div
         className="md:hidden min-h-screen flex flex-col relative"
@@ -520,11 +692,8 @@ export default function SimplifiedAnalyzePage() {
                         justifyContent: 'center',
                         gap: 8
                       }}
-                      onClick={() => {
-                        console.log('🎥 View Video button clicked');
-                        // Add your video viewing logic here
-                        setIsViewingVideo(true);
-                      }}
+                      onClick={handleViewVideo}
+                      disabled={isRenderingVideo}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M8 5v14l11-7z"/>
@@ -932,11 +1101,8 @@ export default function SimplifiedAnalyzePage() {
                               justifyContent: 'center',
                               gap: 6
                             }}
-                            onClick={() => {
-                              console.log('🎥 View Video button clicked');
-                              // Add your video viewing logic here
-                              setIsViewingVideo(true);
-                            }}
+                            onClick={handleViewVideo}
+                            disabled={isRenderingVideo}
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                               <path d="M8 5v14l11-7z"/>
@@ -1016,49 +1182,51 @@ export default function SimplifiedAnalyzePage() {
                   </div>
                 </div>
 
-                {/* Text and Retry Button - Outside Glass Container (Below it) */}
-                <div style={{ marginTop: '16px', textAlign: 'center', width: 320 }}>
-                  {/* Missed Benchmark Text */}
-                  <div style={{ marginBottom: '12px' }}>
-                    <p style={{
-                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                      fontWeight: '700',
-                      fontSize: '14px',
-                      color: '#125081',
-                      margin: 0,
-                      lineHeight: 1.4
-                    }}>
-                      You've just missed the benchmark<br />
-                      Don't worry, try again!
-                    </p>
+                {/* Text and Retry Button - Outside Glass Container (Below it) - Only show when score < 85% */}
+                {accuracyDisplay < 85 && (
+                  <div style={{ marginTop: '16px', textAlign: 'center', width: 320 }}>
+                    {/* Missed Benchmark Text */}
+                    <div style={{ marginBottom: '12px' }}>
+                      <p style={{
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: '700',
+                        fontSize: '14px',
+                        color: '#125081',
+                        margin: 0,
+                        lineHeight: 1.4
+                      }}>
+                        You've just missed the benchmark<br />
+                        Don't worry, try again!
+                      </p>
+                    </div>
+                    
+                    {/* Retry Button */}
+                    <button
+                      className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                      style={{
+                        width: '200px',
+                        backgroundColor: '#0D4D80',
+                        borderRadius: '22.89px',
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: '700',
+                        fontSize: '13px',
+                        color: 'white',
+                        padding: '10px 16px',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
+                      onClick={() => {
+                        console.log('🔄 Retry button clicked');
+                        if (typeof window !== 'undefined') {
+                          sessionStorage.clear();
+                          window.location.href = '/record-upload';
+                        }
+                      }}
+                    >
+                      Retry
+                    </button>
                   </div>
-                  
-                  {/* Retry Button */}
-                  <button
-                    className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                    style={{
-                      width: '200px',
-                      backgroundColor: '#0D4D80',
-                      borderRadius: '22.89px',
-                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                      fontWeight: '700',
-                      fontSize: '13px',
-                      color: 'white',
-                      padding: '10px 16px',
-                      border: 'none',
-                      cursor: 'pointer'
-                    }}
-                    onClick={() => {
-                      console.log('🔄 Retry button clicked');
-                      if (typeof window !== 'undefined') {
-                        sessionStorage.clear();
-                        window.location.href = '/record-upload';
-                      }
-                    }}
-                  >
-                    Retry
-                  </button>
-                </div>
+                )}
               </div>
             </div>
           </div>

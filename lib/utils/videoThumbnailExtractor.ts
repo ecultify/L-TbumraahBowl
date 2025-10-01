@@ -67,6 +67,9 @@ export async function extractOptimalVideoThumbnail(
           brightness: optimalFrame.brightness
         });
 
+        // Save the frame position where head was detected
+        saveDetectedFramePosition(optimalFrame.position);
+
         cleanup();
 
         resolve({
@@ -196,6 +199,35 @@ export function getVideoThumbnail(key = 'userVideoThumbnail'): string | null {
     return thumbnail;
   } catch (error) {
     console.error('❌ Error retrieving thumbnail from localStorage:', error);
+    return null;
+  }
+}
+
+/**
+ * Save the frame position where head was detected
+ * @param position The time position in seconds where the head was detected
+ * @param key Storage key (default: 'detectedFramePosition')
+ */
+export function saveDetectedFramePosition(position: number, key = 'detectedFramePosition') {
+  try {
+    localStorage.setItem(key, position.toString());
+    console.log(`✅ Detected frame position saved: ${position}s`);
+  } catch (error) {
+    console.error('❌ Error saving frame position to localStorage:', error);
+  }
+}
+
+/**
+ * Retrieve the frame position where head was detected
+ * @param key Storage key (default: 'detectedFramePosition')
+ * @returns The frame position in seconds or null
+ */
+export function getDetectedFramePosition(key = 'detectedFramePosition'): number | null {
+  try {
+    const position = localStorage.getItem(key);
+    return position ? parseFloat(position) : null;
+  } catch (error) {
+    console.error('❌ Error retrieving frame position from localStorage:', error);
     return null;
   }
 }
