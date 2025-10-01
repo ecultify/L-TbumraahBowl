@@ -55,6 +55,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
+    "crypto-js": "^4.2.0",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.3.0",
     "encoding": "^0.1.13",
@@ -91,6 +92,7 @@
     "@remotion/cli": "4.0.353",
     "@remotion/player": "4.0.353",
     "@remotion/renderer": "4.0.353",
+    "@types/crypto-js": "^4.2.2",
     "remotion": "4.0.353"
   }
 }

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Phone, User } from 'lucide-react';
+import { encrypt } from '@/lib/utils/encryption';
 
 interface DetailsCardSubmitPayload {
   name: string;
@@ -72,33 +73,55 @@ export function DetailsCard({
   }, []);
 
   const handleGetOtp = useCallback(async () => {
+    console.log('🔵 [GET OTP] Button clicked');
+    console.log('📱 [GET OTP] Phone number:', phone);
+    
     // Validate phone number
     if (!phone || phone.length !== 10) {
+      console.log('❌ [GET OTP] Validation failed - phone length:', phone?.length);
       setError('Please enter a valid 10-digit phone number.');
       return;
     }
 
+    console.log('✅ [GET OTP] Validation passed, sending OTP request...');
     setOtpSending(true);
     setError(null);
 
     try {
+      // Encrypt the phone number
+      console.log('🔐 [GET OTP] Encrypting phone number:', phone);
+      const encryptedPhone = encrypt(phone);
+      
+      if (!encryptedPhone) {
+        throw new Error('Failed to encrypt phone number');
+      }
+      
+      console.log('🔐 [GET OTP] Encrypted phone:', encryptedPhone);
+      
+      const requestBody = {
+        body: encryptedPhone,
+      };
+      console.log('📤 [GET OTP] Sending request to /api/send-otp');
+      console.log('📦 [GET OTP] Request body:', requestBody);
+      
       // Call send OTP API
       const response = await fetch('/api/send-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          body: `ve+dp06Wd9abVgUrYeFZtBAmLN5iDZJeZXq5pFRY8/QTZikEPcQm04Msvl5GUqM0ZmIv+M50deNvhmOAqjzTal3O4z9TqvY/OpOKlTXSoDdryXRlcnKpLfV/pxVhEXMtmV88BIfzIkn99z+ye+0liybSwb8sQS2weJrnvFNovQyYUpDlr8MXkAc3Di72RdED`,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
+      console.log('📥 [GET OTP] Response status:', response.status);
       const data = await response.json();
+      console.log('📥 [GET OTP] Response data:', data);
 
       if (!response.ok) {
         throw new Error(data.error || 'Failed to send OTP');
       }
 
+      console.log('✅ [GET OTP] OTP sent successfully!');
       setShowOtpBoxes(true);
       setIsTimerActive(true);
       setRemainingTime(59);
@@ -110,7 +133,8 @@ export function DetailsCard({
         alert('OTP sent successfully!');
       }
     } catch (error: any) {
-      console.error('Error sending OTP:', error);
+      console.error('❌ [GET OTP] Error:', error);
+      console.error('❌ [GET OTP] Error message:', error.message);
       setError(error.message || 'Failed to send OTP. Please try again.');
       
       // Show error alert
@@ -119,6 +143,7 @@ export function DetailsCard({
       }
     } finally {
       setOtpSending(false);
+      console.log('🔵 [GET OTP] Request completed');
     }
   }, [phone]);
 
@@ -127,37 +152,66 @@ export function DetailsCard({
   }, [handleGetOtp]);
 
   const handleOtpChange = useCallback(async (index: number, value: string) => {
+    console.log(`🔵 [OTP CHANGE] Index ${index}, Value: ${value}`);
+    
     if (value.length > 1) return;
     
     const newOtpValues = [...otpValues];
     newOtpValues[index] = value;
     setOtpValues(newOtpValues);
+    console.log('📋 [OTP CHANGE] Current OTP values:', newOtpValues);
 
     if (value && index < OTP_BOX_COUNT - 1) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
       nextInput?.focus();
+      console.log(`➡️ [OTP CHANGE] Moving focus to input ${index + 1}`);
     }
 
     // Check if all OTP boxes are filled
-    if (newOtpValues.every(val => val !== '') && index === OTP_BOX_COUNT - 1) {
+    const allFilled = newOtpValues.every(val => val !== '');
+    const isLastInput = index === OTP_BOX_COUNT - 1;
+    console.log(`🔍 [OTP CHANGE] All filled: ${allFilled}, Is last input: ${isLastInput}`);
+    
+    if (allFilled && isLastInput) {
+      console.log('✅ [OTP VERIFY] All OTP boxes filled, starting verification...');
+      const otpString = newOtpValues.join('');
+      console.log('🔢 [OTP VERIFY] Complete OTP:', otpString);
+      
       // Verify OTP
       try {
+        // Encrypt the OTP for verification
+        console.log('🔐 [OTP VERIFY] Encrypting OTP:', otpString);
+        const encryptedOtp = encrypt(otpString);
+        
+        if (!encryptedOtp) {
+          throw new Error('Failed to encrypt OTP');
+        }
+        
+        console.log('🔐 [OTP VERIFY] Encrypted OTP:', encryptedOtp);
+        
+        const requestBody = {
+          body: encryptedOtp,
+        };
+        console.log('📤 [OTP VERIFY] Sending request to /api/verify-otp');
+        console.log('📦 [OTP VERIFY] Request body:', requestBody);
+        
         const response = await fetch('/api/verify-otp', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            body: 'Pkblal8hw+rvOmXrantfYKAGT56Ys3loUwBKHl8UFD0pNF7s2J58AWinA6jC/zr/8ImTDpfQuKyBwEkNJOdqSw==',
-          }),
+          body: JSON.stringify(requestBody),
         });
 
+        console.log('📥 [OTP VERIFY] Response status:', response.status);
         const data = await response.json();
+        console.log('📥 [OTP VERIFY] Response data:', data);
 
         if (!response.ok) {
           throw new Error(data.error || 'Failed to verify OTP');
         }
 
+        console.log('✅ [OTP VERIFY] OTP verified successfully!');
         setOtpVerified(true);
         setError(null);
         
@@ -166,7 +220,8 @@ export function DetailsCard({
           alert('OTP verified successfully!');
         }
       } catch (error: any) {
-        console.error('Error verifying OTP:', error);
+        console.error('❌ [OTP VERIFY] Error:', error);
+        console.error('❌ [OTP VERIFY] Error message:', error.message);
         setError(error.message || 'Invalid OTP. Please try again.');
         setOtpVerified(false);
         
@@ -176,6 +231,7 @@ export function DetailsCard({
         }
         
         // Clear OTP fields
+        console.log('🔄 [OTP VERIFY] Clearing OTP fields');
         setOtpValues(Array(OTP_BOX_COUNT).fill(''));
       }
     }
@@ -188,9 +244,13 @@ export function DetailsCard({
       if (!onSubmit) return;
       event.preventDefault();
 
+      console.log('🔵 [SUBMIT] Form submission started');
+      console.log('📋 [SUBMIT] Form data:', { name, phone, consent, otpVerified, otpValues });
+
       // Validation
       const trimmedName = name.trim();
       if (!trimmedName) {
+        console.log('❌ [SUBMIT] Validation failed - name is empty');
         setError('Please enter your full name.');
         if (typeof window !== 'undefined') {
           alert('Please enter your full name.');
@@ -199,6 +259,7 @@ export function DetailsCard({
       }
 
       if (!phone || phone.length !== 10) {
+        console.log('❌ [SUBMIT] Validation failed - invalid phone:', phone?.length);
         setError('Please enter a valid 10-digit phone number.');
         if (typeof window !== 'undefined') {
           alert('Please enter a valid 10-digit phone number.');
@@ -207,6 +268,7 @@ export function DetailsCard({
       }
 
       if (!consent) {
+        console.log('❌ [SUBMIT] Validation failed - consent not accepted');
         setError('Please accept the Terms & Conditions to proceed.');
         if (typeof window !== 'undefined') {
           alert('Please accept the Terms & Conditions to proceed.');
@@ -215,6 +277,7 @@ export function DetailsCard({
       }
 
       if (!otpVerified) {
+        console.log('❌ [SUBMIT] Validation failed - OTP not verified');
         setError('Please verify OTP before proceeding.');
         if (typeof window !== 'undefined') {
           alert('Please verify OTP before proceeding.');
@@ -222,22 +285,30 @@ export function DetailsCard({
         return;
       }
 
+      console.log('✅ [SUBMIT] All validations passed');
       setSubmitting(true);
       setError(null);
 
       try {
-        await onSubmit({
+        const payload = {
           name: trimmedName,
           phone: phone.trim(),
           consent,
           otpValues,
-        });
+        };
+        console.log('📤 [SUBMIT] Calling onSubmit with payload:', payload);
+        
+        await onSubmit(payload);
+        
+        console.log('✅ [SUBMIT] onSubmit completed successfully');
         setName('');
         setPhone('');
         setConsent(false);
         setShowOtpBoxes(false);
         resetOtp();
       } catch (submitError: any) {
+        console.error('❌ [SUBMIT] Error:', submitError);
+        console.error('❌ [SUBMIT] Error message:', submitError.message);
         const message = submitError?.message || 'Something went wrong. Please try again.';
         setError(message);
         if (typeof window !== 'undefined') {
@@ -245,6 +316,7 @@ export function DetailsCard({
         }
       } finally {
         setSubmitting(false);
+        console.log('🔵 [SUBMIT] Form submission completed');
       }
     },
     [consent, name, onSubmit, otpValues, phone, resetOtp, otpVerified]
