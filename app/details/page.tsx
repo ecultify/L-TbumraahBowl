@@ -594,7 +594,9 @@ export default function DetailsPage() {
           preload="auto"
           playsInline
           muted
-          className="hidden"
+          // Keep video in DOM to avoid browser throttling on hidden elements
+          // Render offscreen and invisible instead of display:none
+          className="absolute opacity-0 w-px h-px -left-[10000px] -top-[10000px]"
           onLoadedMetadata={handleVideoLoadedMetadata}
           onError={handleVideoError}
         >

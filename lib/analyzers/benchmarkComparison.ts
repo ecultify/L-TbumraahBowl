@@ -612,8 +612,8 @@ export class BenchmarkComparisonAnalyzer {
 
     let validFrameCount = 0;
     let framesWithFullBody = 0;
-    const FULL_BODY_THRESHOLD = 0.35; // 35% of frames must have both upper and lower body keypoints (more permissive)
-    const MIN_CONFIDENCE = 0.25; // more permissive keypoint confidence
+    const FULL_BODY_THRESHOLD = 0.6; // 60% of frames must have both upper and lower body keypoints
+    const MIN_CONFIDENCE = 0.3; // only use keypoints >30% confidence
 
     // Analyze frames for consistent full body keypoint detection
     for (const frameData of this.inputPattern.keypoints) {
@@ -751,9 +751,9 @@ export class BenchmarkComparisonAnalyzer {
       : 0;
 
     // Minimum thresholds for bowling action detection
-    const MIN_ARM_SWING_VELOCITY = 0.15; // lowered to accept moderate movement
-    const MIN_OVERALL_INTENSITY = 0.30;  // lowered overall average intensity
-    const MIN_MAX_INTENSITY = 0.60;      // lowered peak intensity threshold
+    const MIN_ARM_SWING_VELOCITY = 0.5;  // spec: min arm swing velocity (units/s)
+    const MIN_OVERALL_INTENSITY = 1.0;   // spec: min overall body intensity (units/s)
+    const MIN_MAX_INTENSITY = 2.0;       // spec: min peak intensity (units/s)
 
     if (maxArmSwingVelocity < MIN_ARM_SWING_VELOCITY || 
         avgOverallIntensity < MIN_OVERALL_INTENSITY || 

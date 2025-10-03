@@ -39,11 +39,12 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
           backgroundRepeat: 'no-repeat',
           borderRadius: '20px',
           maxWidth: 'calc(100vw - 32px)',
-          width: '100%',
+          width: 'calc(100vw - 32px)',
           position: 'fixed',
           top: '50%',
           left: '50%',
-          transform: 'translate(-50%, -50%)'
+          transform: 'translate(-50%, -50%)',
+          margin: '0 auto'
         }}
       >
         {/* Accessible Title/Description for screen readers */}
