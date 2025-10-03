@@ -319,7 +319,10 @@ export class BenchmarkComparisonAnalyzer {
     let totalVelocity = 0;
     let validPoints = 0;
 
-    const scale = this.getNormalizationScale(currentPose);
+    // Get normalization scales for both poses and average them for stability
+    const prevScale = this.getNormalizationScale(prevPose);
+    const currentScale = this.getNormalizationScale(currentPose);
+    const scale = (prevScale + currentScale) / 2;
 
     for (const pointName of armPoints) {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
@@ -332,7 +335,7 @@ export class BenchmarkComparisonAnalyzer {
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         // Normalize by body scale to make distances comparable across videos
-        const velocity = (distance / timeDelta) / (scale || 1);
+        const velocity = scale > 0 ? (distance / timeDelta) / scale : 0;
         
         // Weight wrists more heavily as they move fastest during bowling
         const baseWeight = pointName.includes('wrist') ? 3.0 : pointName.includes('elbow') ? 2.0 : 1.0;
@@ -354,7 +357,10 @@ export class BenchmarkComparisonAnalyzer {
     let totalVelocity = 0;
     let validPoints = 0;
 
-    const scale = this.getNormalizationScale(currentPose);
+    // Get normalization scales for both poses and average them for stability
+    const prevScale = this.getNormalizationScale(prevPose);
+    const currentScale = this.getNormalizationScale(currentPose);
+    const scale = (prevScale + currentScale) / 2;
 
     for (const pointName of bodyPoints) {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
@@ -366,7 +372,7 @@ export class BenchmarkComparisonAnalyzer {
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const velocity = (distance / timeDelta) / (scale || 1);
+        const velocity = scale > 0 ? (distance / timeDelta) / scale : 0;
         
         const confidenceWeight = Math.min(prevPoint.score || 0, currentPoint.score || 0);
         totalVelocity += velocity * confidenceWeight;
@@ -764,12 +770,16 @@ export class BenchmarkComparisonAnalyzer {
     });
     
     // Log sample velocities for comparison
+    const inputAvgArm = this.inputPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.inputPattern.armSwingVelocities.length || 1);
+    const inputMaxArm = Math.max(...this.inputPattern.armSwingVelocities);
+    const benchAvgArm = this.benchmarkPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.benchmarkPattern.armSwingVelocities.length || 1);
+    const benchMaxArm = Math.max(...this.benchmarkPattern.armSwingVelocities);
+    
     console.log('📊 Input first 5 armSwingVelocities:', this.inputPattern.armSwingVelocities.slice(0, 5));
     console.log('📊 Benchmark first 5 armSwingVelocities:', this.benchmarkPattern.armSwingVelocities.slice(0, 5));
-    console.log('📊 Input avg armSwingVelocity:', 
-      this.inputPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.inputPattern.armSwingVelocities.length || 1));
-    console.log('📊 Benchmark avg armSwingVelocity:', 
-      this.benchmarkPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.benchmarkPattern.armSwingVelocities.length || 1));
+    console.log('📊 Input armSwingVelocity - avg:', inputAvgArm.toFixed(3), 'max:', inputMaxArm.toFixed(3));
+    console.log('📊 Benchmark armSwingVelocity - avg:', benchAvgArm.toFixed(3), 'max:', benchMaxArm.toFixed(3));
+    console.log('📊 Velocity ratio (input/benchmark) - avg:', (inputAvgArm / benchAvgArm).toFixed(3), 'max:', (inputMaxArm / benchMaxArm).toFixed(3));
 
     // Check for required full body keypoints (BOTH upper and lower body)
     const hasRequiredFullBodyKeypoints = this.checkRequiredFullBodyKeypoints();
@@ -796,19 +806,42 @@ export class BenchmarkComparisonAnalyzer {
       ? Math.max(...this.inputPattern.overallIntensities)
       : 0;
 
-    // Minimum thresholds for bowling action detection - made more permissive
-    const MIN_ARM_SWING_VELOCITY = 0.1; // Lowered from 0.5 to be more permissive
-    const MIN_OVERALL_INTENSITY = 0.2;  // Lowered from 1.0 to be more permissive
-    const MIN_MAX_INTENSITY = 0.5;      // Lowered from 2.0 to be more permissive
+    // Calculate relative thresholds based on benchmark pattern scale
+    // Benchmark has avg armSwing ~10.68 and max ~40.95
+    // We'll require at least 10% of benchmark's average for minimal bowling action
+    const benchmarkAvg = benchAvgArm || 10.68; // Use actual or fallback
+    const benchmarkMax = benchMaxArm || 40.95; // Use actual or fallback
+    
+    const MIN_AVG_ARM_SWING_RATIO = 0.10;     // 10% of benchmark average
+    const MIN_MAX_ARM_SWING_RATIO = 0.10;     // 10% of benchmark max
+    const MIN_OVERALL_INTENSITY_RATIO = 0.08; // 8% of benchmark overall average
+    const MIN_MAX_INTENSITY_RATIO = 0.08;     // 8% of benchmark overall max
+    
+    const minAvgArmSwing = benchmarkAvg * MIN_AVG_ARM_SWING_RATIO;
+    const minMaxArmSwing = benchmarkMax * MIN_MAX_ARM_SWING_RATIO;
+    const minOverallIntensity = (this.benchmarkPattern.overallIntensities.reduce((a,b)=>a+b,0) / this.benchmarkPattern.overallIntensities.length) * MIN_OVERALL_INTENSITY_RATIO;
+    const minMaxIntensity = Math.max(...this.benchmarkPattern.overallIntensities) * MIN_MAX_INTENSITY_RATIO;
 
-    if (maxArmSwingVelocity < MIN_ARM_SWING_VELOCITY || 
-        avgOverallIntensity < MIN_OVERALL_INTENSITY || 
-        maxOverallIntensity < MIN_MAX_INTENSITY) {
-      console.log(`⚠️ Movement below thresholds - avgArmSwing: ${avgArmSwingVelocity.toFixed(3)}, maxArmSwing: ${maxArmSwingVelocity.toFixed(3)}, avgOverall: ${avgOverallIntensity.toFixed(3)}, maxOverall: ${maxOverallIntensity.toFixed(3)}`);
-      console.log('🔄 Proceeding with analysis anyway to debug the issue');
-      // Continue with analysis instead of returning 0 for debugging purposes
+    console.log(`📊 Movement thresholds check (relative to benchmark):`);
+    console.log(`   - avgArmSwing: ${avgArmSwingVelocity.toFixed(3)} (min: ${minAvgArmSwing.toFixed(3)}, ${(MIN_AVG_ARM_SWING_RATIO*100).toFixed(0)}% of bench)`);
+    console.log(`   - maxArmSwing: ${maxArmSwingVelocity.toFixed(3)} (min: ${minMaxArmSwing.toFixed(3)}, ${(MIN_MAX_ARM_SWING_RATIO*100).toFixed(0)}% of bench)`);
+    console.log(`   - avgOverall: ${avgOverallIntensity.toFixed(3)} (min: ${minOverallIntensity.toFixed(3)}, ${(MIN_OVERALL_INTENSITY_RATIO*100).toFixed(0)}% of bench)`);
+    console.log(`   - maxOverall: ${maxOverallIntensity.toFixed(3)} (min: ${minMaxIntensity.toFixed(3)}, ${(MIN_MAX_INTENSITY_RATIO*100).toFixed(0)}% of bench)`);
+
+    // Check if movement is sufficient for bowling action
+    const hasMinimumMovement = (
+      avgArmSwingVelocity >= minAvgArmSwing &&
+      maxArmSwingVelocity >= minMaxArmSwing &&
+      avgOverallIntensity >= minOverallIntensity &&
+      maxOverallIntensity >= minMaxIntensity
+    );
+
+    if (!hasMinimumMovement) {
+      console.log(`❌ Movement below bowling action thresholds - not enough dynamic motion detected`);
+      console.log(`🚫 Returning 0 intensity - this will trigger "No Bowling Action" modal`);
+      return 0;
     } else {
-      console.log(`✅ Movement thresholds passed - avgArmSwing: ${avgArmSwingVelocity.toFixed(3)}, maxArmSwing: ${maxArmSwingVelocity.toFixed(3)}, avgOverall: ${avgOverallIntensity.toFixed(3)}, maxOverall: ${maxOverallIntensity.toFixed(3)}`);
+      console.log(`✅ Movement thresholds passed - sufficient bowling motion detected`);
     }
 
     // Complete input pattern analysis

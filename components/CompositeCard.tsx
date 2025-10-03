@@ -104,7 +104,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   }, []);
 
   const torsoImageTopOffset = 105;
-  const torsoImageRightOffset = -20; // Push ~35px to the right relative to original
+  const torsoImageRightOffset = -15; // Moved 15px to the left (was -20, now -5)
   // Slightly reduce generated image size while keeping default avatar at 300
   const defaultAvatarSize = 300;
   const generatedTorsoSize = 285;
