@@ -6,11 +6,11 @@
   "runUp": 0.1,
   "delivery": 0.05,
   "movementThresholds": {
-    "minAvgArmSwingRatio": 0.10,
-    "minMaxArmSwingRatio": 0.10,
-    "minOverallIntensityRatio": 0.08,
-    "minMaxIntensityRatio": 0.08,
-    "fullBodyRatio": 0.50,
-    "minKeypointConfidence": 0.30
+    "minAvgArmSwingRatio": 0.06,
+    "minMaxArmSwingRatio": 0.08,
+    "minOverallIntensityRatio": 0.05,
+    "minMaxIntensityRatio": 0.06,
+    "fullBodyRatio": 0.35,
+    "minKeypointConfidence": 0.25
   }
 }

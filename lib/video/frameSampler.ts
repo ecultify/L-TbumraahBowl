@@ -29,7 +29,7 @@ export class FrameSampler {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 320; // Downscale for performance
     this.canvas.height = 240;
-    this.ctx = this.canvas.getContext('2d')!;
+    this.ctx = (this.canvas.getContext('2d', { willReadFrequently: true } as any) || this.canvas.getContext('2d'))!;
   }
 
   start(): void {
