@@ -1,4 +1,4 @@
-// Gemini API Service for Torso Generation
+﻿// Gemini API Service for Torso Generation
 'use client';
 
 const GEMINI_API_KEY = 'AIzaSyBRyKCamJ5jwSbzGS_lHt1hz6xVuaMbPa8';
@@ -134,23 +134,23 @@ export class GeminiTorsoService {
         console.log('Gemini 2.5 Flash Image Preview torso generation completed successfully via backend');
         
         // Apply background removal to make it fully transparent
-        console.log('🎨 [TORSO GEN] Applying background removal for full transparency...');
+        console.log('ðŸŽ¨ [TORSO GEN] Applying background removal for full transparency...');
         let transparentImageUrl: string | null = null;
         
         try {
           transparentImageUrl = await this.removeBackground(responseData.imageUrl);
           if (transparentImageUrl && transparentImageUrl !== responseData.imageUrl) {
-            console.log('✅ [TORSO GEN] Background removal completed successfully');
+            console.log('âœ… [TORSO GEN] Background removal completed successfully');
           } else {
-            console.warn('⚠️ [TORSO GEN] Background removal returned original image, may not have worked');
+            console.warn('âš ï¸ [TORSO GEN] Background removal returned original image, may not have worked');
           }
         } catch (bgError) {
-          console.error('❌ [TORSO GEN] Background removal failed with error:', bgError);
-          console.log('🔄 [TORSO GEN] Continuing with original image...');
+          console.error('âŒ [TORSO GEN] Background removal failed with error:', bgError);
+          console.log('ðŸ”„ [TORSO GEN] Continuing with original image...');
         }
         
         // Resize to 300x300 if not already
-        console.log('📏 [TORSO GEN] Resizing image to 300x300...');
+        console.log('ðŸ“ [TORSO GEN] Resizing image to 300x300...');
         const finalImageUrl = transparentImageUrl || responseData.imageUrl;
         const resizedImageUrl = await this.resizeImage(finalImageUrl, 300, 300);
         // Run a second background removal pass post-resize to guarantee transparent edges
@@ -163,9 +163,9 @@ export class GeminiTorsoService {
         } catch {}
         
         if (!resizedImageUrl) {
-          console.error('❌ [TORSO GEN] Image resize failed, using original image');
+          console.error('âŒ [TORSO GEN] Image resize failed, using original image');
         } else {
-          console.log('✅ [TORSO GEN] Image resize completed successfully');
+          console.log('âœ… [TORSO GEN] Image resize completed successfully');
         }
         
         return {
@@ -233,7 +233,7 @@ export class GeminiTorsoService {
           const format = 'image/png';
           const quality = 1.0; // Max quality for PNG (transparency preservation)
           const resizedImageUrl = canvas.toDataURL(format, quality);
-          console.log(`✅ Image resized to ${targetWidth}x${targetHeight}, format: ${format}, preserving transparency`);
+          console.log(`âœ… Image resized to ${targetWidth}x${targetHeight}, format: ${format}, preserving transparency`);
           resolve(resizedImageUrl);
         };
         
@@ -255,7 +255,7 @@ export class GeminiTorsoService {
     if (typeof window === 'undefined') return false;
     const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    console.log('🔍 [BG REMOVAL] iOS Detection:', {
+    console.log('ðŸ” [BG REMOVAL] iOS Detection:', {
       userAgent: navigator.userAgent,
       platform: navigator.platform,
       maxTouchPoints: navigator.maxTouchPoints,
@@ -267,8 +267,28 @@ export class GeminiTorsoService {
   // Remove background from image to make it fully transparent
   private async removeBackground(imageUrl: string): Promise<string> {
     try {
-      console.log('🔧 [BG REMOVAL] Starting background removal process...');
-      console.log('🔧 [BG REMOVAL] Image URL type:', imageUrl.startsWith('data:') ? 'Data URL' : 'External URL');
+      console.log('ðŸ”§ [BG REMOVAL] Starting background removal process...');
+      console.log('ðŸ”§ [BG REMOVAL] Image URL type:', imageUrl.startsWith('data:') ? 'Data URL' : 'External URL');
+      // Prefer server-side remove.bg for best quality
+      try {
+        const resp = await fetch('/api/remove-bg', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image: imageUrl })
+        });
+        if (resp.ok) {
+          const out = await resp.json();
+          if (out?.imageUrl && typeof out.imageUrl === 'string') {
+            console.log('✅ [BG REMOVAL] remove.bg succeeded via backend proxy');
+            return out.imageUrl as string;
+          }
+        } else {
+          const errText = await resp.text();
+          console.warn('⚠️ [BG REMOVAL] remove.bg backend error:', errText);
+        }
+      } catch (rbErr) {
+        console.warn('⚠️ [BG REMOVAL] remove.bg backend unavailable, falling back to local algorithm:', rbErr);
+      }
       
       return new Promise((resolve, reject) => {
         const img = new Image();
@@ -278,12 +298,12 @@ export class GeminiTorsoService {
         }
         
         img.onload = () => {
-          console.log('🔧 [BG REMOVAL] Image loaded successfully, dimensions:', img.width, 'x', img.height);
+          console.log('ðŸ”§ [BG REMOVAL] Image loaded successfully, dimensions:', img.width, 'x', img.height);
           
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           if (!ctx) {
-            console.error('❌ [BG REMOVAL] Canvas context not available');
+            console.error('âŒ [BG REMOVAL] Canvas context not available');
             resolve(imageUrl); // Return original on error
             return;
           }
@@ -293,18 +313,18 @@ export class GeminiTorsoService {
           
           // Draw image
           ctx.drawImage(img, 0, 0);
-          console.log('🔧 [BG REMOVAL] Image drawn to canvas');
+          console.log('ðŸ”§ [BG REMOVAL] Image drawn to canvas');
           
           // Always process background removal, but use simpler algorithm on iOS for performance
           const useSimplifiedAlgorithm = this.isIOS();
           if (useSimplifiedAlgorithm) {
-            console.log('⚠️ [BG REMOVAL] Using simplified background removal on iOS for performance');
+            console.log('âš ï¸ [BG REMOVAL] Using simplified background removal on iOS for performance');
           }
           
           // Get image data
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
-          console.log('🔧 [BG REMOVAL] Image data extracted, processing', data.length / 4, 'pixels');
+          console.log('ðŸ”§ [BG REMOVAL] Image data extracted, processing', data.length / 4, 'pixels');
           
           let transparentPixels = 0;
           let processedPixels = 0;
@@ -355,11 +375,11 @@ export class GeminiTorsoService {
             processedPixels++;
           }
           
-          console.log('🔧 [BG REMOVAL] Pass 1 complete - Basic background removal');
+          console.log('ðŸ”§ [BG REMOVAL] Pass 1 complete - Basic background removal');
           
           // PASS 2: Erosion - Remove isolated pixels and noise
           if (!useSimplifiedAlgorithm) {
-            console.log('🔧 [BG REMOVAL] Starting Pass 2 - Erosion (remove noise and spots)...');
+            console.log('ðŸ”§ [BG REMOVAL] Starting Pass 2 - Erosion (remove noise and spots)...');
             const width = canvas.width;
             const height = canvas.height;
             const pixelsToRemove: number[] = [];
@@ -402,12 +422,12 @@ export class GeminiTorsoService {
               transparentPixels++;
             }
             
-            console.log('🔧 [BG REMOVAL] Pass 2 complete - Removed', pixelsToRemove.length, 'isolated noise pixels');
+            console.log('ðŸ”§ [BG REMOVAL] Pass 2 complete - Removed', pixelsToRemove.length, 'isolated noise pixels');
           }
           
           // PASS 3: Aggressive edge cleanup - Remove semi-transparent edge artifacts
           if (!useSimplifiedAlgorithm) {
-            console.log('🔧 [BG REMOVAL] Starting Pass 3 - Edge artifact cleanup...');
+            console.log('ðŸ”§ [BG REMOVAL] Starting Pass 3 - Edge artifact cleanup...');
             const width = canvas.width;
             const height = canvas.height;
             let edgePixelsRemoved = 0;
@@ -446,12 +466,12 @@ export class GeminiTorsoService {
               }
             }
             
-            console.log('🔧 [BG REMOVAL] Pass 3 complete - Removed', edgePixelsRemoved, 'edge artifacts');
+            console.log('ðŸ”§ [BG REMOVAL] Pass 3 complete - Removed', edgePixelsRemoved, 'edge artifacts');
           }
           
           // PASS 4: Color-based cleanup - Remove remaining background-like pixels
           if (!useSimplifiedAlgorithm) {
-            console.log('🔧 [BG REMOVAL] Starting Pass 4 - Color-based final cleanup...');
+            console.log('ðŸ”§ [BG REMOVAL] Starting Pass 4 - Color-based final cleanup...');
             let colorPixelsRemoved = 0;
             
             for (let i = 0; i < data.length; i += 4) {
@@ -477,31 +497,31 @@ export class GeminiTorsoService {
               }
             }
             
-            console.log('🔧 [BG REMOVAL] Pass 4 complete - Removed', colorPixelsRemoved, 'background-like pixels');
+            console.log('ðŸ”§ [BG REMOVAL] Pass 4 complete - Removed', colorPixelsRemoved, 'background-like pixels');
           }
           
-          console.log('🔧 [BG REMOVAL] Processed', processedPixels, 'pixels, made', transparentPixels, 'transparent');
+          console.log('ðŸ”§ [BG REMOVAL] Processed', processedPixels, 'pixels, made', transparentPixels, 'transparent');
           
           // Put the modified image data back
           ctx.putImageData(imageData, 0, 0);
           
           // Convert to data URL
           const transparentImageUrl = canvas.toDataURL('image/png');
-          console.log('✅ [BG REMOVAL] Background removed successfully, output size:', transparentImageUrl.length, 'characters');
+          console.log('âœ… [BG REMOVAL] Background removed successfully, output size:', transparentImageUrl.length, 'characters');
           resolve(transparentImageUrl);
         };
         
         img.onerror = (error) => {
-          console.error('❌ [BG REMOVAL] Failed to load image for background removal:', error);
-          console.error('❌ [BG REMOVAL] Image URL that failed:', imageUrl.substring(0, 100) + '...');
+          console.error('âŒ [BG REMOVAL] Failed to load image for background removal:', error);
+          console.error('âŒ [BG REMOVAL] Image URL that failed:', imageUrl.substring(0, 100) + '...');
           resolve(imageUrl); // Return original on error
         };
         
-        console.log('🔧 [BG REMOVAL] Setting image source...');
+        console.log('ðŸ”§ [BG REMOVAL] Setting image source...');
         img.src = imageUrl;
       });
     } catch (error) {
-      console.error('❌ [BG REMOVAL] Background removal error:', error);
+      console.error('âŒ [BG REMOVAL] Background removal error:', error);
       return imageUrl; // Return original on error
     }
   }
@@ -626,11 +646,11 @@ export function getGeminiTorsoService(): GeminiTorsoService {
 
 // Test function for background removal (for debugging)
 export async function testBackgroundRemoval(imageUrl: string): Promise<string> {
-  console.log('🧪 [TEST] Testing background removal with image:', imageUrl.substring(0, 100) + '...');
+  console.log('ðŸ§ª [TEST] Testing background removal with image:', imageUrl.substring(0, 100) + '...');
   const service = getGeminiTorsoService();
   
   // Access private method for testing
   const result = await (service as any).removeBackground(imageUrl);
-  console.log('🧪 [TEST] Background removal test result:', result ? 'Success' : 'Failed');
+  console.log('ðŸ§ª [TEST] Background removal test result:', result ? 'Success' : 'Failed');
   return result;
 }
