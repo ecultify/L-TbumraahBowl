@@ -1,0 +1,16 @@
+﻿{
+  "armSwing": 0.4,
+  "releasePoint": 0.25,
+  "rhythm": 0.15,
+  "followThrough": 0.15,
+  "runUp": 0.1,
+  "delivery": 0.05,
+  "movementThresholds": {
+    "minAvgArmSwingRatio": 0.10,
+    "minMaxArmSwingRatio": 0.10,
+    "minOverallIntensityRatio": 0.08,
+    "minMaxIntensityRatio": 0.08,
+    "fullBodyRatio": 0.50,
+    "minKeypointConfidence": 0.30
+  }
+}

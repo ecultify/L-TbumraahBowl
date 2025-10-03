@@ -13,6 +13,8 @@ export class FrameSampler {
   private animationId: number | null = null;
   private rVFCHandle: number | null = null;
   private useRVFC: boolean = false;
+  private framesCaptured: number = 0;
+  private fallbackTimer: number | null = null;
 
   constructor(
     video: HTMLVideoElement, 
@@ -38,9 +40,12 @@ export class FrameSampler {
     let lastTsMs = 0;
 
     const hasRVFC = typeof (this.video as any).requestVideoFrameCallback === 'function';
-    this.useRVFC = hasRVFC;
+    // rVFC is unreliable for hidden/offscreen videos in some browsers. Prefer RAF if hidden.
+    const isHidden = !(this.video as any).offsetParent && this.video.getClientRects().length === 0;
+    this.useRVFC = hasRVFC && !isHidden;
+    this.framesCaptured = 0;
 
-    if (hasRVFC) {
+    if (this.useRVFC) {
       const cb = (_now: number, metadata: any) => {
         if (!this.isRunning) return;
         const mediaTimeMs = (metadata?.mediaTime ?? this.video.currentTime) * 1000;
@@ -51,6 +56,26 @@ export class FrameSampler {
         this.rVFCHandle = (this.video as any).requestVideoFrameCallback(cb);
       };
       this.rVFCHandle = (this.video as any).requestVideoFrameCallback(cb);
+
+      // Watchdog: if rVFC under-samples (e.g., hidden video), fall back to RAF
+      this.fallbackTimer = (setTimeout(() => {
+        if (!this.isRunning) return;
+        if (this.useRVFC && this.framesCaptured < 2) {
+          try { ((this.video as any).cancelVideoFrameCallback)(this.rVFCHandle); } catch {}
+          this.rVFCHandle = null;
+          this.useRVFC = false;
+          let last = 0;
+          const processFrame = (currentTime: number) => {
+            if (!this.isRunning) return;
+            if (currentTime - last >= targetIntervalMs) {
+              this.captureFrame();
+              last = currentTime;
+            }
+            this.animationId = requestAnimationFrame(processFrame);
+          };
+          this.animationId = requestAnimationFrame(processFrame);
+        }
+      }, 800) as unknown) as number;
     } else {
       const processFrame = (currentTime: number) => {
         if (!this.isRunning) return;
@@ -74,6 +99,10 @@ export class FrameSampler {
       try { ((this.video as any).cancelVideoFrameCallback)(this.rVFCHandle); } catch {}
       this.rVFCHandle = null;
     }
+    if (this.fallbackTimer) {
+      clearTimeout(this.fallbackTimer);
+      this.fallbackTimer = null;
+    }
   }
 
   private captureFrame(): void {
@@ -84,6 +113,7 @@ export class FrameSampler {
       // Get image data
       const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
       
+      this.framesCaptured++;
       this.onFrame({
         imageData,
         timestamp: this.video.currentTime

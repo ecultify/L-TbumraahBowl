@@ -70,6 +70,21 @@ export class BenchmarkComparisonAnalyzer {
     runUp: number;
     delivery: number;
   } | null = null;
+  private thresholds: {
+    minAvgArmSwingRatio: number;
+    minMaxArmSwingRatio: number;
+    minOverallIntensityRatio: number;
+    minMaxIntensityRatio: number;
+    fullBodyRatio: number;
+    minKeypointConfidence: number;
+  } = {
+    minAvgArmSwingRatio: 0.10,
+    minMaxArmSwingRatio: 0.10,
+    minOverallIntensityRatio: 0.08,
+    minMaxIntensityRatio: 0.08,
+    fullBodyRatio: 0.5,
+    minKeypointConfidence: 0.3,
+  };
 
   private createEmptyPattern(): BowlingActionPattern {
     return {
@@ -132,7 +147,19 @@ export class BenchmarkComparisonAnalyzer {
             runUp: w.runUp / sum,
             delivery: w.delivery / sum,
           };
-          console.log('Loaded custom weights for similarity');
+
+          // Optional movement thresholds from weights.json
+          const mt = (jw.movementThresholds || {}) as Partial<typeof this.thresholds>;
+          this.thresholds = {
+            minAvgArmSwingRatio: Number(mt.minAvgArmSwingRatio ?? this.thresholds.minAvgArmSwingRatio),
+            minMaxArmSwingRatio: Number(mt.minMaxArmSwingRatio ?? this.thresholds.minMaxArmSwingRatio),
+            minOverallIntensityRatio: Number(mt.minOverallIntensityRatio ?? this.thresholds.minOverallIntensityRatio),
+            minMaxIntensityRatio: Number(mt.minMaxIntensityRatio ?? this.thresholds.minMaxIntensityRatio),
+            fullBodyRatio: Number(mt.fullBodyRatio ?? this.thresholds.fullBodyRatio),
+            minKeypointConfidence: Number(mt.minKeypointConfidence ?? this.thresholds.minKeypointConfidence),
+          };
+
+          console.log('Loaded custom weights and movement thresholds');
         }
       } catch {}
 
@@ -618,8 +645,8 @@ export class BenchmarkComparisonAnalyzer {
 
     let validFrameCount = 0;
     let framesWithFullBody = 0;
-    const FULL_BODY_THRESHOLD = 0.5; // Require 50% of frames to have full body
-    const MIN_CONFIDENCE = 0.3;      // Keypoint confidence threshold
+    const FULL_BODY_THRESHOLD = this.thresholds.fullBodyRatio ?? 0.5; // configurable
+    const MIN_CONFIDENCE = this.thresholds.minKeypointConfidence ?? 0.3;      // configurable
 
     // Analyze frames for consistent full body keypoint detection
     for (const frameData of this.inputPattern.keypoints) {
@@ -812,10 +839,10 @@ export class BenchmarkComparisonAnalyzer {
     const benchmarkAvg = benchAvgArm || 10.68; // Use actual or fallback
     const benchmarkMax = benchMaxArm || 40.95; // Use actual or fallback
     
-    const MIN_AVG_ARM_SWING_RATIO = 0.10;     // 10% of benchmark average
-    const MIN_MAX_ARM_SWING_RATIO = 0.10;     // 10% of benchmark max
-    const MIN_OVERALL_INTENSITY_RATIO = 0.08; // 8% of benchmark overall average
-    const MIN_MAX_INTENSITY_RATIO = 0.08;     // 8% of benchmark overall max
+    const MIN_AVG_ARM_SWING_RATIO = this.thresholds.minAvgArmSwingRatio ?? 0.10;     // configurable
+    const MIN_MAX_ARM_SWING_RATIO = this.thresholds.minMaxArmSwingRatio ?? 0.10;     // configurable
+    const MIN_OVERALL_INTENSITY_RATIO = this.thresholds.minOverallIntensityRatio ?? 0.08; // configurable
+    const MIN_MAX_INTENSITY_RATIO = this.thresholds.minMaxIntensityRatio ?? 0.08;     // configurable
     
     const minAvgArmSwing = benchmarkAvg * MIN_AVG_ARM_SWING_RATIO;
     const minMaxArmSwing = benchmarkMax * MIN_MAX_ARM_SWING_RATIO;

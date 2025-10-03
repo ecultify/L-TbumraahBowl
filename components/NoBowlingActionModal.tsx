@@ -4,6 +4,8 @@ import React from 'react';
 import {
   AlertDialog,
   AlertDialogContent,
+  AlertDialogTitle,
+  AlertDialogDescription,
 } from '@/components/ui/alert-dialog';
 import { AlertTriangle, Camera, Upload, X } from 'lucide-react';
 import Link from 'next/link';
@@ -44,6 +46,11 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
           transform: 'translate(-50%, -50%)'
         }}
       >
+        {/* Accessible Title/Description for screen readers */}
+        <AlertDialogTitle className="sr-only">No Bowling Action Detected</AlertDialogTitle>
+        <AlertDialogDescription className="sr-only">
+          We could not detect a bowling motion in your video. Please upload a clearer clip showing the full action.
+        </AlertDialogDescription>
         {/* Glass morphism container */}
         <div 
           className="p-6 backdrop-blur-xl border border-white/20 relative"
