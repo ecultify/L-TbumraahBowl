@@ -121,7 +121,7 @@ export async function downloadCompositeCardManual(options: {
     ctx.fillStyle = 'white';
     ctx.font = '700 32.18px "Helvetica Condensed", Arial, sans-serif';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${accuracyDisplay}%`, 16, 103);
+    ctx.fillText(`${accuracyDisplay}%`, 16, 98.39); // Match UI exactly: 98.39px instead of 103px
     
     // MATCH box
     ctx.fillStyle = '#114F80';
@@ -138,34 +138,39 @@ export async function downloadCompositeCardManual(options: {
     ctx.fillStyle = '#FFCA04';
     ctx.font = '700 14px "Helvetica Condensed", Arial, sans-serif';
     ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    // Move text right (30 -> 32) and down (154.5 -> 155.5)
-    ctx.fillText('MATCH', 32, 155.5);
+    ctx.textBaseline = 'top';
+    // Match UI: box at 144 + text offset 2 = 146, left at 30 (16 + 14)
+    ctx.fillText('MATCH', 30, 146);
     
-    // Phases (positions tuned to match UI and vertical alignment)
+    // Phases - Match UI exactly: percentage at top, label box at top + 20
     [{l: 'RUN-UP', s: runUpScore, t: 215}, {l: 'DELIVERY', s: deliveryScore, t: 255}, {l: 'FOLLOW THRU', s: followThroughScore, t: 295}].forEach(({l, s: score, t}) => {
       const pct = Math.min(score, 100);
+      
+      // Percentage - centered above the label box
       ctx.fillStyle = 'white';
       ctx.font = '700 13.56px "Helvetica Condensed", Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      // Place percentage slightly higher so it sits above the container nicely
-      ctx.fillText(`${pct}%`, 47.655, t + 12);
+      ctx.textBaseline = 'top';
+      ctx.fillText(`${pct}%`, 47.655, t); // Match UI: exactly at t (215, 255, 295)
       
+      // Label box - rounded rect at top + 20
       ctx.fillStyle = '#FFCA04';
+      const boxTop = t + 20; // Match UI: top + 20
+      const boxHeight = 14.27; // Match UI height
+      const boxRadius = 7.23; // Half of height (rounded pill shape)
       ctx.beginPath();
-      ctx.arc(23.23, t + 27.23, 7.23, Math.PI, Math.PI * 1.5);
-      ctx.arc(72.08, t + 27.23, 7.23, -Math.PI/2, 0);
-      ctx.arc(72.08, t + 34.27 - 7.23, 7.23, 0, Math.PI/2);
-      ctx.arc(23.23, t + 34.27 - 7.23, 7.23, Math.PI/2, Math.PI);
+      ctx.arc(23.23, boxTop + boxRadius, boxRadius, Math.PI, Math.PI * 1.5);
+      ctx.arc(72.08, boxTop + boxRadius, boxRadius, -Math.PI/2, 0);
+      ctx.arc(72.08, boxTop + boxHeight - boxRadius, boxRadius, 0, Math.PI/2);
+      ctx.arc(23.23, boxTop + boxHeight - boxRadius, boxRadius, Math.PI/2, Math.PI);
       ctx.fill();
       
+      // Label text - centered in the box
       ctx.fillStyle = '#13264A';
       ctx.font = '700 8.14px "Helvetica Condensed", Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      // Lift label text by ~1px to avoid low positioning due to font metrics differences
-      ctx.fillText(l, 47.655, t + 29.5);
+      ctx.fillText(l, 47.655, boxTop + (boxHeight / 2)); // Centered vertically
     });
     
     // Name
@@ -241,12 +246,11 @@ export async function downloadCompositeCardManual(options: {
     ctx.drawImage(vector, 16 + (157.82 * accuracyDisplay / 100) - 1.475, 448.85, 2.95, 9.85);
     
     // Download
-    console.log('🎨 Rendering positions:', {
-      matchText: { x: 30, y: 154.5 },
-      phasePercentages: 't + 18',
-      techPercentages: 'y + 1',
-      techBars: 'y + 10'
-    });
+    console.log('🎨 Canvas rendering complete - all positions match UI:');
+    console.log('  - Main %: 98.39px');
+    console.log('  - MATCH text: 146px (box 144 + offset 2)');
+    console.log('  - Phases: 215, 255, 295px (labels at +20)');
+    console.log('  - All other elements aligned to UI');
     
     const url = canvas.toDataURL('image/png', 1.0);
     const a = document.createElement('a');

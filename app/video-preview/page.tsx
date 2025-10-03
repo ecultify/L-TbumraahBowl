@@ -22,8 +22,83 @@ export default function VideoPreviewPage() {
   const [hasAnalysisData, setHasAnalysisData] = useState(false);
   const [isFaceDetectionRunning, setIsFaceDetectionRunning] = useState(false);
   const [faceDetectionCompleted, setFaceDetectionCompleted] = useState(false);
+  const [supabaseUploadComplete, setSupabaseUploadComplete] = useState(false);
   const { state } = useAnalysis();
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Background Supabase upload function (non-blocking)
+  const uploadVideoToSupabase = useCallback(async () => {
+    // Check if already uploaded
+    if (sessionStorage.getItem('uploadedVideoPublicPath')) {
+      console.log('ℹ️ Video already uploaded to Supabase, skipping...');
+      setSupabaseUploadComplete(true);
+      return;
+    }
+
+    try {
+      console.log('📤 [Background] Starting Supabase video upload...');
+      
+      // Get video file from tempVideoFile or reconstruct from sessionStorage
+      let videoFile: File | null = null;
+      
+      if (typeof window !== 'undefined' && (window as any).tempVideoFile) {
+        videoFile = (window as any).tempVideoFile;
+        console.log('📦 Using tempVideoFile for Supabase upload');
+      } else {
+        // Reconstruct from base64 data
+        const storedVideoData = sessionStorage.getItem('uploadedVideoData');
+        const storedFileName = sessionStorage.getItem('uploadedFileName') || 'video.mp4';
+        const storedMimeType = sessionStorage.getItem('uploadedMimeType') || 'video/mp4';
+        
+        if (storedVideoData && storedVideoData.startsWith('data:')) {
+          const response = await fetch(storedVideoData);
+          const blob = await response.blob();
+          videoFile = new File([blob], storedFileName, { type: storedMimeType });
+          console.log('📦 Reconstructed video file from base64 data');
+        }
+      }
+
+      if (!videoFile) {
+        console.warn('⚠️ No video file available for Supabase upload');
+        return;
+      }
+
+      // Upload to Supabase
+      const formData = new FormData();
+      formData.append('file', videoFile, videoFile.name);
+
+      const response = await fetch('/api/upload-user-video', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.publicPath) {
+          sessionStorage.setItem('uploadedVideoPublicPath', result.publicPath);
+          console.log('✅ [Background] Video uploaded to Supabase:', result.publicPath);
+          setSupabaseUploadComplete(true);
+        }
+      } else {
+        console.warn('⚠️ [Background] Supabase upload failed:', response.status);
+      }
+    } catch (error) {
+      console.warn('⚠️ [Background] Supabase upload error:', error);
+      // Don't throw - this is a background process
+    }
+  }, []);
+
+  // Auto-upload to Supabase in background (doesn't block UI)
+  useEffect(() => {
+    if (videoUrl && !supabaseUploadComplete && !sessionStorage.getItem('uploadedVideoPublicPath')) {
+      // Delay upload slightly to ensure page is loaded
+      const timer = setTimeout(() => {
+        uploadVideoToSupabase();
+      }, 2000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [videoUrl, supabaseUploadComplete, uploadVideoToSupabase]);
 
   // Check if face detection data already exists in sessionStorage
   useEffect(() => {

@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import path from 'path';
-import { mkdirSync, existsSync, writeFileSync } from 'fs';
+import { mkdirSync, existsSync, writeFileSync, readFileSync } from 'fs';
+import { createClient } from '@supabase/supabase-js';
 
 const execAsync = promisify(exec);
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hqzukyxnnjnstrecybzx.supabase.co';
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhxenVreXhubmpuc3RyZWN5Ynp4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0OTM4OTIsImV4cCI6MjA3MzA2OTg5Mn0.-FaJuxBuwxk5L-WCYKv--Vmq0g_aPBjGOTBKgwTrcOI';
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,15 +51,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Resolve user video path
-    let userVideoRelPath: string | null = null; // path relative to public/, e.g. 'uploads/abc.mp4'
+    let userVideoRelPath: string | null = null; // path relative to public/, e.g. 'uploads/abc.mp4' OR Supabase URL
     if (typeof userVideoPublicPath === 'string' && userVideoPublicPath.trim()) {
-      // Accept '/uploads/...' or 'uploads/...'
-      const cleaned = userVideoPublicPath.replace(/^\/?public\//, '').replace(/^\//, '');
-      const fullCheck = path.join(process.cwd(), 'public', cleaned);
-      if (existsSync(fullCheck)) {
-        userVideoRelPath = cleaned;
+      // Check if it's a Supabase URL
+      if (userVideoPublicPath.startsWith('http://') || userVideoPublicPath.startsWith('https://')) {
+        // It's a remote URL (Supabase) - pass it directly to Remotion
+        userVideoRelPath = userVideoPublicPath;
+        console.log('✅ Using Supabase video URL:', userVideoPublicPath.substring(0, 80) + '...');
       } else {
-        console.warn('Provided userVideoPublicPath does not exist on disk:', fullCheck);
+        // It's a local path - check if file exists
+        const cleaned = userVideoPublicPath.replace(/^\/?public\//, '').replace(/^\//, '');
+        const fullCheck = path.join(process.cwd(), 'public', cleaned);
+        if (existsSync(fullCheck)) {
+          userVideoRelPath = cleaned;
+          console.log('✅ Using local video path:', cleaned);
+        } else {
+          console.warn('⚠️ Local video path does not exist on disk:', fullCheck);
+        }
       }
     }
 
@@ -247,9 +259,41 @@ export async function POST(request: NextRequest) {
 
     console.log('✅ Video rendered successfully:', publicUrl, `(${(stats.size / 1024 / 1024).toFixed(2)} MB)`);
 
+    // Upload generated video to Supabase Storage
+    let supabaseVideoUrl = publicUrl; // Fallback to local URL
+    try {
+      console.log('📤 Uploading generated video to Supabase...');
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      
+      const videoBuffer = readFileSync(outputPath);
+      const supabaseFilename = `generated-videos/analysis-video-${timestamp}.mp4`;
+      
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('user-videos')
+        .upload(supabaseFilename, videoBuffer, {
+          contentType: 'video/mp4',
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.warn('⚠️ Supabase upload failed, using local URL:', uploadError.message);
+      } else {
+        const { data: publicUrlData } = supabase.storage
+          .from('user-videos')
+          .getPublicUrl(supabaseFilename);
+        
+        supabaseVideoUrl = publicUrlData.publicUrl;
+        console.log('✅ Video uploaded to Supabase:', supabaseVideoUrl);
+      }
+    } catch (supabaseError) {
+      console.warn('⚠️ Supabase upload error, using local URL:', supabaseError);
+    }
+
     return NextResponse.json({
       success: true,
-      videoUrl: publicUrl,
+      videoUrl: supabaseVideoUrl, // Use Supabase URL if available
+      localUrl: publicUrl, // Keep local URL as backup
       message: 'Video generated successfully',
       fileSize: stats.size
     });

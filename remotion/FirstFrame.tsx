@@ -37,6 +37,8 @@ interface FirstFrameProps {
   analysisData?: AnalysisData;
   // Relative to public/ when used with staticFile, e.g. 'uploads/user-video.mp4'
   userVideoSrc?: string;
+  // Absolute remote URL (e.g., Supabase public URL). Takes precedence over userVideoSrc.
+  userVideoUrl?: string;
   // Data URL for the captured frame to show in frames 3/4/5
   thumbnailDataUrl?: string;
 }
@@ -90,7 +92,7 @@ const useVideoMetadataCompat = (src: string | null) => {
   return metadata;
 };
 
-export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoSrc: userVideoSrcProp, thumbnailDataUrl }) => {
+export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoSrc: userVideoSrcProp, userVideoUrl, thumbnailDataUrl }) => {
   // Load video thumbnail from localStorage
   const [videoThumbnail, setVideoThumbnail] = React.useState<string | null>(null);
 
@@ -249,9 +251,9 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
 
   const cardImageBorderRadius = 0; // Removed rounded corners
 
-  const userVideoSrc = userVideoSrcProp
-    ? staticFile(userVideoSrcProp)
-    : staticFile('VID-20250923-WA0000.mp4');
+  const userVideoSrc = userVideoUrl && (userVideoUrl.startsWith('http://') || userVideoUrl.startsWith('https://'))
+    ? userVideoUrl
+    : (userVideoSrcProp ? staticFile(userVideoSrcProp) : staticFile('VID-20250923-WA0000.mp4'));
   const benchmarkVideoSrc = staticFile('benchmark-bowling-action.mp4');
   const cardTopSrc = staticFile('card-2.png');
   const cardBaseSrc = staticFile('cards.png');
