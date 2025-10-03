@@ -24,6 +24,29 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting video generation with data:', analysisData);
 
+    // Vercel/serverless fallback: do not attempt Remotion CLI rendering
+    // Child processes and writing to public/ are not reliable on serverless. If on Vercel, return the
+    // original (Supabase) video URL as the "generated" URL so the UX can proceed gracefully.
+    if (process.env.VERCEL === '1' || process.env.DISABLE_REMOTION === 'true') {
+      const fallbackUrl = (typeof userVideoPublicPath === 'string' && userVideoPublicPath) ? userVideoPublicPath : undefined;
+      if (!fallbackUrl) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Rendering is disabled on serverless and no user video URL was provided.'
+          },
+          { status: 400 }
+        );
+      }
+      console.log('Serverless environment detected. Bypassing render and returning original video URL.');
+      return NextResponse.json({
+        success: true,
+        videoUrl: fallbackUrl,
+        localUrl: fallbackUrl,
+        message: 'Serverless render bypass: returning original video URL.'
+      });
+    }
+
     // Server-side gating: Only allow rendering if similarity > 85
     const similarity = Number(analysisData?.similarity ?? NaN);
     if (!Number.isFinite(similarity) || similarity <= 85) {

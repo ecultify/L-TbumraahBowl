@@ -394,6 +394,49 @@ export default function DetailsPage() {
         frameSamplerRef.current.stop();
       }
 
+      // Deterministic seek-based fallback sampling if we under-sampled
+      try {
+        const expected = Math.max(1, Math.floor((videoRef.current?.duration || 0) * 12));
+        if (intensities.length < expected * 0.5 && videoRef.current) {
+          console.log(`dY"? Under-sampled (${intensities.length}/${expected}). Running deterministic 12fps sampling fallback...`);
+          const vid = videoRef.current;
+          vid.pause();
+          const fallbackCanvas = document.createElement('canvas');
+          fallbackCanvas.width = 320;
+          fallbackCanvas.height = 240;
+          const fctx = fallbackCanvas.getContext('2d');
+          if (fctx) {
+            const step = 1 / 12;
+            for (let t = 0; t < vid.duration; t += step) {
+              await new Promise<void>((resolve) => {
+                const onSeeked = () => {
+                  vid.removeEventListener('seeked', onSeeked);
+                  resolve();
+                };
+                vid.addEventListener('seeked', onSeeked);
+                try { vid.currentTime = Math.min(t, Math.max(0, vid.duration - 0.001)); } catch {}
+              });
+
+              try {
+                fctx.clearRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+                fctx.drawImage(vid, 0, 0, fallbackCanvas.width, fallbackCanvas.height);
+                const imageData = fctx.getImageData(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+                const intensity = await analyzer.analyzeFrame({ imageData, timestamp: vid.currentTime });
+                const progress = Math.min(((intensities.length + 1) / expected) * 100, 95);
+                dispatch({ type: 'UPDATE_PROGRESS', payload: progress });
+                const frameIntensity: FrameIntensity = { timestamp: vid.currentTime, intensity };
+                intensities.push(frameIntensity);
+                dispatch({ type: 'ADD_FRAME_INTENSITY', payload: frameIntensity });
+              } catch (seekErr) {
+                console.warn('dY"? Fallback sampling error at t=', t.toFixed(2), seekErr);
+              }
+            }
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('dY"? Deterministic sampling fallback failed:', fallbackErr);
+      }
+
       // Calculate final results
       console.log('=== STARTING FINAL RESULTS CALCULATION ===');
       const rawFinalIntensity = analyzer.getFinalIntensity();
