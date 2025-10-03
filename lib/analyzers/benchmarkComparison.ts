@@ -70,21 +70,6 @@ export class BenchmarkComparisonAnalyzer {
     runUp: number;
     delivery: number;
   } | null = null;
-  private thresholds: {
-    minAvgArmSwingRatio: number;
-    minMaxArmSwingRatio: number;
-    minOverallIntensityRatio: number;
-    minMaxIntensityRatio: number;
-    fullBodyRatio: number;
-    minKeypointConfidence: number;
-  } = {
-    minAvgArmSwingRatio: 0.10,
-    minMaxArmSwingRatio: 0.10,
-    minOverallIntensityRatio: 0.08,
-    minMaxIntensityRatio: 0.08,
-    fullBodyRatio: 0.5,
-    minKeypointConfidence: 0.3,
-  };
 
   private createEmptyPattern(): BowlingActionPattern {
     return {
@@ -147,19 +132,7 @@ export class BenchmarkComparisonAnalyzer {
             runUp: w.runUp / sum,
             delivery: w.delivery / sum,
           };
-
-          // Optional movement thresholds from weights.json
-          const mt = (jw.movementThresholds || {}) as Partial<typeof this.thresholds>;
-          this.thresholds = {
-            minAvgArmSwingRatio: Number(mt.minAvgArmSwingRatio ?? this.thresholds.minAvgArmSwingRatio),
-            minMaxArmSwingRatio: Number(mt.minMaxArmSwingRatio ?? this.thresholds.minMaxArmSwingRatio),
-            minOverallIntensityRatio: Number(mt.minOverallIntensityRatio ?? this.thresholds.minOverallIntensityRatio),
-            minMaxIntensityRatio: Number(mt.minMaxIntensityRatio ?? this.thresholds.minMaxIntensityRatio),
-            fullBodyRatio: Number(mt.fullBodyRatio ?? this.thresholds.fullBodyRatio),
-            minKeypointConfidence: Number(mt.minKeypointConfidence ?? this.thresholds.minKeypointConfidence),
-          };
-
-          console.log('Loaded custom weights and movement thresholds');
+          console.log('Loaded custom weights for similarity');
         }
       } catch {}
 
@@ -346,10 +319,7 @@ export class BenchmarkComparisonAnalyzer {
     let totalVelocity = 0;
     let validPoints = 0;
 
-    // Get normalization scales for both poses and average them for stability
-    const prevScale = this.getNormalizationScale(prevPose);
-    const currentScale = this.getNormalizationScale(currentPose);
-    const scale = (prevScale + currentScale) / 2;
+    const scale = this.getNormalizationScale(currentPose);
 
     for (const pointName of armPoints) {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
@@ -362,7 +332,7 @@ export class BenchmarkComparisonAnalyzer {
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         // Normalize by body scale to make distances comparable across videos
-        const velocity = scale > 0 ? (distance / timeDelta) / scale : 0;
+        const velocity = (distance / timeDelta) / (scale || 1);
         
         // Weight wrists more heavily as they move fastest during bowling
         const baseWeight = pointName.includes('wrist') ? 3.0 : pointName.includes('elbow') ? 2.0 : 1.0;
@@ -384,10 +354,7 @@ export class BenchmarkComparisonAnalyzer {
     let totalVelocity = 0;
     let validPoints = 0;
 
-    // Get normalization scales for both poses and average them for stability
-    const prevScale = this.getNormalizationScale(prevPose);
-    const currentScale = this.getNormalizationScale(currentPose);
-    const scale = (prevScale + currentScale) / 2;
+    const scale = this.getNormalizationScale(currentPose);
 
     for (const pointName of bodyPoints) {
       const prevPoint = prevPose.keypoints.find(kp => kp.name === pointName);
@@ -399,7 +366,7 @@ export class BenchmarkComparisonAnalyzer {
         const dx = currentPoint.x - prevPoint.x;
         const dy = currentPoint.y - prevPoint.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
-        const velocity = scale > 0 ? (distance / timeDelta) / scale : 0;
+        const velocity = (distance / timeDelta) / (scale || 1);
         
         const confidenceWeight = Math.min(prevPoint.score || 0, currentPoint.score || 0);
         totalVelocity += velocity * confidenceWeight;
@@ -645,8 +612,8 @@ export class BenchmarkComparisonAnalyzer {
 
     let validFrameCount = 0;
     let framesWithFullBody = 0;
-    const FULL_BODY_THRESHOLD = this.thresholds.fullBodyRatio ?? 0.5; // configurable
-    const MIN_CONFIDENCE = this.thresholds.minKeypointConfidence ?? 0.3;      // configurable
+    const FULL_BODY_THRESHOLD = 0.6; // 60% of frames must have both upper and lower body keypoints
+    const MIN_CONFIDENCE = 0.4;
 
     // Analyze frames for consistent full body keypoint detection
     for (const frameData of this.inputPattern.keypoints) {
@@ -679,16 +646,15 @@ export class BenchmarkComparisonAnalyzer {
       
       // === UPPER BODY REQUIREMENTS ===
       const hasShoulders = leftShoulder || rightShoulder;
-      const hasArms = (leftElbow || rightElbow) || (leftWrist || rightWrist);
-      const hasUpperBody = hasShoulders && hasArms; // Require BOTH shoulders AND arms
+      const hasArms = (leftElbow || rightElbow) && (leftWrist || rightWrist);
+      const hasUpperBody = hasShoulders && hasArms;
       
       // === LOWER BODY REQUIREMENTS ===
       const hasHips = leftHip || rightHip;
-      const hasLegs = (leftKnee || rightKnee) || (leftAnkle || rightAnkle);
-      const hasLowerBody = hasHips && hasLegs; // Require BOTH hips AND legs
+      const hasLegs = (leftKnee || rightKnee) && (leftAnkle || rightAnkle);
+      const hasLowerBody = hasHips && hasLegs;
       
-      // === FULL BODY CHECK === 
-      // REQUIRE BOTH upper body AND lower body for valid bowling action detection
+      // === FULL BODY CHECK ===
       if (hasUpperBody && hasLowerBody) {
         framesWithFullBody++;
       }
@@ -701,16 +667,7 @@ export class BenchmarkComparisonAnalyzer {
     const fullBodyRatio = framesWithFullBody / validFrameCount;
     const hasRequiredFullBody = fullBodyRatio >= FULL_BODY_THRESHOLD;
     
-    console.log(`📊 Full body keypoint analysis:`);
-    console.log(`   - Frames with BOTH upper AND lower body: ${framesWithFullBody}/${validFrameCount}`);
-    console.log(`   - Full body detection ratio: ${(fullBodyRatio * 100).toFixed(1)}%`);
-    console.log(`   - Required threshold: ${(FULL_BODY_THRESHOLD * 100).toFixed(1)}%`);
-    console.log(`   - Result: ${hasRequiredFullBody ? '✅ PASSED' : '❌ FAILED'}`);
-    
-    if (!hasRequiredFullBody) {
-      console.log(`⚠️ Missing lower body keypoints (hips, knees, ankles) in most frames`);
-      console.log(`   This will trigger "No Bowling Action" modal`);
-    }
+    console.log(`Full body keypoint analysis: ${framesWithFullBody}/${validFrameCount} frames have complete body (${(fullBodyRatio * 100).toFixed(1)}%), threshold: ${(FULL_BODY_THRESHOLD * 100).toFixed(1)}%`);
     
     return hasRequiredFullBody;
   }
@@ -731,18 +688,6 @@ export class BenchmarkComparisonAnalyzer {
 
       // Detect poses
       const poses = await this.detector.estimatePoses(canvas);
-      
-      // DEBUG: Log pose detection results
-      if (this.inputPattern.keypoints.length % 20 === 0) { // Log every 20th frame
-        console.log(`🔍 Frame ${this.inputPattern.keypoints.length}: Detected ${poses.length} poses`);
-        if (poses.length > 0) {
-          const pose = poses[0];
-          const visibleKeypoints = pose.keypoints.filter(kp => kp.score && kp.score > 0.3);
-          const keypointNames = visibleKeypoints.map(kp => kp.name);
-          console.log(`   - ${visibleKeypoints.length} visible keypoints out of ${pose.keypoints.length}`);
-          console.log(`   - Visible keypoints:`, keypointNames);
-        }
-      }
       
       if (poses.length > 0) {
         this.inputPattern.keypoints.push({
@@ -783,39 +728,11 @@ export class BenchmarkComparisonAnalyzer {
       return 0;
     }
 
-    console.log('🔍 DEBUG: Starting getFinalIntensity analysis');
-    console.log('📊 Input pattern stats:', {
-      keypointsCount: this.inputPattern.keypoints.length,
-      armSwingVelocitiesCount: this.inputPattern.armSwingVelocities.length,
-      bodyMovementVelocitiesCount: this.inputPattern.bodyMovementVelocities.length,
-      overallIntensitiesCount: this.inputPattern.overallIntensities.length
-    });
-    console.log('📊 Benchmark pattern stats:', {
-      armSwingVelocitiesCount: this.benchmarkPattern.armSwingVelocities.length,
-      bodyMovementVelocitiesCount: this.benchmarkPattern.bodyMovementVelocities.length,
-      overallIntensitiesCount: this.benchmarkPattern.overallIntensities.length
-    });
-    
-    // Log sample velocities for comparison
-    const inputAvgArm = this.inputPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.inputPattern.armSwingVelocities.length || 1);
-    const inputMaxArm = Math.max(...this.inputPattern.armSwingVelocities);
-    const benchAvgArm = this.benchmarkPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / (this.benchmarkPattern.armSwingVelocities.length || 1);
-    const benchMaxArm = Math.max(...this.benchmarkPattern.armSwingVelocities);
-    
-    console.log('📊 Input first 5 armSwingVelocities:', this.inputPattern.armSwingVelocities.slice(0, 5));
-    console.log('📊 Benchmark first 5 armSwingVelocities:', this.benchmarkPattern.armSwingVelocities.slice(0, 5));
-    console.log('📊 Input armSwingVelocity - avg:', inputAvgArm.toFixed(3), 'max:', inputMaxArm.toFixed(3));
-    console.log('📊 Benchmark armSwingVelocity - avg:', benchAvgArm.toFixed(3), 'max:', benchMaxArm.toFixed(3));
-    console.log('📊 Velocity ratio (input/benchmark) - avg:', (inputAvgArm / benchAvgArm).toFixed(3), 'max:', (inputMaxArm / benchMaxArm).toFixed(3));
-
-    // Check for required full body keypoints (BOTH upper and lower body)
+    // Check for required full body keypoints - reject videos without both upper AND lower body visibility
     const hasRequiredFullBodyKeypoints = this.checkRequiredFullBodyKeypoints();
     if (!hasRequiredFullBodyKeypoints) {
-      console.log('❌ Full body keypoints check FAILED - missing lower body or upper body keypoints');
-      console.log('🚫 No valid bowling action detected - returning 0 intensity');
-      return 0; // This will trigger "No Bowling Action" modal
-    } else {
-      console.log('✅ Full body keypoints check passed - both upper and lower body detected');
+      console.log('Required full body keypoints not detected - bowling analysis requires complete body visibility');
+      return 0;
     }
 
     // Check for minimum movement threshold to filter out static videos
@@ -833,42 +750,16 @@ export class BenchmarkComparisonAnalyzer {
       ? Math.max(...this.inputPattern.overallIntensities)
       : 0;
 
-    // Calculate relative thresholds based on benchmark pattern scale
-    // Benchmark has avg armSwing ~10.68 and max ~40.95
-    // We'll require at least 10% of benchmark's average for minimal bowling action
-    const benchmarkAvg = benchAvgArm || 10.68; // Use actual or fallback
-    const benchmarkMax = benchMaxArm || 40.95; // Use actual or fallback
-    
-    const MIN_AVG_ARM_SWING_RATIO = this.thresholds.minAvgArmSwingRatio ?? 0.10;     // configurable
-    const MIN_MAX_ARM_SWING_RATIO = this.thresholds.minMaxArmSwingRatio ?? 0.10;     // configurable
-    const MIN_OVERALL_INTENSITY_RATIO = this.thresholds.minOverallIntensityRatio ?? 0.08; // configurable
-    const MIN_MAX_INTENSITY_RATIO = this.thresholds.minMaxIntensityRatio ?? 0.08;     // configurable
-    
-    const minAvgArmSwing = benchmarkAvg * MIN_AVG_ARM_SWING_RATIO;
-    const minMaxArmSwing = benchmarkMax * MIN_MAX_ARM_SWING_RATIO;
-    const minOverallIntensity = (this.benchmarkPattern.overallIntensities.reduce((a,b)=>a+b,0) / this.benchmarkPattern.overallIntensities.length) * MIN_OVERALL_INTENSITY_RATIO;
-    const minMaxIntensity = Math.max(...this.benchmarkPattern.overallIntensities) * MIN_MAX_INTENSITY_RATIO;
+    // Minimum thresholds for bowling action detection
+    const MIN_ARM_SWING_VELOCITY = 0.5; // Adjust based on your data
+    const MIN_OVERALL_INTENSITY = 1.0;
+    const MIN_MAX_INTENSITY = 2.0;
 
-    console.log(`📊 Movement thresholds check (relative to benchmark):`);
-    console.log(`   - avgArmSwing: ${avgArmSwingVelocity.toFixed(3)} (min: ${minAvgArmSwing.toFixed(3)}, ${(MIN_AVG_ARM_SWING_RATIO*100).toFixed(0)}% of bench)`);
-    console.log(`   - maxArmSwing: ${maxArmSwingVelocity.toFixed(3)} (min: ${minMaxArmSwing.toFixed(3)}, ${(MIN_MAX_ARM_SWING_RATIO*100).toFixed(0)}% of bench)`);
-    console.log(`   - avgOverall: ${avgOverallIntensity.toFixed(3)} (min: ${minOverallIntensity.toFixed(3)}, ${(MIN_OVERALL_INTENSITY_RATIO*100).toFixed(0)}% of bench)`);
-    console.log(`   - maxOverall: ${maxOverallIntensity.toFixed(3)} (min: ${minMaxIntensity.toFixed(3)}, ${(MIN_MAX_INTENSITY_RATIO*100).toFixed(0)}% of bench)`);
-
-    // Check if movement is sufficient for bowling action
-    const hasMinimumMovement = (
-      avgArmSwingVelocity >= minAvgArmSwing &&
-      maxArmSwingVelocity >= minMaxArmSwing &&
-      avgOverallIntensity >= minOverallIntensity &&
-      maxOverallIntensity >= minMaxIntensity
-    );
-
-    if (!hasMinimumMovement) {
-      console.log(`❌ Movement below bowling action thresholds - not enough dynamic motion detected`);
-      console.log(`🚫 Returning 0 intensity - this will trigger "No Bowling Action" modal`);
-      return 0;
-    } else {
-      console.log(`✅ Movement thresholds passed - sufficient bowling motion detected`);
+    if (maxArmSwingVelocity < MIN_ARM_SWING_VELOCITY || 
+        avgOverallIntensity < MIN_OVERALL_INTENSITY || 
+        maxOverallIntensity < MIN_MAX_INTENSITY) {
+      console.log(`Insufficient movement detected - avgArmSwing: ${avgArmSwingVelocity.toFixed(3)}, maxArmSwing: ${maxArmSwingVelocity.toFixed(3)}, avgOverall: ${avgOverallIntensity.toFixed(3)}, maxOverall: ${maxOverallIntensity.toFixed(3)}`);
+      return 0; // No similarity score for static/minimal movement videos
     }
 
     // Complete input pattern analysis
@@ -883,47 +774,10 @@ export class BenchmarkComparisonAnalyzer {
     // Calculate detailed similarity
     const similarity = this.calculateOverallSimilarity();
     
-    // Ensure similarity is valid
-    if (isNaN(similarity) || !isFinite(similarity)) {
-      console.log('⚠️ getFinalIntensity: Similarity calculation returned NaN, using fallback');
-      return 50; // Fallback intensity (moderate similarity)
-    }
-    
     console.log(`Analysis complete: ${similarity.toFixed(2)} similarity`);
     
     // Convert similarity to intensity score (0-100)
-    const intensity = similarity * 100;
-    
-    // Final validation and enhanced fallback
-    if (isNaN(intensity) || !isFinite(intensity)) {
-      console.log('⚠️ getFinalIntensity: Final intensity is NaN, calculating enhanced fallback');
-      
-      // Enhanced fallback based on actual data collected
-      const frameCount = this.inputPattern.keypoints.length;
-      const hasMovement = this.inputPattern.armSwingVelocities.some(v => v > 0.01);
-      const avgVelocity = this.inputPattern.armSwingVelocities.length > 0 
-        ? this.inputPattern.armSwingVelocities.reduce((a, b) => a + b, 0) / this.inputPattern.armSwingVelocities.length 
-        : 0;
-      
-      if (frameCount > 10 && hasMovement && avgVelocity > 0.05) {
-        console.log('✅ Using enhanced fallback intensity of 65 based on good detection');
-        return 65; // Good fallback for detected movement
-      } else if (frameCount > 5 && hasMovement) {
-        console.log('✅ Using enhanced fallback intensity of 45 based on moderate detection');
-        return 45; // Moderate fallback
-      } else if (frameCount > 0) {
-        console.log('✅ Using enhanced fallback intensity of 25 based on minimal detection');
-        return 25; // Low but non-zero fallback
-      } else {
-        console.log('⚠️ No valid data detected, returning minimum intensity');
-        return 5; // Minimum non-zero value
-      }
-    }
-    
-    // Ensure result is within valid range and never zero for valid analysis
-    const finalIntensity = Math.max(5, Math.min(100, intensity));
-    console.log(`✅ Final intensity calculated: ${finalIntensity.toFixed(2)}`);
-    return finalIntensity;
+    return similarity * 100;
   }
 
   private calculateOverallSimilarity(): number {
@@ -954,35 +808,10 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private calculateOverallSimilarityAgainst(benchmark: BowlingActionPattern): number {
-    console.log('🔍 DEBUG: Calculating overall similarity against benchmark');
-    
-    // Check if this might be the benchmark video itself (very similar patterns)
-    const inputFrameCount = this.inputPattern.keypoints.length;
-    const benchmarkFrameCount = benchmark.armSwingVelocities.length;
-    const frameCountSimilarity = Math.abs(inputFrameCount - benchmarkFrameCount) / Math.max(inputFrameCount, benchmarkFrameCount, 1);
-    
-    console.log('📊 Frame count comparison:', {
-      inputFrames: inputFrameCount,
-      benchmarkFrames: benchmarkFrameCount,
-      similarity: frameCountSimilarity
-    });
-    
-    if (frameCountSimilarity < 0.2) { // Frame counts are within 20%
-      console.log('🔍 Detected potential benchmark video self-comparison (similar frame counts)');
-    }
-    
     // Calculate individual similarity metrics
-    console.log('🔍 Calculating armSwingSim...');
     const armSwingSim = this.compareArrays(this.inputPattern.armSwingVelocities, benchmark.armSwingVelocities);
-    console.log('📊 armSwingSim result:', armSwingSim);
-    
-    console.log('🔍 Calculating bodyMovementSim...');
     const bodyMovementSim = this.compareArrays(this.inputPattern.bodyMovementVelocities, benchmark.bodyMovementVelocities);
-    console.log('📊 bodyMovementSim result:', bodyMovementSim);
-    
-    console.log('🔍 Calculating rhythmSim...');
     const rhythmSim = this.compareArrays(this.inputPattern.overallIntensities, benchmark.overallIntensities);
-    console.log('📊 rhythmSim result:', rhythmSim);
 
     // Release point timing similarity
     let releasePointSim = 0;
@@ -992,116 +821,45 @@ export class BenchmarkComparisonAnalyzer {
       releasePointSim = 1 - Math.abs(inputRelativeRelease - benchmarkRelativeRelease);
     }
 
-    // Phase similarities with NaN protection
+    // Phase similarities
     const runUpSim = this.comparePhasesAgainst(benchmark, 'runUp');
     const deliverySim = this.comparePhasesAgainst(benchmark, 'delivery');
     const followThroughSim = this.comparePhasesAgainst(benchmark, 'followThrough');
 
-    // Ensure all similarities are valid numbers
-    const safeValues = {
-      armSwing: isNaN(armSwingSim) || !isFinite(armSwingSim) ? 0.5 : armSwingSim,
-      bodyMovement: isNaN(bodyMovementSim) || !isFinite(bodyMovementSim) ? 0.5 : bodyMovementSim,
-      rhythm: isNaN(rhythmSim) || !isFinite(rhythmSim) ? 0.5 : rhythmSim,
-      releasePoint: isNaN(releasePointSim) || !isFinite(releasePointSim) ? 0.5 : releasePointSim,
-      runUp: isNaN(runUpSim) || !isFinite(runUpSim) ? 0.5 : runUpSim,
-      delivery: isNaN(deliverySim) || !isFinite(deliverySim) ? 0.5 : deliverySim,
-      followThrough: isNaN(followThroughSim) || !isFinite(followThroughSim) ? 0.5 : followThroughSim
-    };
-
     const w = this.getWeights();
-    
-    console.log('🔍 DEBUG: Weights being used:', w);
-    console.log('🔍 DEBUG: Safe values before weighting:', safeValues);
-    
     const overallSimilarity = (
-      safeValues.armSwing * w.armSwing +
-      safeValues.releasePoint * w.releasePoint +
-      safeValues.rhythm * w.rhythm +
-      safeValues.followThrough * w.followThrough +
-      safeValues.runUp * w.runUp +
-      safeValues.delivery * w.delivery
+      armSwingSim * w.armSwing +
+      releasePointSim * w.releasePoint +
+      rhythmSim * w.rhythm +
+      followThroughSim * w.followThrough +
+      runUpSim * w.runUp +
+      deliverySim * w.delivery
     );
 
-    console.log('📊 ========== SIMILARITY BREAKDOWN ==========');
-    console.log('Raw similarities (before weighting):');
-    console.log('  - armSwing:', safeValues.armSwing.toFixed(3));
-    console.log('  - bodyMovement:', safeValues.bodyMovement.toFixed(3));
-    console.log('  - releasePoint:', safeValues.releasePoint.toFixed(3));
-    console.log('  - rhythm:', safeValues.rhythm.toFixed(3));
-    console.log('  - followThrough:', safeValues.followThrough.toFixed(3));
-    console.log('  - runUp:', safeValues.runUp.toFixed(3));
-    console.log('  - delivery:', safeValues.delivery.toFixed(3));
-    console.log('');
-    console.log('Weighted contributions:');
-    console.log('  - armSwing:', (safeValues.armSwing * w.armSwing).toFixed(3), `(${(w.armSwing * 100).toFixed(0)}% weight)`);
-    console.log('  - releasePoint:', (safeValues.releasePoint * w.releasePoint).toFixed(3), `(${(w.releasePoint * 100).toFixed(0)}% weight)`);
-    console.log('  - rhythm:', (safeValues.rhythm * w.rhythm).toFixed(3), `(${(w.rhythm * 100).toFixed(0)}% weight)`);
-    console.log('  - followThrough:', (safeValues.followThrough * w.followThrough).toFixed(3), `(${(w.followThrough * 100).toFixed(0)}% weight)`);
-    console.log('  - runUp:', (safeValues.runUp * w.runUp).toFixed(3), `(${(w.runUp * 100).toFixed(0)}% weight)`);
-    console.log('  - delivery:', (safeValues.delivery * w.delivery).toFixed(3), `(${(w.delivery * 100).toFixed(0)}% weight)`);
-    console.log('');
-    console.log('📊 OVERALL SIMILARITY:', overallSimilarity.toFixed(3), `(${(overallSimilarity * 100).toFixed(1)}%)`);
-    console.log('==========================================');
-
-    // Ensure the final result is valid
-    if (isNaN(overallSimilarity) || !isFinite(overallSimilarity)) {
-      console.log('⚠️ Overall similarity calculation resulted in NaN, using fallback value');
-      return 0.5; // Fallback similarity
-    }
+    console.log('Similarity breakdown:', {
+      armSwing: armSwingSim.toFixed(3),
+      bodyMovement: bodyMovementSim.toFixed(3),
+      releasePoint: releasePointSim.toFixed(3),
+      rhythm: rhythmSim.toFixed(3),
+      followThrough: followThroughSim.toFixed(3),
+      runUp: runUpSim.toFixed(3),
+      delivery: deliverySim.toFixed(3),
+      overall: overallSimilarity.toFixed(3)
+    });
 
     return Math.max(0, Math.min(1, overallSimilarity));
   }
 
   private compareArrays(arr1: number[], arr2: number[]): number {
-    console.log('🔍 DEBUG: compareArrays called with lengths:', arr1.length, arr2.length);
-    
-    if (arr1.length === 0 || arr2.length === 0) {
-      console.log('⚠️ compareArrays: One or both arrays are empty');
-      return 0;
-    }
-    
-    // Filter out NaN and infinite values
-    const clean1 = arr1.filter(v => isFinite(v) && !isNaN(v));
-    const clean2 = arr2.filter(v => isFinite(v) && !isNaN(v));
-    
-    console.log('📊 After cleaning - arr1:', clean1.length, 'arr2:', clean2.length);
-    console.log('📊 arr1 sample values:', clean1.slice(0, 5));
-    console.log('📊 arr2 sample values:', clean2.slice(0, 5));
-    console.log('📊 arr1 avg:', clean1.reduce((a, b) => a + b, 0) / (clean1.length || 1));
-    console.log('📊 arr2 avg:', clean2.reduce((a, b) => a + b, 0) / (clean2.length || 1));
-    
-    if (clean1.length === 0 || clean2.length === 0) {
-      console.log('⚠️ compareArrays: No valid values after cleaning');
-      return 0;
-    }
+    if (arr1.length === 0 || arr2.length === 0) return 0;
     
     // Normalize arrays to same length
-    const targetLength = Math.min(clean1.length, clean2.length, 30);
-    console.log('📊 Target length for resampling:', targetLength);
-    
+    const targetLength = Math.min(arr1.length, arr2.length, 30);
     // Smooth to reduce jitter, then linearly resample
-    const sm1 = this.smoothArray(clean1, 5);
-    const sm2 = this.smoothArray(clean2, 5);
+    const sm1 = this.smoothArray(arr1, 5);
+    const sm2 = this.smoothArray(arr2, 5);
     const resampled1 = this.resampleArray(sm1, targetLength);
     const resampled2 = this.resampleArray(sm2, targetLength);
-    
-    console.log('📊 Resampled arrays - arr1:', resampled1.length, 'arr2:', resampled2.length);
-    
-    // Check for identical or very similar arrays (benchmark vs itself case)
-    let identicalCount = 0;
-    for (let i = 0; i < Math.min(resampled1.length, resampled2.length); i++) {
-      if (Math.abs(resampled1[i] - resampled2[i]) < 0.001) {
-        identicalCount++;
-      }
-    }
-    if (identicalCount >= resampled1.length * 0.95) {
-      console.log('Identical arrays detected, returning 1.0 similarity');
-      return 1.0;
-    }
-    if (identicalCount >= resampled1.length * 0.8) {
-      console.log('Arrays are nearly identical, returning 0.99 similarity');
-      return 0.99;
-    }
     
     // Calculate Pearson correlation coefficient
     const mean1 = resampled1.reduce((a, b) => a + b, 0) / resampled1.length;
@@ -1120,57 +878,15 @@ export class BenchmarkComparisonAnalyzer {
     }
     
     const denominator = Math.sqrt(sum1Sq * sum2Sq);
-    let correlation;
-    
-    // Handle special cases for zero variance
-    if (denominator === 0) {
-      // If both arrays have zero variance (constant values)
-      if (sum1Sq === 0 && sum2Sq === 0) {
-        // Check if the constant values are similar
-        const diff = Math.abs(mean1 - mean2);
-        correlation = diff < 0.001 ? 1.0 : 0.0; // Perfect correlation if same constant
-        console.log('✅ compareArrays: Both arrays are constant, correlation:', correlation);
-      } else {
-        correlation = 0; // One constant, one varying
-        console.log('⚠️ compareArrays: One array is constant, correlation: 0');
-      }
-    } else {
-      correlation = numerator / denominator;
-    }
-    
-    // Ensure correlation is valid
-    if (isNaN(correlation) || !isFinite(correlation)) {
-      console.log('⚠️ compareArrays: Correlation calculation resulted in NaN, using fallback');
-      return 0.5; // Fallback similarity
-    }
-    
+    const correlation = denominator === 0 ? 0 : (numerator / denominator);
     // Convert correlation (-1 to 1) to similarity (0 to 1)
     const corrSim = Math.max(0, (correlation + 1) / 2);
-    console.log(`✅ compareArrays: Correlation: ${correlation.toFixed(3)}, Similarity: ${corrSim.toFixed(3)}`);
 
     // DTW similarity with a Sakoe–Chiba band for elastic alignment
     const dtwSim = this.dtwSimilarity(resampled1, resampled2, 0.1);
-    
-    // Ensure DTW result is valid
-    if (isNaN(dtwSim) || !isFinite(dtwSim)) {
-      console.log('⚠️ compareArrays: DTW similarity resulted in NaN, using correlation only');
-      return Math.max(0, Math.min(1, corrSim)); // Fall back to correlation only
-    }
 
     // Blend: DTW (robust to timing shifts) + correlation (shape agreement)
-    if (corrSim > 0.985 && dtwSim > 0.985) {
-      return 0.99;
-    }
-    const result = Math.max(0, Math.min(1, 0.6 * dtwSim + 0.4 * corrSim));
-    console.log(`✅ compareArrays: Final similarity: ${result.toFixed(3)} (DTW: ${dtwSim.toFixed(3)}, Corr: ${corrSim.toFixed(3)})`);
-    
-    // Final validation
-    if (isNaN(result) || !isFinite(result)) {
-      console.log('⚠️ compareArrays: Final result is NaN, using fallback');
-      return 0.5;
-    }
-    
-    return result;
+    return Math.max(0, Math.min(1, 0.6 * dtwSim + 0.4 * corrSim));
   }
 
   private resampleArray(arr: number[], targetLength: number): number[] {
@@ -1258,34 +974,9 @@ export class BenchmarkComparisonAnalyzer {
   ): number {
     const inputPhase = this.inputPattern.actionPhases[phase];
     const benchmarkPhase = benchmark.actionPhases[phase];
-    
-    // Validate phase boundaries
-    if (!inputPhase || !benchmarkPhase || 
-        inputPhase.start < 0 || inputPhase.end < 0 || 
-        benchmarkPhase.start < 0 || benchmarkPhase.end < 0 ||
-        inputPhase.start >= this.inputPattern.overallIntensities.length ||
-        benchmarkPhase.start >= benchmark.overallIntensities.length) {
-      console.log(`⚠️ Invalid ${phase} phase boundaries:`, { inputPhase, benchmarkPhase });
-      return 0.5; // Default similarity for invalid phases
-    }
-    
     const inputData = this.inputPattern.overallIntensities.slice(inputPhase.start, inputPhase.end + 1);
     const benchmarkData = benchmark.overallIntensities.slice(benchmarkPhase.start, benchmarkPhase.end + 1);
-    
-    if (inputData.length === 0 || benchmarkData.length === 0) {
-      console.log(`⚠️ Empty ${phase} phase data:`, { inputLength: inputData.length, benchmarkLength: benchmarkData.length });
-      return 0.5;
-    }
-    
-    const result = this.compareArrays(inputData, benchmarkData);
-    
-    // Ensure result is not NaN
-    if (isNaN(result) || !isFinite(result)) {
-      console.log(`⚠️ ${phase} phase comparison returned NaN, using fallback`);
-      return 0.5;
-    }
-    
-    return result;
+    return this.compareArrays(inputData, benchmarkData);
   }
 
   getDetailedAnalysis(): DetailedAnalysisResult | null {
@@ -1387,4 +1078,3 @@ export class BenchmarkComparisonAnalyzer {
     }
   }
 }
-
