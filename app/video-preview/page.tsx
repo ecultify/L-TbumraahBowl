@@ -343,6 +343,47 @@ export default function VideoPreviewPage() {
     }
   }, [videoUrl]);
 
+  // Force video to load first frame (especially important for iOS)
+  useEffect(() => {
+    if (videoRef.current && videoUrl) {
+      const video = videoRef.current;
+      
+      // iOS Safari requires explicit load() call to display first frame
+      const forceLoadFirstFrame = async () => {
+        try {
+          console.log('📱 Forcing video to load first frame for iOS compatibility...');
+          video.load(); // Force reload to ensure iOS displays frame
+          
+          // Wait for metadata to be loaded
+          if (video.readyState < 1) {
+            await new Promise((resolve) => {
+              const handler = () => {
+                video.removeEventListener('loadedmetadata', handler);
+                resolve(null);
+              };
+              video.addEventListener('loadedmetadata', handler);
+              setTimeout(() => {
+                video.removeEventListener('loadedmetadata', handler);
+                resolve(null);
+              }, 3000);
+            });
+          }
+          
+          // Seek to 0.1 seconds to force frame display on iOS
+          video.currentTime = 0.1;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          video.currentTime = 0; // Reset to start
+          
+          console.log('✅ First frame loaded (readyState:', video.readyState, ')');
+        } catch (error) {
+          console.warn('⚠️ Error forcing first frame load:', error);
+        }
+      };
+      
+      forceLoadFirstFrame();
+    }
+  }, [videoUrl]);
+
   // Auto-trigger face detection when video is loaded and ready (background process) - RUNS ONLY ONCE
   useEffect(() => {
     if (videoRef.current && videoUrl && !isFaceDetectionRunning && !hasAnalysisData && !faceDetectionCompleted) {
@@ -352,7 +393,7 @@ export default function VideoPreviewPage() {
         console.log('🎯 Video loaded, auto-starting background face detection...');
         setTimeout(() => {
           detectFaceAndGenerateTorso();
-        }, 1000); // Wait 1 second for video to stabilize
+        }, 1500); // Increased from 1000ms to 1500ms to allow iOS to fully load
       };
 
       if (video.readyState >= 2) {
@@ -587,6 +628,9 @@ export default function VideoPreviewPage() {
                               src={videoUrl}
                               controls
                               preload="metadata"
+                              playsInline
+                              muted={false}
+                              crossOrigin="anonymous"
                               className={isPortraitVideo ? 'w-full h-full object-contain bg-black' : 'w-full h-full object-cover'}
                               style={{ borderRadius: '20px' }} // Changed from 16px to 20px to match mobile
                               onLoadedMetadata={handleVideoLoadedMetadata}

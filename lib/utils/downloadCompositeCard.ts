@@ -61,27 +61,39 @@ export async function downloadCompositeCardManual(options: {
       img.src = src;
     });
     
-    const [upper, bottom, vector] = await Promise.all([
+    const [upper, bottom, vector, defaultAvatar] = await Promise.all([
       loadImg('/frontend-images/homepage/upperpart.png'),
       loadImg('/frontend-images/homepage/bottompart.png'),
-      loadImg('/images/Vector 8.svg')
+      loadImg('/images/Vector 8.svg'),
+      loadImg('/images/defaultavatar.png')
     ]);
     
     let torso: HTMLImageElement | null = null;
+    let useDefaultAvatar = false;
     const torsoSrc = sessionStorage.getItem('generatedTorsoImage');
     if (torsoSrc) {
-      try { torso = await loadImg(torsoSrc); } catch (e) { console.warn('Torso load failed'); }
+      try { 
+        torso = await loadImg(torsoSrc);
+        console.log('✅ Loaded Gemini generated torso image for download');
+      } catch (e) { 
+        console.warn('⚠️ Gemini torso load failed, using default avatar');
+        useDefaultAvatar = true;
+      }
+    } else {
+      console.log('ℹ️ No Gemini image found, using default avatar');
+      useDefaultAvatar = true;
     }
     
     // Draw background images
     const upperH = (REFERENCE_WIDTH * upper.height) / upper.width;
     ctx.drawImage(upper, 0, 0, REFERENCE_WIDTH, upperH);
     
-    if (torso) {
-      // Match UI placement: slightly smaller than 300 to mirror on-screen
+    // Draw avatar (Gemini generated or default)
+    if (torso && !useDefaultAvatar) {
+      // Gemini generated torso - match UI placement with updated offset
       const torsoSize = 285;
       const torsoTop = 105;
-      const torsoRightOffset = -20;
+      const torsoRightOffset = -15; // Updated to match CompositeCard.tsx
       const x = REFERENCE_WIDTH + torsoRightOffset - torsoSize;
       // Add a subtle drop shadow to prevent blending with background
       ctx.save();
@@ -91,6 +103,15 @@ export async function downloadCompositeCardManual(options: {
       ctx.shadowOffsetY = 2;
       ctx.drawImage(torso, x, torsoTop, torsoSize, torsoSize);
       ctx.restore();
+      console.log('🎨 Drew Gemini torso at x:', x, 'size:', torsoSize);
+    } else if (useDefaultAvatar) {
+      // Default avatar - match UI placement
+      const defaultSize = 300;
+      const defaultTop = 105;
+      const defaultRightOffset = -15; // Updated to match CompositeCard.tsx
+      const x = REFERENCE_WIDTH + defaultRightOffset - defaultSize;
+      ctx.drawImage(defaultAvatar, x, defaultTop, defaultSize, defaultSize);
+      console.log('🎨 Drew default avatar at x:', x, 'size:', defaultSize);
     }
     
     const bottomH = (REFERENCE_WIDTH * bottom.height) / bottom.width;
