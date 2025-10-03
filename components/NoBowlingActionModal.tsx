@@ -37,7 +37,11 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
           backgroundRepeat: 'no-repeat',
           borderRadius: '20px',
           maxWidth: 'calc(100vw - 32px)',
-          width: '100%'
+          width: '100%',
+          position: 'fixed',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)'
         }}
       >
         {/* Glass morphism container */}

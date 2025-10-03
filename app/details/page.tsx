@@ -255,34 +255,76 @@ export default function DetailsPage() {
       // CRITICAL: Wait for video to be fully loaded (especially for blob URLs on localhost)
       if (videoRef.current.readyState < 4) {
         console.log('⏳ Waiting for video to be fully loaded (readyState: ' + videoRef.current.readyState + ')...');
+        
+        // Force video to load by setting load() explicitly
+        try {
+          videoRef.current.load();
+          console.log('📥 Explicitly called video.load()');
+        } catch (e) {
+          console.warn('⚠️ Error calling video.load():', e);
+        }
+        
         await new Promise<void>((resolve) => {
+          let resolved = false;
+          
+          const cleanup = () => {
+            if (resolved) return;
+            resolved = true;
+            videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
+            videoRef.current?.removeEventListener('loadeddata', handleLoadedData);
+            videoRef.current?.removeEventListener('canplay', handleCanPlay);
+            videoRef.current?.removeEventListener('error', handleError);
+          };
+          
           const handleCanPlayThrough = () => {
             console.log('✅ Video can play through without buffering (readyState: ' + videoRef.current?.readyState + ')');
-            videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
-            videoRef.current?.removeEventListener('canplay', handleCanPlay);
+            cleanup();
             resolve();
+          };
+          
+          const handleLoadedData = () => {
+            console.log('✅ Video metadata and first frame loaded (readyState: ' + videoRef.current?.readyState + ')');
+            // Wait a bit more for blob URLs to stabilize
+            setTimeout(() => {
+              cleanup();
+              resolve();
+            }, 1000);
           };
           
           const handleCanPlay = () => {
             console.log('✅ Video has enough data to play (readyState: ' + videoRef.current?.readyState + ')');
             // Still wait a bit more for blob URLs
             setTimeout(() => {
-              videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
-              videoRef.current?.removeEventListener('canplay', handleCanPlay);
+              cleanup();
               resolve();
-            }, 500);
+            }, 1000);
+          };
+          
+          const handleError = (e: any) => {
+            console.error('❌ Video loading error:', e);
+            cleanup();
+            resolve(); // Continue anyway to avoid infinite wait
           };
           
           videoRef.current?.addEventListener('canplaythrough', handleCanPlayThrough);
+          videoRef.current?.addEventListener('loadeddata', handleLoadedData);
           videoRef.current?.addEventListener('canplay', handleCanPlay);
+          videoRef.current?.addEventListener('error', handleError);
           
-          // Timeout after 15 seconds
+          // Increased timeout to 30 seconds for large videos
           setTimeout(() => {
-            console.log('⚠️ Video load timeout (readyState: ' + videoRef.current?.readyState + '), proceeding anyway');
-            videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
-            videoRef.current?.removeEventListener('canplay', handleCanPlay);
+            console.log('⚠️ Video load timeout after 30s (readyState: ' + videoRef.current?.readyState + ')');
+            if (videoRef.current && videoRef.current.readyState < 2) {
+              console.error('❌ Video failed to load - readyState still too low. Cannot analyze.');
+              cleanup();
+              // Don't resolve - we need valid video data
+              dispatch({ type: 'RESET_ANALYSIS' });
+              alert('Failed to load video. Please try uploading again.');
+              return;
+            }
+            cleanup();
             resolve();
-          }, 15000);
+          }, 30000);
         });
       }
       
