@@ -1,7 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useIntersectionObserver } from '../hooks/use-intersection-observer';
 import {
@@ -38,6 +38,13 @@ export default function Home() {
   // Video modal state
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  
+  // Video box states
+  const [isDesktopVideoPlaying, setIsDesktopVideoPlaying] = useState(false);
+  const [isMobileVideoPlaying, setIsMobileVideoPlaying] = useState(false);
+  const desktopVideoRef = useRef<HTMLVideoElement | null>(null);
+  const mobileVideoRef = useRef<HTMLVideoElement | null>(null);
 
   // Detect mobile view
   useEffect(() => {
@@ -48,6 +55,24 @@ export default function Home() {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Attempt autoplay when modal opens (muted + playsInline to satisfy mobile policies)
+  useEffect(() => {
+    if (isVideoModalOpen && videoRef.current) {
+      try {
+        const v = videoRef.current;
+        v.muted = true;
+        const p = v.play();
+        if (p && typeof p.then === 'function') {
+          p.catch(() => {
+            // ignore autoplay rejection; user can press play
+          });
+        }
+      } catch {
+        // no-op
+      }
+    }
+  }, [isVideoModalOpen]);
 
   // Hero background container (bottom corners rounded)
   const heroContainerStyle: CSSProperties = {
@@ -1165,40 +1190,84 @@ export default function Home() {
                   }}
                 />
 
-                {/* Main video box */}
+                {/* Main video box - Now with inline video player */}
                 <div 
-                  onClick={() => {
-                    console.log('🎬 [DESKTOP] Video play button clicked');
-                    console.log('📊 Opening video modal...');
-                    setIsVideoModalOpen(true);
-                  }}
-                  className="relative w-full h-full block cursor-pointer group"
+                  className="relative w-full h-full block"
                 style={{
                     borderRadius: 20,
                     overflow: 'hidden',
                     zIndex: 2,
+                    backgroundColor: '#000'
                   }}
                 >
-                  <img 
-                    src="/images/thumbnail.png" 
-                    alt="Video Thumbnail"
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
+                  {/* Thumbnail with Play Button Overlay */}
+                  {!isDesktopVideoPlaying && (
                     <div 
-                      className="flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
-                style={{
-                          width: 100,
-                          height: 100,
-                        borderRadius: '50%',
-                        backgroundColor: '#FFD42D',
+                      onClick={() => {
+                        console.log('🎬 [DESKTOP] Play button clicked - starting video');
+                        setIsDesktopVideoPlaying(true);
+                        setTimeout(() => {
+                          if (desktopVideoRef.current) {
+                            desktopVideoRef.current.play();
+                          }
+                        }, 100);
+                      }}
+                      className="absolute inset-0 cursor-pointer group z-10"
+                      style={{
+                        backgroundImage: 'url(/images/thumbnail.png)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        borderRadius: 20
                       }}
                     >
-                        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 4 }}>
-                        <path d="M8 5.14v13.72L19 12L8 5.14z" fill="none" stroke="rgba(0, 0, 0, 0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
+                      {/* Play Button */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div 
+                          className="flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+                          style={{
+                            width: 100,
+                            height: 100,
+                            borderRadius: '50%',
+                            backgroundColor: '#FFD42D'
+                          }}
+                        >
+                          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" style={{ marginLeft: 4 }}>
+                            <path d="M8 5.14v13.72L19 12L8 5.14z" fill="none" stroke="rgba(0, 0, 0, 0.6)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                  
+                  {/* Actual Video Element */}
+                  <video
+                    ref={desktopVideoRef}
+                    className="w-full h-full object-cover"
+                    controls={isDesktopVideoPlaying}
+                    playsInline
+                    onClick={(e) => {
+                      console.log('🎬 [DESKTOP] Video clicked');
+                      e.stopPropagation();
+                    }}
+                    onPlay={() => {
+                      console.log('▶️ Desktop inline video playback started');
+                      setIsDesktopVideoPlaying(true);
+                    }}
+                    onPause={() => {
+                      console.log('⏸️ Desktop inline video paused');
+                    }}
+                    onEnded={() => {
+                      console.log('🏁 Desktop video ended');
+                      setIsDesktopVideoPlaying(false);
+                    }}
+                    style={{
+                      borderRadius: 20,
+                      objectFit: 'cover'
+                    }}
+                  >
+                    <source src="/how%20to%20video.mp4" type="video/mp4" />
+                    Your browser does not support the video tag.
+                  </video>
                 </div>
             </div>
 
@@ -1367,57 +1436,99 @@ export default function Home() {
               }}
             />
             
-            {/* Main Video Box */}
+            {/* Main Video Box - Now with inline video player */}
             <div 
-              onClick={() => {
-                console.log('🎬 [MOBILE] Video play button clicked');
-                console.log('📊 Opening video modal...');
-                setIsVideoModalOpen(true);
-              }}
-              className="relative w-full h-full block cursor-pointer group"
+              className="relative w-full h-full block"
               style={{
                 borderRadius: '20px',
                 overflow: 'hidden',
                 zIndex: 27,
                 top: '0',
-                left: '0'
+                left: '0',
+                backgroundColor: '#000'
               }}
             >
-              <img 
-                src="/images/thumbnail.png" 
-                alt="Video Thumbnail"
-                className="w-full h-full object-cover"
-              />
-              {/* Play Button */}
-              <div className="absolute inset-0 flex items-center justify-center">
+              {/* Thumbnail with Play Button Overlay */}
+              {!isMobileVideoPlaying && (
                 <div 
-                  className="flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+                  onClick={() => {
+                    console.log('🎬 [MOBILE] Play button clicked - starting video');
+                    setIsMobileVideoPlaying(true);
+                    setTimeout(() => {
+                      if (mobileVideoRef.current) {
+                        mobileVideoRef.current.play();
+                      }
+                    }, 100);
+                  }}
+                  className="absolute inset-0 cursor-pointer group z-10"
                   style={{
-                    width: '80px',
-                    height: '80px',
-                    borderRadius: '50%',
-                    backgroundColor: '#FFD42D'
+                    backgroundImage: 'url(/images/thumbnail.png)',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
                   }}
                 >
-                  {/* Play Icon with Rounded Corners */}
-                  <svg 
-                    width="40" 
-                    height="40" 
-                    viewBox="0 0 24 24" 
-                    fill="none" 
-                    style={{ marginLeft: '3px' }}
-                  >
-                    <path 
-                      d="M8 5.14v13.72L19 12L8 5.14z" 
-                      fill="none"
-                      stroke="rgba(0, 0, 0, 0.2)"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
+                  {/* Play Button */}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div 
+                      className="flex items-center justify-center group-hover:scale-110 transition-transform duration-300"
+                      style={{
+                        width: '80px',
+                        height: '80px',
+                        borderRadius: '50%',
+                        backgroundColor: '#FFD42D'
+                      }}
+                    >
+                      {/* Play Icon */}
+                      <svg 
+                        width="40" 
+                        height="40" 
+                        viewBox="0 0 24 24" 
+                        fill="none" 
+                        style={{ marginLeft: '3px' }}
+                      >
+                        <path 
+                          d="M8 5.14v13.72L19 12L8 5.14z" 
+                          fill="none"
+                          stroke="rgba(0, 0, 0, 0.2)"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {/* Actual Video Element */}
+              <video
+                ref={mobileVideoRef}
+                className="w-full h-full object-cover"
+                controls={isMobileVideoPlaying}
+                playsInline
+                onClick={(e) => {
+                  console.log('🎬 [MOBILE] Video clicked');
+                  e.stopPropagation();
+                }}
+                onPlay={() => {
+                  console.log('▶️ Mobile inline video playback started');
+                  setIsMobileVideoPlaying(true);
+                }}
+                onPause={() => {
+                  console.log('⏸️ Mobile inline video paused');
+                }}
+                onEnded={() => {
+                  console.log('🏁 Mobile video ended');
+                  setIsMobileVideoPlaying(false);
+                }}
+                style={{
+                  borderRadius: '20px',
+                  objectFit: 'cover'
+                }}
+              >
+                <source src="/how%20to%20video.mp4" type="video/mp4" />
+                Your browser does not support the video tag.
+              </video>
             </div>
           </div>
 
@@ -2111,12 +2222,31 @@ export default function Home() {
                 }}
               >
                 {/* Local video file - Works perfectly on all devices */}
-                <video
+                <video ref={videoRef}
                   className="w-full h-full rounded-lg"
                   controls
                   playsInline
+                  muted
                   autoPlay
+                  onCanPlayCapture={() => {
+                    try {
+                      if (videoRef.current) {
+                        const v = videoRef.current;
+                        v.muted = true;
+                        const p = v.play();
+                        if (p && typeof (p as any).then === 'function') {
+                          (p as Promise<void>).catch(() => {});
+                        }
+                      }
+                    } catch {}
+                  }}
                   style={{ border: 'none', objectFit: 'contain', backgroundColor: '#000' }}
+                  onPlay={() => {
+                    console.log('▶️ Video playback started');
+                  }}
+                  onPause={() => {
+                    console.log('⏸️ Video paused');
+                  }}
                   onLoadStart={() => {
                     console.log('🎬 Video loading started from local file...');
                   }}
@@ -2131,7 +2261,7 @@ export default function Home() {
                     console.error('Error details:', e.currentTarget.error);
                   }}
                 >
-                  <source src="/how to video.mp4" type="video/mp4" />
+                  <source src="/how%20to%20video.mp4" type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               </div>

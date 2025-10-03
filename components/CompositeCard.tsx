@@ -104,9 +104,10 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   }, []);
 
   const torsoImageTopOffset = 105;
-  const torsoImageRightOffset = -5;
-  const torsoImageWidth = 260;
-  const torsoImageMaxHeight = 340;
+  const torsoImageRightOffset = -20; // Push ~35px to the right relative to original
+  // Slightly reduce generated image size while keeping default avatar at 300
+  const defaultAvatarSize = 300;
+  const generatedTorsoSize = 285;
 
   return (
     <div 
@@ -133,7 +134,33 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
           zIndex: 1,
         }}
       />
-      {/* Generated Torso Image - positioned between upper and bottom parts */}
+      {/* Default Avatar - only shown when there's no Gemini image or it failed to load */}
+      {(!generatedTorsoImage || imageLoadError) && (
+        <img
+          src="/images/defaultavatar.png"
+          alt="Default Cricket Player Avatar"
+          style={{
+            position: "absolute",
+            top: `${torsoImageTopOffset * scale}px`,
+            right: `${torsoImageRightOffset * scale}px`,
+            width: `${defaultAvatarSize * scale}px`,
+            height: `${defaultAvatarSize * scale}px`,
+            display: "block",
+            zIndex: 1.2,
+            objectFit: "contain",
+            objectPosition: "center top"
+          }}
+          onError={(e) => {
+            console.error('❌ Failed to load default avatar in composite card');
+            e.currentTarget.style.display = 'none';
+          }}
+          onLoad={() => {
+            console.log('✅ Default avatar loaded successfully in composite card');
+          }}
+        />
+      )}
+      
+      {/* Generated Torso Image - positioned between upper and bottom parts, only shown if available */}
       {generatedTorsoImage && !imageLoadError && (
         <img
           src={generatedTorsoImage}
@@ -142,18 +169,19 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
             position: "absolute",
             top: `${torsoImageTopOffset * scale}px`,
             right: `${torsoImageRightOffset * scale}px`,
-            width: `${torsoImageWidth * scale}px`,
-            height: 'auto',
-            maxHeight: `${torsoImageMaxHeight * scale}px`,
+            width: `${generatedTorsoSize * scale}px`,
+            height: `${generatedTorsoSize * scale}px`,
             display: "block",
             zIndex: 1.5,
             objectFit: "contain",
-            objectPosition: "center top"
+            objectPosition: "center top",
+            // Add subtle separation from background to prevent visual blending
+            filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.35))"
           }}
           onError={(e) => {
             console.error('❌ Failed to load torso image in composite card');
             setImageLoadError(true);
-            // Hide the image element
+            // Hide the image element - default avatar will show
             e.currentTarget.style.display = 'none';
           }}
           onLoad={() => {

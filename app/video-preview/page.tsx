@@ -258,7 +258,14 @@ export default function VideoPreviewPage() {
         throw new Error('Failed to capture frame data');
       }
 
-      console.log('✅ Face detection successful:', detectionResult.faces);
+      console.log('Face detection successful:', detectionResult.faces);
+      // Save full detected frame for Remotion rendering and thumbnail fallback
+      try {
+        if (typeof window !== 'undefined' && detectionResult.frameData) {
+          sessionStorage.setItem('detectedFrameDataUrl', detectionResult.frameData);
+          try { localStorage.setItem('userVideoThumbnail', detectionResult.frameData); } catch {}
+        }
+      } catch {}
 
       // Crop the head from the detected face
       const primaryFace = detectionResult.faces[0]; // Use the first (highest confidence) face
@@ -429,7 +436,7 @@ export default function VideoPreviewPage() {
 
           {/* Right side - Large Glass Box Container */}
           <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
-            <div className="relative" style={{ width: 740, height: '100%' }}>
+            <div className="relative" style={{ width: 900, height: '100%' }}>
               {/* Large Glass Box Background */}
               <div
                 style={{
@@ -523,13 +530,14 @@ export default function VideoPreviewPage() {
                   {/* Desktop Video Preview Content */}
                   <div className="text-center w-full">
                     {/* Preview Your Delivery headline */}
-                    <div className="mb-2">
+                    <div className="mb-6 text-center">
                       <div className="flex justify-center mb-1">
                         <img
                           src="/images/newhomepage/previewyourdelivery.png"
                           alt="Preview Your Delivery"
                           style={{
-                            maxWidth: "340px",
+                            width: "85%",
+                            maxWidth: "360px",
                             height: "auto",
                             marginLeft: "10px"
                           }}
@@ -540,9 +548,10 @@ export default function VideoPreviewPage() {
                         style={{
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: 400,
-                          fontSize: 18,
-                          color: "#0A0A0A",
-                          lineHeight: 1.3,
+                          fontStyle: "normal",
+                          fontSize: "20px", // Increased from 18 to 20 (+2)
+                          lineHeight: "24px", // Increased from 1.3 to 24px
+                          color: "#000000", // Changed from #0A0A0A to #000000 to match mobile
                           margin: 0,
                           textAlign: "center"
                         }}
@@ -552,22 +561,22 @@ export default function VideoPreviewPage() {
                     </div>
 
                     {/* Video Preview Box - Desktop */}
-                    <div className="mb-4">
+                    <div className="mb-6">
                       <div
-                        className="relative overflow-hidden w-full mx-auto"
+                        className="relative overflow-hidden w-full max-w-sm md:max-w-md mx-auto"
                         style={{
-                          borderRadius: '16px',
+                          borderRadius: '20px', // Changed from 16px to 20px to match mobile
                           backgroundColor: 'rgba(0, 0, 0, 0.5)',
                           aspectRatio: isPortraitVideo ? '9/16' : '16/9',
-                          minHeight: '200px',
-                          maxHeight: isPortraitVideo ? '320px' : '260px'
+                          minHeight: '180px', // Changed from 200px to 180px to match mobile
+                          maxHeight: isPortraitVideo ? '400px' : '240px' // Changed from 320px/260px to 400px/240px to match mobile
                         }}
                       >
                         {videoUrl ? (
                           <>
                             {videoSource !== 'unknown' && (
                               <span
-                                className="absolute top-3 left-3 z-10 px-2 py-1 text-xs font-semibold rounded-full bg-black/70 text-white"
+                                className="absolute top-4 left-4 z-10 px-3 py-1 text-xs font-semibold rounded-full bg-black/70 text-white"
                                 style={{ fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em' }}
                               >
                                 {videoSource === 'record' ? 'Recorded clip' : 'Uploaded clip'}
@@ -579,7 +588,7 @@ export default function VideoPreviewPage() {
                               controls
                               preload="metadata"
                               className={isPortraitVideo ? 'w-full h-full object-contain bg-black' : 'w-full h-full object-cover'}
-                              style={{ borderRadius: '16px' }}
+                              style={{ borderRadius: '20px' }} // Changed from 16px to 20px to match mobile
                               onLoadedMetadata={handleVideoLoadedMetadata}
                               onError={handleVideoError}
                             >
@@ -587,7 +596,7 @@ export default function VideoPreviewPage() {
                             </video>
 
                             <div
-                              className="absolute bottom-3 right-3 px-2 py-1 text-white text-xs rounded"
+                              className="absolute bottom-4 right-4 px-2 py-1 text-white text-xs rounded"
                               style={{
                                 backgroundColor: 'rgba(0, 0, 0, 0.7)',
                                 fontFamily: 'Inter, sans-serif'
@@ -599,15 +608,15 @@ export default function VideoPreviewPage() {
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-white">
                             <div className="text-center">
-                              <div className="mb-3">
-                                <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" className="mx-auto">
+                              <div className="mb-4">
+                                <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor" className="mx-auto">
                                   <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 2v-7l-4 2z" />
                                 </svg>
                               </div>
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px' }}>
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '14px' }}> {/* Increased from 12px to 14px (+2) */}
                                 No video available
                               </p>
-                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '10px', opacity: 0.7 }}>
+                              <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '12px', opacity: 0.7 }}> {/* Increased from 10px to 12px (+2) */}
                                 Please go back and upload a video
                               </p>
                             </div>
@@ -622,20 +631,21 @@ export default function VideoPreviewPage() {
                         href="/record-upload"
                         className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                         style={{
-                          backgroundColor: '#CCEAF7',
-                          borderRadius: '16px',
+                          backgroundColor: '#80CAEB', // Changed from #CCEAF7 to #80CAEB as requested
+                          borderRadius: '20px', // Changed from 16px to 20px to match mobile
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: '700',
-                          fontSize: 12,
+                          fontSize: 'clamp(12px, 2.5vw, 14px)', // Increased from 12 to 14 (+2) and made responsive
                           color: 'black',
+                          minWidth: '142px', // Added minWidth to match mobile
                           height: '36px',
                           border: 'none',
-                          padding: '0 12px'
+                          padding: '0 16px' // Changed from 12px to 16px to match mobile
                         }}
                       >
                         <svg
-                          width="14"
-                          height="14"
+                          width="16" // Increased from 14 to 16 to match mobile
+                          height="16" // Increased from 14 to 16 to match mobile
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -676,6 +686,7 @@ export default function VideoPreviewPage() {
                                   ctx.drawImage(videoRef.current, 0, 0);
                                   const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
                                   sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
+                                  try { localStorage.setItem('userVideoThumbnail', thumbnailDataUrl); } catch {}
                                 }
                               }
                               
@@ -694,14 +705,15 @@ export default function VideoPreviewPage() {
                         className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
                         style={{
                           backgroundColor: '#FFCA04',
-                          borderRadius: '16px',
+                          borderRadius: '20px', // Changed from 16px to 20px to match mobile
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: '700',
-                          fontSize: 12,
+                          fontSize: 'clamp(12px, 2.5vw, 14px)', // Increased from 12 to 14 (+2) and made responsive
                           color: 'black',
+                          minWidth: '142px', // Added minWidth to match mobile
                           height: '36px',
                           border: 'none',
-                          padding: '0 12px',
+                          padding: '0 16px', // Changed from 12px to 16px to match mobile
                           cursor: 'pointer'
                         }}
                       >
@@ -988,6 +1000,7 @@ export default function VideoPreviewPage() {
                               ctx.drawImage(videoRef.current, 0, 0);
                               const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
                               sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
+                                  try { localStorage.setItem('userVideoThumbnail', thumbnailDataUrl); } catch {}
                             }
                           }
                           
@@ -1094,3 +1107,7 @@ export default function VideoPreviewPage() {
     </>
   );
 }
+
+
+
+

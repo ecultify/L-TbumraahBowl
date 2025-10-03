@@ -59,7 +59,7 @@ export default function InstructionsPage() {
 
           {/* Right side - Large Glass Box Container */}
           <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
-            <div className="relative" style={{ width: 740, height: '100%' }}>
+            <div className="relative" style={{ width: 900, height: '100%' }}>
               {/* Large Glass Box Background */}
               <div
                 style={{
@@ -142,52 +142,65 @@ export default function InstructionsPage() {
                     gap: 10,
                   }}
                 >
-                <div style={{ marginBottom: 3 }}>
+                <div style={{ marginBottom: 6, width: "100%" }}>
                   <img
                     src="/images/newhomepage/instructions.png"
                     alt="Instructions"
-                    style={{ width: "70%", height: "auto" }}
+                    style={{ width: "70%", height: "auto", margin: "0 auto", display: "block" }}
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 w-full">
-                  <img src="/images/newhomepage/Good (1).png" alt="Good" className="w-full h-auto rounded-md" />
-                  <img src="/images/newhomepage/Failed (1).png" alt="Failed" className="w-full h-auto rounded-md" />
+                <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+                  <img src="/images/newhomepage/Good (1).png" alt="Good" className="w-full h-auto rounded-lg" />
+                  <img src="/images/newhomepage/Failed (1).png" alt="Failed" className="w-full h-auto rounded-lg" />
                 </div>
 
-                  <ul style={{ width: "100%", paddingInlineStart: 14, margin: 0, listStyle: "disc", color: "#0A0A0A" }}>
-                    {bulletPoints.map((text) => (
-                      <li
-                        key={text}
-                        style={{
-                          fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                          fontWeight: 400,
-                          fontSize: 11,
-                          lineHeight: "14px",
-                          marginBottom: 3,
-                        }}
-                      >
-                        {text}
-                      </li>
-                    ))}
-                  </ul>
+                <ul style={{ width: "100%", paddingInlineStart: 0, margin: 0, listStyle: "none", color: "#0A0A0A" }}>
+                  {bulletPoints.map((text) => (
+                    <li
+                      key={text}
+                      style={{
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: 400,
+                        fontSize: 13, // Increased from 11 to 13 (increased by 2)
+                        lineHeight: "16px", // Increased from 14px to 16px
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 8,
+                      }}
+                    >
+                      <img 
+                        src="/images/accept.png" 
+                        alt="" 
+                        style={{ 
+                          width: 20, 
+                          height: 20, 
+                          marginTop: 2,
+                          flexShrink: 0 
+                        }} 
+                      />
+                      <span>{text}</span>
+                    </li>
+                  ))}
+                </ul>
 
-                  <div
-                    style={{
-                      width: "100%",
-                      borderRadius: 8,
-                      backgroundColor: "rgba(0, 149, 215, 0.15)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      textAlign: "center",
-                      padding: "8px 10px",
-                    }}
-                  >
-                    <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 12, color: "#000", lineHeight: "14px" }}>
-                      Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
-                    </span>
-                  </div>
+                <div
+                  style={{
+                    width: "100%",
+                    borderRadius: 10,
+                    backgroundColor: "rgba(0, 149, 215, 0.15)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textAlign: "center",
+                    padding: "10px 12px",
+                  }}
+                >
+                  <span style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: 700, fontSize: 14, color: "#000", lineHeight: "18px" }}>
+                    Pro Tip: Avoid camera shake and use high-quality video for accurate bowling analysis!
+                  </span>
+                </div>
                 </div>
 
                 {/* I'm Ready, Proceed Button - Below Instructions Box */}
@@ -195,7 +208,7 @@ export default function InstructionsPage() {
                   href="/record-upload"
                   className="mt-4"
                   style={{
-                    width: 420,
+                    width: 500,
                     backgroundColor: "#FFC315",
                     borderRadius: 20,
                     height: 38,

@@ -38,6 +38,7 @@ export default function LeaderboardClient() {
   const [error, setError] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showModal, setShowModal] = useState(false);
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
@@ -73,7 +74,7 @@ export default function LeaderboardClient() {
     }
   }, []);
 
-  const loadMoreEntries = useCallback(async () => {
+  const loadMoreEntries = useCallback(async (isMobile: boolean = true) => {
     if (entries.length === 0) return;
     
     setLoadingMore(true);
@@ -101,7 +102,11 @@ export default function LeaderboardClient() {
 
       // Append new entries to existing ones
       setEntries(prev => [...prev, ...(data || [])] as LeaderboardEntry[]);
-      setShowMore(true);
+      
+      // Only set showMore to true for mobile
+      if (isMobile) {
+        setShowMore(true);
+      }
     } catch (err: any) {
       setError(err?.message || 'Unable to load more entries.');
     } finally {
@@ -109,8 +114,37 @@ export default function LeaderboardClient() {
     }
   }, [entries.length]);
 
+  const handleViewMore = useCallback(() => {
+    if (loadingMore) return;
+    
+    // Check if we're on mobile or desktop
+    const isMobile = window.innerWidth < 768; // md breakpoint
+    
+    if (isMobile) {
+      // On mobile, load more entries and extend the table
+      loadMoreEntries(true);
+    } else {
+      // On desktop, load more entries but don't expand the background table
+      loadMoreEntries(false);
+      // Wait a bit for data to load before showing modal
+      setTimeout(() => setShowModal(true), 100);
+    }
+  }, [loadMoreEntries, loadingMore]);
+
+  const handleCloseModal = useCallback(() => {
+    setShowModal(false);
+    // Reset to show only top 3 entries when modal is closed
+    setShowMore(false);
+    loadLeaderboard(); // Reload initial 3 entries
+  }, [loadLeaderboard]);
+
   useEffect(() => {
     loadLeaderboard();
+    
+    // Reset showMore state when component mounts (when user comes back to page)
+    return () => {
+      setShowMore(false);
+    };
   }, [loadLeaderboard]);
 
   const ranked = React.useMemo<RankedEntry[]>(
@@ -159,7 +193,7 @@ export default function LeaderboardClient() {
               <div
         className="w-full mx-auto"
                 style={{
-                  height: 310,
+                  height: showMore ? 'auto' : 310,
                   background: "linear-gradient(180deg, #1E75B3 0%, #014F87 100%)",
                   borderRadius: 18,
                   padding: 20,
@@ -229,8 +263,8 @@ export default function LeaderboardClient() {
                   flexDirection: "column", 
                   gap: 12,
                   flex: 1,
-                  overflow: showMore ? 'auto' : 'visible',
-                  paddingRight: showMore ? 5 : 0
+                  overflow: 'visible',
+                  paddingRight: 0
                 }}>
                   {loading ? (
                     <div
@@ -559,11 +593,7 @@ export default function LeaderboardClient() {
                         cursor: loadingMore ? "default" : "pointer",
                         opacity: loadingMore ? 0.6 : 1
                       }}
-                      onClick={() => {
-                        if (!loadingMore) {
-                          loadMoreEntries();
-                        }
-                      }}
+                      onClick={handleViewMore}
                     >
                       {loadingMore ? 'LOADING...' : 'VIEW MORE..'}
                     </span>
@@ -666,6 +696,486 @@ export default function LeaderboardClient() {
     </>
   );
 
+  // Modal component for desktop
+  const LeaderboardModal = () => (
+    <div
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}
+      onClick={handleCloseModal}
+    >
+      <div
+        style={{
+          position: 'relative',
+          backgroundImage: "linear-gradient(rgba(30, 117, 179, 0.95), rgba(30, 117, 179, 0.95)), url(/images/ballsglass.png)",
+          backgroundRepeat: "no-repeat, no-repeat",
+          backgroundPosition: "center, center",
+          backgroundSize: "100% 100%, contain",
+          backdropFilter: "blur(12px)",
+          WebkitBackdropFilter: "blur(12px)",
+          boxShadow: "inset 0 0 0 1px rgba(255, 255, 255, 0.3)",
+          borderRadius: '30px',
+          padding: '40px',
+          maxWidth: '700px',
+          width: '100%',
+          maxHeight: '85vh',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button - Top Right Corner */}
+        <div
+          style={{
+            position: "absolute",
+            top: "24px",
+            right: "24px",
+            width: "60px",
+            height: "60px",
+            borderRadius: "20px",
+            backgroundColor: "rgba(255, 255, 255, 0.2)",
+            border: "2px solid rgba(255, 255, 255, 0.5)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            cursor: "pointer",
+            zIndex: 10,
+            transition: "all 0.2s ease"
+          }}
+          onClick={handleCloseModal}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.2)";
+          }}
+        >
+          {/* X Icon */}
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M18 6L6 18M6 6l12 12"
+              stroke="white"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
+
+        {/* Modal Header */}
+        <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+          <h2
+            style={{
+              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+              fontWeight: 800,
+              fontStyle: "italic",
+              fontSize: "24px",
+              color: "white",
+              margin: 0,
+              lineHeight: 1.1
+            }}
+          >
+            FULL LEADERBOARD
+          </h2>
+        </div>
+
+        {/* Modal Content - Scrollable Table */}
+        <div
+          className="custom-scrollbar"
+          style={{
+            height: '500px',
+            background: "linear-gradient(180deg, #1E75B3 0%, #014F87 100%)",
+            borderRadius: 18,
+            padding: 20,
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}
+        >
+          {/* Table Header */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "150px 75px 65px",
+              gap: "0px",
+              alignItems: "center",
+              marginBottom: 16,
+              paddingLeft: 0,
+              marginLeft: 0
+            }}
+          >
+            <span
+              style={{
+                fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                fontWeight: 800,
+                fontStyle: "italic",
+                fontSize: "16px",
+                color: "white",
+                textAlign: "left",
+                overflow: "hidden",
+                paddingLeft: 0
+              }}
+            >
+              PLAYER
+            </span>
+            <span
+              style={{
+                fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                fontWeight: 800,
+                fontStyle: "italic",
+                fontSize: "16px",
+                color: "white",
+                textAlign: "center",
+                overflow: "hidden"
+              }}
+            >
+              SPEED
+            </span>
+            <span
+              style={{
+                fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                fontWeight: 800,
+                fontStyle: "italic",
+                fontSize: "16px",
+                color: "white",
+                textAlign: "center",
+                overflow: "hidden"
+              }}
+            >
+              MATCH
+            </span>
+          </div>
+
+          {/* Table Entries */}
+          <div style={{ 
+            display: "flex", 
+            flexDirection: "column", 
+            gap: 12
+          }}>
+            {loading ? (
+              <div
+                style={{
+                  fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                  fontWeight: 800,
+                  fontStyle: "italic",
+                  fontSize: 16,
+                  color: "white",
+                  textAlign: "center",
+                  paddingTop: 40
+                }}
+              >
+                Loading...
+              </div>
+            ) : error ? (
+              <div
+                style={{
+                  fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                  fontWeight: 800,
+                  fontStyle: "italic",
+                  fontSize: 16,
+                  color: "white",
+                  textAlign: "center",
+                  paddingTop: 40
+                }}
+              >
+                Unable to load
+              </div>
+            ) : ranked.length === 0 ? (
+              <div
+                style={{
+                  fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                  fontWeight: 800,
+                  fontStyle: "italic",
+                  fontSize: 16,
+                  color: "white",
+                  textAlign: "center",
+                  paddingTop: 40
+                }}
+              >
+                No entries yet
+              </div>
+            ) : (
+              ranked.map((entry, index) => {
+                const name = fallbackName(entry as LeaderboardEntry, index);
+                return (
+                  <div
+                    key={entry.id}
+                    style={{
+                      position: "relative",
+                      marginBottom: 12
+                    }}
+                  >
+                    {/* Avatar Box - Positioned First */}
+                    <div style={{ position: "absolute", left: 0, top: "50%", transform: "translateY(-40%)", zIndex: 2 }}>
+                      <div style={{ position: "relative" }}>
+                        {/* Avatar Box with Border */}
+                        <div
+                          style={{
+                            width: 50,
+                            height: 50,
+                            borderRadius: 5.48,
+                            background: "linear-gradient(180deg, #7FCAEB 0%, #3B98C0 100%)",
+                            padding: 3.91,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            position: "relative"
+                          }}
+                        >
+                          {/* Inner content box */}
+                          <div
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              borderRadius: "calc(5.48px - 3.91px)",
+                              backgroundColor: "#1970AC",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              overflow: "hidden"
+                            }}
+                          >
+                            {entry.avatar_url ? (
+                              <img
+                                src={entry.avatar_url}
+                                alt="Player Avatar"
+                                style={{
+                                  width: "100%",
+                                  height: "100%",
+                                  objectFit: "cover"
+                                }}
+                              />
+                            ) : (
+                              <img
+                                src="/images/el_user.svg"
+                                alt="User"
+                                style={{
+                                  width: 20,
+                                  height: 20,
+                                  filter: "brightness(0) invert(1)"
+                                }}
+                              />
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Ranking Badge - Middle aligned to bottom boundary */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            bottom: 0,
+                            left: "50%",
+                            transform: "translateX(-50%) translateY(50%)",
+                            width: 18,
+                            height: 18,
+                            borderRadius: "50%",
+                            background: "linear-gradient(180deg, #7FCAEB 0%, #3B98C0 100%)",
+                            padding: 1.56,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }}
+                        >
+                          <div
+                            style={{
+                              width: "100%",
+                              height: "100%",
+                              borderRadius: "50%",
+                              backgroundColor: "#1970AC",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center"
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                                fontWeight: 800,
+                                fontStyle: "italic",
+                                fontSize: 10,
+                                color: "white",
+                                lineHeight: 1
+                              }}
+                            >
+                              {entry.rank}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Player Record Box - Overlapping Avatar */}
+                    <div
+                      className="flex-1 min-w-0"
+                      style={{
+                        height: 32.86,
+                        position: "relative",
+                        marginLeft: 25,
+                        marginTop: 8.57,
+                        background: "#FFFFFF26",
+                        borderRadius: 3.13,
+                        clipPath: "polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)",
+                        border: "1px solid",
+                        borderImage: "linear-gradient(180deg, #7FCAEB 0%, #3B98C0 100%) 1",
+                        display: "flex",
+                        alignItems: "center",
+                        paddingLeft: 35,
+                        paddingRight: 10,
+                        zIndex: 1
+                      }}
+                    >
+                      {/* Content aligned under column headers - Using CSS Grid */}
+                      <div style={{ 
+                        display: "grid",
+                        gridTemplateColumns: "90px 75px 65px",
+                        gap: "0px",
+                        width: "100%", 
+                        alignItems: "center"
+                      }}>
+                        {/* Player Name - positioned after avatar with line breaks */}
+                        <div style={{ 
+                          display: "flex", 
+                          flexDirection: "column", 
+                          justifyContent: "center", 
+                          textAlign: "left", 
+                          overflow: "hidden",
+                          paddingRight: "4px"
+                        }}>
+                          {(() => {
+                            const words = name.split(' ');
+                            if (words.length > 1) {
+                              const midPoint = Math.ceil(words.length / 2);
+                              const firstLine = words.slice(0, midPoint).join(' ');
+                              const secondLine = words.slice(midPoint).join(' ');
+                              return (
+                                <>
+                                  <span
+                                    style={{
+                                      fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                                      fontWeight: 800,
+                                      fontStyle: "italic",
+                                      fontSize: 10,
+                                      color: "white",
+                                      textTransform: "uppercase",
+                                      lineHeight: 1.1,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap"
+                                    }}
+                                  >
+                                    {firstLine}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                                      fontWeight: 800,
+                                      fontStyle: "italic",
+                                      fontSize: 10,
+                                      color: "white",
+                                      textTransform: "uppercase",
+                                      lineHeight: 1.1,
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      whiteSpace: "nowrap"
+                                    }}
+                                  >
+                                    {secondLine}
+                                  </span>
+                                </>
+                              );
+                            } else {
+                              return (
+                                <span
+                                  style={{
+                                    fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                                    fontWeight: 800,
+                                    fontStyle: "italic",
+                                    fontSize: 12,
+                                    color: "white",
+                                    textTransform: "uppercase",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                >
+                                  {name}
+                                </span>
+                              );
+                            }
+                          })()}
+                        </div>
+
+                        {/* Speed - aligned under SPEED column */}
+                        <div style={{ 
+                          textAlign: "center",
+                          overflow: "hidden",
+                          paddingLeft: "2px",
+                          paddingRight: "2px"
+                        }}>
+                          <span
+                            style={{
+                              fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                              fontWeight: 800,
+                              fontStyle: "italic",
+                              fontSize: "13px",
+                              color: "white",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              display: "block"
+                            }}
+                          >
+                            {formatNumber(entry.predicted_kmh, 0)}kmph
+                          </span>
+                        </div>
+
+                        {/* Match - aligned under MATCH column */}
+                        <div style={{ 
+                          textAlign: "center",
+                          overflow: "hidden",
+                          paddingLeft: "2px",
+                          paddingRight: "2px"
+                        }}>
+                          <span
+                            style={{
+                              fontFamily: "'Helvetica Neue Condensed', 'Arial Narrow', sans-serif",
+                              fontWeight: 800,
+                              fontStyle: "italic",
+                              fontSize: "13px",
+                              color: "white",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              display: "block"
+                            }}
+                          >
+                            {formatNumber(entry.similarity_percent, 0)}%
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div
       className="min-h-screen flex flex-col relative"
@@ -729,7 +1239,7 @@ export default function LeaderboardClient() {
 
           {/* Right side - Large Glass Box Container */}
           <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
-            <div className="relative" style={{ width: 740, height: '100%' }}>
+            <div className="relative" style={{ width: 900, height: '100%' }}>
               {/* Large Glass Box Background */}
               <div
                 style={{
@@ -866,6 +1376,9 @@ export default function LeaderboardClient() {
           </div>
         </footer>
       </div>
+
+      {/* Modal for Desktop */}
+      {showModal && <LeaderboardModal />}
 
       {/* Mobile Layout */}
       <main className="md:hidden flex-1 px-6 pt-20 pb-8 flex justify-center relative z-10">

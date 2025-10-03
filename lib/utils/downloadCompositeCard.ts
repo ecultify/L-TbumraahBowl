@@ -29,7 +29,7 @@ export async function downloadCompositeCardManual(options: {
   } = options;
 
   try {
-    console.log('📥 Starting manual canvas - rendering at reference width 346px');
+    console.log('📥 Starting manual canvas - rendering at reference width 346px (v2.0 - Fixed positioning)');
     
     await document.fonts.ready;
     
@@ -78,8 +78,19 @@ export async function downloadCompositeCardManual(options: {
     ctx.drawImage(upper, 0, 0, REFERENCE_WIDTH, upperH);
     
     if (torso) {
-      const tw = 260, th = Math.min((tw * torso.height) / torso.width, 340);
-      ctx.drawImage(torso, REFERENCE_WIDTH + 5 - tw, 105, tw, th);
+      // Match UI placement: slightly smaller than 300 to mirror on-screen
+      const torsoSize = 285;
+      const torsoTop = 105;
+      const torsoRightOffset = -20;
+      const x = REFERENCE_WIDTH + torsoRightOffset - torsoSize;
+      // Add a subtle drop shadow to prevent blending with background
+      ctx.save();
+      ctx.shadowColor = 'rgba(0,0,0,0.35)';
+      ctx.shadowBlur = 8;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 2;
+      ctx.drawImage(torso, x, torsoTop, torsoSize, torsoSize);
+      ctx.restore();
     }
     
     const bottomH = (REFERENCE_WIDTH * bottom.height) / bottom.width;
@@ -105,17 +116,20 @@ export async function downloadCompositeCardManual(options: {
     
     ctx.fillStyle = '#FFCA04';
     ctx.font = '700 14px "Helvetica Condensed", Arial, sans-serif';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillText('MATCH', 30, 155);
+    // Move text right (30 -> 32) and down (154.5 -> 155.5)
+    ctx.fillText('MATCH', 32, 155.5);
     
-    // Phases
+    // Phases (positions tuned to match UI and vertical alignment)
     [{l: 'RUN-UP', s: runUpScore, t: 215}, {l: 'DELIVERY', s: deliveryScore, t: 255}, {l: 'FOLLOW THRU', s: followThroughScore, t: 295}].forEach(({l, s: score, t}) => {
       const pct = Math.min(score, 100);
       ctx.fillStyle = 'white';
       ctx.font = '700 13.56px "Helvetica Condensed", Arial, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(`${pct}%`, 47.655, t + 6.78);
+      // Place percentage slightly higher so it sits above the container nicely
+      ctx.fillText(`${pct}%`, 47.655, t + 12);
       
       ctx.fillStyle = '#FFCA04';
       ctx.beginPath();
@@ -127,8 +141,10 @@ export async function downloadCompositeCardManual(options: {
       
       ctx.fillStyle = '#13264A';
       ctx.font = '700 8.14px "Helvetica Condensed", Arial, sans-serif';
+      ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(l, 47.655, t + 27.135);
+      // Lift label text by ~1px to avoid low positioning due to font metrics differences
+      ctx.fillText(l, 47.655, t + 29.5);
     });
     
     // Name
@@ -158,11 +174,12 @@ export async function downloadCompositeCardManual(options: {
       ctx.fillText(m.l, 256.16, y);
       ctx.font = '700 8.14px "Helvetica Condensed", Arial, sans-serif';
       ctx.textAlign = 'right';
-      ctx.fillText(`${pct}%`, 333.92, y);
+      // Move percentage up slightly for better alignment
+      ctx.fillText(`${pct}%`, 333.92, y - 1.0);
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      ctx.fillRect(256.16, y + 8, 77.76, 3);
+      ctx.fillRect(256.16, y + 10, 77.76, 3);
       ctx.fillStyle = '#FFC315';
-      ctx.fillRect(256.16, y + 8, (77.76 * pct) / 100, 3);
+      ctx.fillRect(256.16, y + 10, (77.76 * pct) / 100, 3);
     });
     
     // Recommendations
@@ -203,18 +220,24 @@ export async function downloadCompositeCardManual(options: {
     ctx.drawImage(vector, 16 + (157.82 * accuracyDisplay / 100) - 1.475, 448.85, 2.95, 9.85);
     
     // Download
+    console.log('🎨 Rendering positions:', {
+      matchText: { x: 30, y: 154.5 },
+      phasePercentages: 't + 18',
+      techPercentages: 'y + 1',
+      techBars: 'y + 10'
+    });
+    
     const url = canvas.toDataURL('image/png', 1.0);
     const a = document.createElement('a');
-    a.download = `bowling-report-${Date.now()}.png`;
+    a.download = `bowling-report-v2-${Date.now()}.png`;
     a.href = url;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     
-    console.log('✅ Download complete');
+    console.log('✅ Download complete with updated positioning');
   } catch (error) {
     console.error('❌ Download failed:', error);
     throw error;
   }
 }
-

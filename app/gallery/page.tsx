@@ -9,13 +9,10 @@ export default function GalleryPage() {
   const gridWrapperRef = useRef<HTMLDivElement | null>(null);
   const [gridHeight, setGridHeight] = useState<number | undefined>(undefined);
   const [cardRatio, setCardRatio] = useState<number>(1.6); // height / width
+  const [desktopGridHeight, setDesktopGridHeight] = useState<number | undefined>(undefined);
   
   // Add multiple report cards if you have them, for now using the same one
-  const reportCards = [
-    '/images/newhomepage/Report Card.png',
-    '/images/newhomepage/Report Card.png',
-    '/images/newhomepage/Report Card.png',
-  ];
+  const reportCards = Array.from({ length: 24 }, () => '/images/newhomepage/Report Card.png');
 
   // Load the first image to estimate the card aspect ratio (height/width)
   useEffect(() => {
@@ -47,12 +44,37 @@ export default function GalleryPage() {
     return () => window.removeEventListener('resize', measure);
   }, [cardRatio]);
 
+  // Desktop: compute a height that shows exactly 2 rows in a 6-column grid
+  useEffect(() => {
+    const GAP = 16; // match desktop grid gap
+    const COLS = 6;
+    const measureDesktop = () => {
+      if (typeof window === 'undefined' || window.innerWidth < 768) {
+        setDesktopGridHeight(undefined);
+        return;
+      }
+      const el = gridWrapperRef.current;
+      if (!el) return;
+      // Try element width; if not ready, fall back to parent width
+      const width = el.clientWidth > 0 ? el.clientWidth : (el.parentElement ? el.parentElement.clientWidth : 0);
+      if (width <= 0) return;
+      const columnWidth = Math.max(0, (width - GAP * (COLS - 1)) / COLS);
+      const cardHeightPx = columnWidth * cardRatio; // aspectRatio: 1/cardRatio -> height = width * cardRatio
+      const computedHeight = Math.round(cardHeightPx * 2 + GAP); // 2 rows + one gap
+      const MIN_VISIBLE = 500; // ensure two full rows are visible
+      setDesktopGridHeight(Math.max(computedHeight, MIN_VISIBLE));
+    };
+    measureDesktop();
+    window.addEventListener('resize', measureDesktop);
+    return () => window.removeEventListener('resize', measureDesktop);
+  }, [cardRatio]);
+
   return (
     <div className="min-h-screen flex flex-col relative">
-      {/* Desktop Layout (copied from Details page) */}
+      {/* Desktop Layout */}
       <div className="hidden md:flex flex-col" style={{
         minHeight: '100vh',
-        backgroundImage: 'url("/images/desktop bg (1).png")',
+        backgroundImage: 'url("/images/analyzepagebg.png")',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
@@ -76,152 +98,135 @@ export default function GalleryPage() {
           </div>
         </div>
 
-        {/* Main content area */}
-        <div className="flex-1 flex items-stretch relative" style={{ minHeight: '85vh' }}>
-          {/* Left side - Loan Approved Image */}
-          <div className="flex-1 relative">
-            <img
-              src="/images/loanapprovednew.png"
-              alt="Loan Approved"
+        {/* Main content area - Full width glass container */}
+        <div className="flex-1 flex justify-center items-end relative" style={{ padding: '0 8%', paddingTop: '60px' }}>
+          <div className="relative" style={{ width: '75%', height: 'calc(100vh - 180px)' }}>
+            {/* Large Glass Box Background */}
+            <div
               style={{
                 position: 'absolute',
-                bottom: '-20px',
-                left: '60%',
-                transform: 'translateX(-50%)',
-                width: '480px',
-                height: '580px',
-                margin: 0,
-                padding: 0,
-                display: 'block',
-                objectFit: 'contain',
-                zIndex: 10,
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundImage: 'linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0.5)), url(/images/ballsglass.png)',
+                backgroundRepeat: 'no-repeat, no-repeat',
+                backgroundPosition: 'center, center',
+                backgroundSize: '100% 100%, contain',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                boxShadow: 'inset 0 0 0 1px #FFFFFF',
+                borderTopLeftRadius: 60,
+                borderTopRightRadius: 60,
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                zIndex: 1,
               }}
             />
-          </div>
 
-          {/* Right side - Large Glass Box Container */}
-          <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
-            <div className="relative" style={{ width: 740, height: '100%' }}>
-              {/* Large Glass Box Background */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  backgroundImage: 'linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0.5)), url(/images/ballsglass.png)',
-                  backgroundRepeat: 'no-repeat, no-repeat',
-                  backgroundPosition: 'center, center',
-                  backgroundSize: '100% 100%, contain',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  boxShadow: 'inset 0 0 0 1px #FFFFFF',
-                  borderTopLeftRadius: 60,
-                  borderBottomLeftRadius: 60,
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
-                  zIndex: 1,
-                }}
-              />
+            {/* Back Button - Top Left Corner of Large Glass Box */}
+            <div
+              style={{
+                position: 'absolute',
+                top: '24px',
+                left: '24px',
+                width: '60px',
+                height: '60px',
+                borderRadius: '20px',
+                backgroundColor: '#0095D740',
+                border: '2px solid #0095D74D',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                zIndex: 10,
+                transition: 'all 0.2s ease',
+              }}
+              onClick={() => window.history.back()}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#0095D760';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#0095D740';
+              }}
+            >
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
+                <path d="M15 18L9 12L15 6" stroke="#0095D7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
 
-              {/* Back Button - Top Left Corner of Large Glass Box */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '24px',
-                  left: '24px',
-                  width: '60px',
-                  height: '60px',
-                  borderRadius: '20px',
-                  backgroundColor: '#0095D740',
-                  border: '2px solid #0095D74D',
-                  backdropFilter: 'blur(8px)',
-                  WebkitBackdropFilter: 'blur(8px)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  zIndex: 10,
-                  transition: 'all 0.2s ease',
-                }}
-                onClick={() => window.history.back()}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#0095D760';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#0095D740';
-                }}
-              >
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                  <path d="M15 18L9 12L15 6" stroke="#0095D7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
+            {/* Gallery Content - Directly in Large Glass Container */}
+            <div className="relative flex flex-col" style={{ height: '100%', paddingTop: 40, paddingBottom: 0, zIndex: 2 }}>
+              {/* Title Row - centered */}
+              <div className="w-full flex justify-center mb-2" style={{ padding: '0 40px' }}>
+                  <img src="/images/newhomepage/Group 1437254106 (1).png" alt="Gallery" style={{ width: '200px', height: 'auto' }} />
+                </div>
+                
+              {/* Dropdown Row - right aligned */}
+              <div className="w-full flex justify-end items-center mb-6" style={{ padding: '0 40px' }}>
+                  <select
+                    style={{
+                      backgroundColor: '#FFFFFF',
+                      border: '1px solid #0000004D',
+                      borderRadius: '8px',
+                      padding: '8px 16px',
+                      fontSize: '14px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: '500',
+                      color: '#000000',
+                      outline: 'none',
+                      cursor: 'pointer',
+                      minWidth: '180px'
+                    }}
+                    defaultValue="report-analysis"
+                  >
+                    <option value="report-analysis">Report Analysis</option>
+                    <option value="video-analysis">Video Analysis</option>
+                  </select>
               </div>
 
-              {/* Gallery Glass Box - Centered (desktop) */}
-              <div className="relative flex flex-col items-center justify-center" style={{ height: '100%', paddingTop: 40, paddingBottom: 40, zIndex: 2 }}>
+              {/* Gallery Grid - vertical scroll, 6 items per row; exactly two rows visible */}
+              <div className="w-full" style={{ padding: '0 40px 0 40px', flex: 1, display: 'flex', minHeight: 0 }}>
                 <div
-                  className="w-full"
+                  ref={gridWrapperRef}
+                  className="custom-scrollbar"
                   style={{
-                    maxWidth: 500,
-                    borderRadius: 18,
-                    backgroundColor: '#FFFFFF80',
-                    backdropFilter: 'blur(12px)',
-                    WebkitBackdropFilter: 'blur(12px)',
-                    boxShadow: 'inset 0 0 0 1px #FFFFFF',
-                    padding: 20,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 12,
+                    width: '100%',
+                    overflowX: 'hidden',
+                    overflowY: 'auto',
+                    borderRadius: 0,
+                    height: desktopGridHeight ? desktopGridHeight : '100%',
                   }}
                 >
-                  {/* Title */}
-                  <div className="w-full flex justify-center mb-1" style={{ marginTop: 5 }}>
-                    <img src="/images/newhomepage/Group 1437254106 (1).png" alt="Gallery" style={{ width: '70%', height: 'auto' }} />
-                  </div>
-
-                  {/* Grid */}
-                  <div className="w-full" style={{ marginTop: 12 }}>
-                    <div
-                      ref={gridWrapperRef}
-                      style={{
-                        width: '100%',
-                        overflowY: 'auto',
-                        borderRadius: 12,
-                        height: gridHeight ? gridHeight : undefined,
-                        maxHeight: gridHeight ? gridHeight : undefined,
-                      }}
-                    >
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+                      gap: 16,
+                      paddingBottom: 0,
+                    }}
+                  >
+                    {reportCards.map((card, index) => (
                       <div
+                        key={index}
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: 'repeat(2, 1fr)',
-                          gap: 12,
-                          paddingBottom: 2,
+                          width: '100%',
+                          aspectRatio: `1 / ${cardRatio}`,
+                          borderRadius: 12,
+                          overflow: 'hidden',
+                          boxShadow: 'inset 0 0 0 1px #FFFFFF',
+                          backgroundColor: '#ffffff',
                         }}
                       >
-                        {reportCards.map((card, index) => (
-                          <div
-                            key={index}
-                            style={{
-                              width: '100%',
-                              aspectRatio: `1 / ${cardRatio}`,
-                              borderRadius: 12,
-                              overflow: 'hidden',
-                              boxShadow: 'inset 0 0 0 1px #FFFFFF',
-                              backgroundColor: '#ffffff',
-                            }}
-                          >
-                            <img
-                              src={card}
-                              alt={`Report Card ${index + 1}`}
-                              style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-                            />
-                          </div>
-                        ))}
+                        <img
+                          src={card}
+                          alt={`Report Card ${index + 1}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                        />
                       </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -230,7 +235,7 @@ export default function GalleryPage() {
         </div>
 
         {/* Desktop Footer */}
-        <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6 relative z-20">
+        <footer className="w-full bg-black px-4 md:px-8 pt-0 pb-6 relative z-20" style={{ marginTop: 0 }}>
           <div className="flex flex-col lg:flex-row justify-between items-center gap-4 md:gap-6 max-w-7xl mx-auto">
             <div className="text-center">
               <p 
@@ -329,6 +334,7 @@ export default function GalleryPage() {
                 <div className="w-full" style={{ marginTop: 12 }}>
                   <div
                     ref={gridWrapperRef}
+                    className="custom-scrollbar"
                     style={{
                       width: '100%',
                       overflowY: 'auto',

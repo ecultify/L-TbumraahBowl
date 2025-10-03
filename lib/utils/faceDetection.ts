@@ -504,7 +504,7 @@ export class FaceDetectionService {
                 if (!mediaScriptResolved) {
                   reject(new Error('MediaPipe detection timeout'));
                 }
-              }, 8000);
+              }, 12000);
 
               const img = new Image();
               img.crossOrigin = 'anonymous';
@@ -566,6 +566,18 @@ export class FaceDetectionService {
       const mediaPipeResult = await tryMediaPipe();
       if (mediaPipeResult) {
         return mediaPipeResult;
+      }
+
+      // Strict mode: Do not fall back to other detectors if MediaPipe fails.
+      // Set localStorage key 'faceDetection.allowFallback' to '1' to enable fallbacks.
+      let allowFallback = false;
+      try {
+        if (typeof window !== 'undefined') {
+          allowFallback = window.localStorage.getItem('faceDetection.allowFallback') === '1';
+        }
+      } catch {}
+      if (!allowFallback) {
+        throw new Error('MediaPipe detection failed and fallbacks are disabled');
       }
 
       const tryBlazeFace = async (): Promise<{ faces: DetectedFace[]; frameData: string } | null> => {
@@ -644,7 +656,14 @@ export class FaceDetectionService {
           const tf = await import('@tensorflow/tfjs');
 
           await tf.ready();
-          const detector = await faceLandmarks.createDetector(faceLandmarks.SupportedModels.MediaPipeFaceMesh);
+          const detector = await faceLandmarks.createDetector(
+            faceLandmarks.SupportedModels.MediaPipeFaceMesh,
+            {
+              runtime: 'tfjs',
+              refineLandmarks: true,
+              maxFaces: 1,
+            } as any
+          );
 
           for (const variant of frameVariants) {
             const landmarkResult = await new Promise<{ faces: DetectedFace[]; frameData: string } | null>((resolve, reject) => {

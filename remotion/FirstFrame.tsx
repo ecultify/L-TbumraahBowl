@@ -35,6 +35,10 @@ interface AnalysisData {
 
 interface FirstFrameProps {
   analysisData?: AnalysisData;
+  // Relative to public/ when used with staticFile, e.g. 'uploads/user-video.mp4'
+  userVideoSrc?: string;
+  // Data URL for the captured frame to show in frames 3/4/5
+  thumbnailDataUrl?: string;
 }
 
 const {fontFamily: condensedFontFamily} = loadFont();
@@ -86,14 +90,18 @@ const useVideoMetadataCompat = (src: string | null) => {
   return metadata;
 };
 
-export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
+export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoSrc: userVideoSrcProp, thumbnailDataUrl }) => {
   // Load video thumbnail from localStorage
   const [videoThumbnail, setVideoThumbnail] = React.useState<string | null>(null);
 
   React.useEffect(() => {
+    if (thumbnailDataUrl) {
+      setVideoThumbnail(thumbnailDataUrl);
+      return;
+    }
     const thumbnail = getVideoThumbnail();
     setVideoThumbnail(thumbnail);
-  }, []);
+  }, [thumbnailDataUrl]);
 
   // Use dynamic data or fallback to static values
   const data: AnalysisData = analysisData || {
@@ -241,11 +249,13 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
 
   const cardImageBorderRadius = 0; // Removed rounded corners
 
-  const userVideoSrc = staticFile('VID-20250923-WA0000.mp4');
-  const benchmarkVideoSrc = staticFile('bumrah bowling action (1).mp4');
-  const cardTopSrc = staticFile('Card 2 (1).png');
-  const cardBaseSrc = staticFile('Cards (1).png');
-  const sponsoredVideoSrc = staticFile('L&T Finanace 6sec CLEAN 9x16.mp4');
+  const userVideoSrc = userVideoSrcProp
+    ? staticFile(userVideoSrcProp)
+    : staticFile('VID-20250923-WA0000.mp4');
+  const benchmarkVideoSrc = staticFile('benchmark-bowling-action.mp4');
+  const cardTopSrc = staticFile('card-2.png');
+  const cardBaseSrc = staticFile('cards.png');
+  const sponsoredVideoSrc = staticFile('lnt-finance-6sec-clean-9x16.mp4');
 
   const userVideoMetadata = useVideoMetadataCompat(userVideoSrc);
   const clipDurationSeconds = 2;
@@ -413,6 +423,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
         }}
         muted
         loop
+        delayRenderTimeoutInMilliseconds={120000}
       />
 
       {/* Top-left Zoom logo (bigger) */}
@@ -588,6 +599,8 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
                 loop
                 startFrom={video.startFrom}
                 endAt={video.endAt}
+                delayRenderTimeoutInMilliseconds={120000}
+                delayRenderRetries={2}
                 style={{
                   width: '100%',
                   height: '100%',
@@ -946,6 +959,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData }) => {
             src={sponsoredVideoSrc}
             muted
             playsInline
+            delayRenderTimeoutInMilliseconds={120000}
             style={{
               width: '100%',
               height: '100%',

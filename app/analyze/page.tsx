@@ -308,6 +308,15 @@ export default function SimplifiedAnalyzePage() {
     ? Math.round(sessionAnalysisData.similarity)
     : Math.max(0, Math.round(finalIntensityValue));
   const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
+  
+  console.log('🔍 [ANALYZE] Score Calculation:', {
+    benchmarkOverall: benchmarkDetailedData?.overall,
+    benchmarkOverallSimilarity: benchmarkDetailedData?.overallSimilarity,
+    sessionSimilarity: sessionAnalysisData?.similarity,
+    finalIntensityValue,
+    calculatedAccuracyScore: accuracyScore,
+    accuracyDisplay
+  });
 
   // Phase metrics
   const runUpScore = benchmarkDetailedData?.runUp
@@ -319,6 +328,12 @@ export default function SimplifiedAnalyzePage() {
   const followThroughScore = benchmarkDetailedData?.followThrough
     ? Math.round(benchmarkDetailedData.followThrough * 100)
     : (sessionAnalysisData?.phases?.followThrough || 81);
+    
+  console.log('🔍 [ANALYZE] Phase Scores:', {
+    runUp: { benchmark: benchmarkDetailedData?.runUp, session: sessionAnalysisData?.phases?.runUp, final: runUpScore },
+    delivery: { benchmark: benchmarkDetailedData?.delivery, session: sessionAnalysisData?.phases?.delivery, final: deliveryScore },
+    followThrough: { benchmark: benchmarkDetailedData?.followThrough, session: sessionAnalysisData?.phases?.followThrough, final: followThroughScore }
+  });
 
   // Technical metrics
   const armSwingScore = benchmarkDetailedData?.armSwing
@@ -333,20 +348,46 @@ export default function SimplifiedAnalyzePage() {
   const releasePointScore = benchmarkDetailedData?.releasePoint
     ? Math.round(benchmarkDetailedData.releasePoint * 100)
     : (sessionAnalysisData?.technicalMetrics?.releasePoint || 89);
+    
+  console.log('🔍 [ANALYZE] Technical Metrics:', {
+    armSwing: { benchmark: benchmarkDetailedData?.armSwing, session: sessionAnalysisData?.technicalMetrics?.armSwing, final: armSwingScore },
+    bodyMovement: { benchmark: benchmarkDetailedData?.bodyMovement, session: sessionAnalysisData?.technicalMetrics?.bodyMovement, final: bodyMovementScore },
+    rhythm: { benchmark: benchmarkDetailedData?.rhythm, session: sessionAnalysisData?.technicalMetrics?.rhythm, final: rhythmScore },
+    releasePoint: { benchmark: benchmarkDetailedData?.releasePoint, session: sessionAnalysisData?.technicalMetrics?.releasePoint, final: releasePointScore }
+  });
 
   // Handle View Video button click - Trigger video rendering
   const handleViewVideo = async () => {
     try {
+      if (typeof accuracyDisplay === 'number' && accuracyDisplay <= 85) {
+        alert('View Video is available only for scores above 85%.');
+        return;
+      }
       console.log('🎥 Starting video rendering process...');
       setIsRenderingVideo(true);
       setRenderProgress(10);
 
       // Prepare analysis data for video rendering
+      // Get frameIntensities from sessionStorage if available
+      let frameIntensitiesData = [];
+      try {
+        const storedAnalysisData = sessionAnalysisData;
+        if (storedAnalysisData && storedAnalysisData.frameIntensities) {
+          frameIntensitiesData = storedAnalysisData.frameIntensities;
+          console.log('📊 Found frameIntensities in session storage:', frameIntensitiesData.length, 'frames');
+        } else {
+          console.warn('⚠️ No frameIntensities found in session storage - using empty array');
+        }
+      } catch (err) {
+        console.warn('⚠️ Could not retrieve frameIntensities:', err);
+      }
+      
       const videoAnalysisData = {
         intensity: finalIntensityValue,
         speedClass: speedLabel,
         kmh: kmhValue,
         similarity: accuracyDisplay,
+        frameIntensities: frameIntensitiesData, // Include frame intensities
         phases: {
           runUp: runUpScore,
           delivery: deliveryScore,
@@ -365,13 +406,63 @@ export default function SimplifiedAnalyzePage() {
       console.log('📦 Analysis data prepared for video:', videoAnalysisData);
       setRenderProgress(20);
 
+      // Prepare assets: thumbnail + uploaded video path
+      let bestFrameDataUrl: string | null = null;
+      try {
+        if (typeof window !== 'undefined') {
+          bestFrameDataUrl = window.sessionStorage.getItem('detectedFrameDataUrl') || window.sessionStorage.getItem('videoThumbnail');
+        }
+      } catch {}
+
+      // Ensure user's uploaded video is persisted in public/uploads and get its public path
+      let userVideoPublicPath: string | null = null;
+      try {
+        if (typeof window !== 'undefined') {
+          userVideoPublicPath = window.sessionStorage.getItem('uploadedVideoPublicPath');
+          if (!userVideoPublicPath) {
+            let uploadFile: File | null = null;
+            const w: any = window as any;
+            if (w.tempVideoFile instanceof File && w.tempVideoFile.size > 0) {
+              uploadFile = w.tempVideoFile as File;
+            } else {
+              const base64 = window.sessionStorage.getItem('uploadedVideoData');
+              if (base64 && base64.startsWith('data:')) {
+                const res = await fetch(base64);
+                const blob = await res.blob();
+                uploadFile = new File([blob], window.sessionStorage.getItem('uploadedFileName') || 'uploaded-video.mp4', { type: blob.type || 'video/mp4' });
+              }
+            }
+            if (uploadFile) {
+              const form = new FormData();
+              form.append('file', uploadFile, uploadFile.name);
+              const uploadResp = await fetch('/api/upload-user-video', { method: 'POST', body: form });
+              if (uploadResp.ok) {
+                const up = await uploadResp.json();
+                if (up?.publicPath) {
+                  userVideoPublicPath = up.publicPath as string;
+                  window.sessionStorage.setItem('uploadedVideoPublicPath', userVideoPublicPath);
+                }
+              } else {
+                console.warn('Upload user video failed with status', uploadResp.status);
+              }
+            } else {
+              console.warn('No uploadable user video available in this session');
+            }
+          }
+        }
+      } catch (e) { console.warn('Error ensuring uploaded video path:', e); }
+
       // Call API to generate video
       const response = await fetch('/api/generate-video', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ analysisData: videoAnalysisData }),
+        body: JSON.stringify({ 
+          analysisData: videoAnalysisData,
+          thumbnailDataUrl: bestFrameDataUrl || undefined,
+          userVideoPublicPath: userVideoPublicPath || undefined,
+        }),
       });
 
       setRenderProgress(90);
@@ -874,58 +965,254 @@ export default function SimplifiedAnalyzePage() {
       {/* Desktop Layout */}
       <div className="hidden md:flex flex-col" style={{
         minHeight: "100vh",
-        backgroundImage: 'url("/images/desktop bg (1).png")',
+        backgroundImage: 'url("/images/analyzepagebg.png")',
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat"
       }}>
-        {/* Logo in top left corner */}
-        <div className="absolute top-6 left-6 z-20">
-          <div
-            onClick={() => {
-              console.log('🏠 Homepage logo clicked - clearing session data and reloading...');
-              if (typeof window !== 'undefined') {
-                sessionStorage.clear();
-                window.location.href = '/';
-              }
-            }}
-          >
-            <img
-              src="/images/newhomepage/Bowling%20Campaign%20Logo.png"
-              alt="Bowling Campaign Logo"
-              className="w-64 lg:w-72"
-              style={{ height: "auto", cursor: "pointer" }}
-            />
-          </div>
-        </div>
+        {/* Main content area with 3-column layout */}
+        <div className="flex-1 flex items-stretch relative" style={{ minHeight: '75vh', paddingTop: '32px', paddingBottom: '20px', paddingLeft: '60px', paddingRight: '60px', gap: '0px' }}>
+          
+          {/* First Column - Logo and Loan Approved Image */}
+          <div style={{ width: '350px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', paddingRight: '20px' }}>
+            {/* Logo at top */}
+            <div className="mb-8">
+              <div
+                onClick={() => {
+                  console.log('🏠 Homepage logo clicked - clearing session data and reloading...');
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.clear();
+                    window.location.href = '/';
+                  }
+                }}
+              >
+                <img
+                  src="/images/newhomepage/Bowling%20Campaign%20Logo.png"
+                  alt="Bowling Campaign Logo"
+                  className="w-64 lg:w-72"
+                  style={{ height: "auto", cursor: "pointer" }}
+                />
+              </div>
+            </div>
 
-        {/* Main content area */}
-        <div className="flex-1 flex items-stretch relative" style={{ minHeight: '80vh' }}>
-          {/* Left side - Loan Approved Image */}
-          <div className="flex-1 relative">
-            <img
-              src="/images/loanapprovednew.png"
-              alt="Loan Approved"
-              style={{ 
-                position: 'absolute',
-                bottom: '-13px',
-                left: '60%',
-                transform: 'translateX(-50%)',
-                width: '480px',
-                height: '580px',
-                margin: 0,
-                padding: 0,
-                display: 'block',
-                objectFit: 'contain',
-                zIndex: 10
-              }}
-            />
+            {/* Loan Approved Image - Smaller with no bottom margin */}
+            <div className="flex-1 flex items-end justify-center" style={{ marginBottom: '-20px' }}>
+              <img
+                src="/images/loanapprovednew.png"
+                alt="Loan Approved"
+                style={{ 
+                  width: '300px',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  marginBottom: 0
+                }}
+              />
+            </div>
           </div>
 
-          {/* Right side - Large Glass Box Container */}
-          <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
-            <div className="relative" style={{ width: 740, height: '100%' }}>
-              {/* Large Glass Box Background */}
+          {/* Second Column - Report is Ready and Buttons */}
+          <div style={{ width: '450px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', paddingLeft: '20px', paddingRight: '40px' }}>
+            {/* Report is Ready Image */}
+            <div className="mb-12">
+              <img
+                src="/images/reportisready.png"
+                alt="Report is Ready"
+                style={{
+                  width: '450px',
+                  height: 'auto',
+                  objectFit: 'contain'
+                }}
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ width: '250px' }}>
+              {accuracyDisplay > 85 ? (
+                // 3 buttons when score > 85%
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Link href="/leaderboard">
+                    <button
+                      className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                      style={{
+                        width: "100%",
+                        backgroundColor: '#CCEAF7',
+                        borderRadius: '25.62px',
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: '700',
+                        fontSize: '16px',
+                        color: 'black',
+                        padding: '12px 20px',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8
+                      }}
+                    >
+                      <img
+                        src="/frontend-images/homepage/Vector.svg"
+                        alt="Leaderboard"
+                        style={{ width: 20, height: 20 }}
+                      />
+                      Leaderboard
+                    </button>
+                  </Link>
+
+                  <button
+                    className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                    style={{
+                      width: "100%",
+                      backgroundColor: '#FDC217',
+                      borderRadius: '25.62px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: '700',
+                      fontSize: '16px',
+                      color: 'black',
+                      padding: '12px 20px',
+                      border: 'none'
+                    }}
+                    onClick={downloadCompositeCard}
+                  >
+                    Download Report
+                  </button>
+
+                  <button
+                    className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                    style={{
+                      width: "100%",
+                      backgroundColor: '#0095d7',
+                      borderRadius: '25.62px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: '700',
+                      fontSize: '16px',
+                      color: 'white',
+                      padding: '12px 20px',
+                      border: 'none',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8
+                    }}
+                    onClick={handleViewVideo}
+                    disabled={isRenderingVideo}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    View Video
+                  </button>
+                </div>
+              ) : (
+                // 2 buttons when score <= 85%
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <Link href="/leaderboard">
+                    <button
+                      className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                      style={{
+                        width: "100%",
+                        backgroundColor: '#CCEAF7',
+                        borderRadius: '25.62px',
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: '700',
+                        fontSize: '16px',
+                        color: 'black',
+                        padding: '12px 20px',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8
+                      }}
+                    >
+                      <img
+                        src="/frontend-images/homepage/Vector.svg"
+                        alt="Leaderboard"
+                        style={{ width: 20, height: 20 }}
+                      />
+                      Leaderboard
+                    </button>
+                  </Link>
+
+                  <button
+                    className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                    style={{
+                      width: "100%",
+                      backgroundColor: '#FDC217',
+                      borderRadius: '25.62px',
+                      fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                      fontWeight: '700',
+                      fontSize: '16px',
+                      color: 'black',
+                      padding: '12px 20px',
+                      border: 'none'
+                    }}
+                    onClick={downloadCompositeCard}
+                  >
+                    Download Report
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Missed Benchmark Text and Retry Button - Only show when score < 85% */}
+            {accuracyDisplay < 85 && (
+              <div className="mt-8 text-center">
+                {/* Missed Benchmark Text */}
+                <div className="mb-4">
+                  <p style={{
+                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                    fontWeight: '700',
+                    fontSize: '16px',
+                    color: '#FFFFFF',
+                    margin: 0,
+                    lineHeight: 1.4
+                  }}>
+                    You've just missed the benchmark<br />
+                    Don't worry, try again!
+                  </p>
+                </div>
+                
+                {/* Retry Button */}
+                <button
+                  className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                  style={{
+                    width: '200px',
+                    backgroundColor: '#0D4D80',
+                    borderRadius: '22.89px',
+                    fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                    fontWeight: '700',
+                    fontSize: '16px',
+                    color: 'white',
+                    padding: '12px 20px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    margin: '0 auto'
+                  }}
+                  onClick={() => {
+                    console.log('🔄 Retry button clicked');
+                    if (typeof window !== 'undefined') {
+                      sessionStorage.clear();
+                      window.location.href = '/record-upload';
+                    }
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                  </svg>
+                  Retry
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Third Column - Composite Card with Glass Container */}
+          <div style={{ width: '420px', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', paddingLeft: '20px', marginLeft: '35px' }}>
+            <div className="relative" style={{ width: '380px' }}>
+              {/* Glass Container Background */}
               <div
                 style={{
                   position: "absolute",
@@ -940,293 +1227,37 @@ export default function SimplifiedAnalyzePage() {
                   backdropFilter: "blur(12px)",
                   WebkitBackdropFilter: "blur(12px)",
                   boxShadow: "inset 0 0 0 1px #FFFFFF",
-                  borderTopLeftRadius: 60,
-                  borderBottomLeftRadius: 60,
-                  borderTopRightRadius: 0,
-                  borderBottomRightRadius: 0,
+                  borderRadius: 30,
                   zIndex: 1,
                 }}
               />
 
-              {/* Back Button - Top Left Corner of Large Glass Box */}
-              <div
-                style={{
-                  position: "absolute",
-                  top: "24px",
-                  left: "24px",
-                  width: "60px",
-                  height: "60px",
-                  borderRadius: "20px",
-                  backgroundColor: "#0095D740",
-                  border: "2px solid #0095D74D",
-                  backdropFilter: "blur(8px)",
-                  WebkitBackdropFilter: "blur(8px)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  zIndex: 10,
-                  transition: "all 0.2s ease"
-                }}
-                onClick={() => {
-                  console.log('⬅️ Back button clicked - going to video-preview...');
-                  window.location.href = '/video-preview';
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#0095D760";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#0095D740";
-                }}
-              >
-                {/* Left Arrow Icon */}
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M15 18L9 12L15 6"
-                    stroke="#0095D7"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </div>
-
-              {/* Analyze Glass Box - Centered with Report Ready Image */}
-              <div className="relative flex items-center justify-center" style={{ height: '100%', paddingTop: 40, paddingBottom: 40, zIndex: 2 }}>
-                {/* Report is Ready Image - Left side */}
-                <div style={{ flex: '0 0 auto', marginRight: '20px' }}>
-                  <img
-                    src="/images/reportisready.png"
-                    alt="Report is Ready"
-                    style={{
-                      width: '200px',
-                      height: 'auto',
-                      objectFit: 'contain'
-                    }}
+              {/* Composite Card - Centered */}
+              <div className="relative flex items-center justify-center" style={{ height: '100%', padding: '20px', zIndex: 2 }}>
+                <div style={{ 
+                  width: '100%',
+                  maxWidth: 346,
+                  margin: '0 auto',
+                  position: 'relative'
+                }}>
+                  <CompositeCard
+                    accuracyDisplay={accuracyDisplay}
+                    runUpScore={runUpScore}
+                    deliveryScore={deliveryScore}
+                    followThroughScore={followThroughScore}
+                    playerName={sessionAnalysisData?.playerName || playerName || "PLAYER NAME"}
+                    kmhValue={kmhValue}
+                    armSwingScore={armSwingScore}
+                    bodyMovementScore={bodyMovementScore}
+                    rhythmScore={rhythmScore}
+                    releasePointScore={releasePointScore}
+                    recommendations={
+                      (benchmarkDetailedData?.recommendations?.length || sessionAnalysisData?.recommendations?.length) > 0
+                        ? (benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || []).join(' ')
+                        : "Great technique! Keep practicing to maintain consistency."
+                    }
                   />
                 </div>
-
-                {/* Reduced Container - Right side */}
-                <div
-                  style={{
-                    width: 320,
-                    borderRadius: 18,
-                    backgroundColor: "#FFFFFF80",
-                    backdropFilter: "blur(12px)",
-                    WebkitBackdropFilter: "blur(12px)",
-                    boxShadow: "inset 0 0 0 1px #FFFFFF",
-                    padding: 10,
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  {/* Desktop Analyze Content */}
-                  <div style={{ width: '100%' }}>
-
-                    {/* Composite Card - Consistent sizing across mobile and desktop */}
-                    <div style={{ 
-                      width: '100%',
-                      maxWidth: 346,
-                      margin: '0 auto',
-                      position: 'relative'
-                    }}>
-                      <CompositeCard
-                        accuracyDisplay={accuracyDisplay}
-                        runUpScore={runUpScore}
-                        deliveryScore={deliveryScore}
-                        followThroughScore={followThroughScore}
-                        playerName={sessionAnalysisData?.playerName || playerName || "PLAYER NAME"}
-                        kmhValue={kmhValue}
-                        armSwingScore={armSwingScore}
-                        bodyMovementScore={bodyMovementScore}
-                        rhythmScore={rhythmScore}
-                        releasePointScore={releasePointScore}
-                        recommendations={
-                          (benchmarkDetailedData?.recommendations?.length || sessionAnalysisData?.recommendations?.length) > 0
-                            ? (benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || []).join(' ')
-                            : "Great technique! Keep practicing to maintain consistency."
-                        }
-                      />
-                    </div>
-                    
-                    {/* Action Buttons - Inside glass box */}
-                    <div className="mb-2" style={{ width: '100%', marginTop: '12px' }}>
-                      {accuracyDisplay > 85 ? (
-                        // 3 buttons when score > 85%
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <Link href="/leaderboard" style={{ flex: 1 }}>
-                            <button
-                              className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                              style={{
-                                width: "100%",
-                                backgroundColor: '#80CAEB',
-                                borderRadius: '22px',
-                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                                fontWeight: '700',
-                                fontSize: '13px',
-                                color: 'black',
-                                padding: '8px 12px',
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 6
-                              }}
-                            >
-                              <img
-                                src="/frontend-images/homepage/Vector.svg"
-                                alt="Leaderboard"
-                                style={{ width: 16, height: 16 }}
-                              />
-                              Leaderboard
-                            </button>
-                          </Link>
-
-                          <button
-                            className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                            style={{
-                              flex: 1,
-                              backgroundColor: '#0095d7',
-                              borderRadius: '22px',
-                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                              fontWeight: '700',
-                              fontSize: '13px',
-                              color: 'white',
-                              padding: '8px 12px',
-                              border: 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              gap: 6
-                            }}
-                            onClick={handleViewVideo}
-                            disabled={isRenderingVideo}
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M8 5v14l11-7z"/>
-                            </svg>
-                            View Video
-                          </button>
-
-                          <button
-                            className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                            style={{
-                              flex: 1,
-                              backgroundColor: '#FDC217',
-                              borderRadius: '22px',
-                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                              fontWeight: '700',
-                              fontSize: '13px',
-                              color: 'black',
-                              padding: '8px 12px',
-                              border: 'none'
-                            }}
-                            onClick={downloadCompositeCard}
-                          >
-                            Download Report
-                          </button>
-                        </div>
-                      ) : (
-                        // 2 buttons when score <= 85%
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <Link href="/leaderboard" style={{ flex: 1 }}>
-                            <button
-                              className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                              style={{
-                                width: "100%",
-                                backgroundColor: '#80CAEB',
-                                borderRadius: '22px',
-                                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                                fontWeight: '700',
-                                fontSize: '13px',
-                                color: 'black',
-                                padding: '8px 12px',
-                                border: 'none',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 6
-                              }}
-                            >
-                              <img
-                                src="/frontend-images/homepage/Vector.svg"
-                                alt="Leaderboard"
-                                style={{ width: 16, height: 16 }}
-                              />
-                              Leaderboard
-                            </button>
-                          </Link>
-
-                          <button
-                            className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                            style={{
-                              flex: 1,
-                              backgroundColor: '#FDC217',
-                              borderRadius: '22px',
-                              fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                              fontWeight: '700',
-                              fontSize: '13px',
-                              color: 'black',
-                              padding: '8px 12px',
-                              border: 'none'
-                            }}
-                            onClick={downloadCompositeCard}
-                          >
-                            Download Report
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Text and Retry Button - Outside Glass Container (Below it) - Only show when score < 85% */}
-                {accuracyDisplay < 85 && (
-                  <div style={{ marginTop: '16px', textAlign: 'center', width: 320 }}>
-                    {/* Missed Benchmark Text */}
-                    <div style={{ marginBottom: '12px' }}>
-                      <p style={{
-                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                        fontWeight: '700',
-                        fontSize: '14px',
-                        color: '#125081',
-                        margin: 0,
-                        lineHeight: 1.4
-                      }}>
-                        You've just missed the benchmark<br />
-                        Don't worry, try again!
-                      </p>
-                    </div>
-                    
-                    {/* Retry Button */}
-                    <button
-                      className="transition-all duration-300 hover:brightness-110 hover:scale-105"
-                      style={{
-                        width: '200px',
-                        backgroundColor: '#0D4D80',
-                        borderRadius: '22.89px',
-                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
-                        fontWeight: '700',
-                        fontSize: '13px',
-                        color: 'white',
-                        padding: '10px 16px',
-                        border: 'none',
-                        cursor: 'pointer'
-                      }}
-                      onClick={() => {
-                        console.log('🔄 Retry button clicked');
-                        if (typeof window !== 'undefined') {
-                          sessionStorage.clear();
-                          window.location.href = '/record-upload';
-                        }
-                      }}
-                    >
-                      Retry
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1286,3 +1317,5 @@ export default function SimplifiedAnalyzePage() {
     </>
   );
 }
+
+

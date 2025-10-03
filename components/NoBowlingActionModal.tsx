@@ -28,13 +28,16 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent 
-        className="sm:max-w-md border-0 p-0 overflow-hidden"
+        className="sm:max-w-md border-0 p-0 overflow-hidden mx-4 sm:mx-0"
         style={{
           backgroundColor: 'transparent',
           backgroundImage: 'url(/frontend-images/homepage/bowlbg.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
+          backgroundRepeat: 'no-repeat',
+          borderRadius: '20px',
+          maxWidth: 'calc(100vw - 32px)',
+          width: '100%'
         }}
       >
         {/* Glass morphism container */}
@@ -42,8 +45,9 @@ export function NoBowlingActionModal({ open, onOpenChange }: NoBowlingActionModa
           className="p-6 backdrop-blur-xl border border-white/20 relative"
           style={{
             backgroundColor: 'rgba(255, 255, 255, 0.14)',
-            borderRadius: '16px',
-            boxShadow: '0 6px 20px rgba(253, 194, 23, 0.18)'
+            borderRadius: '20px',
+            boxShadow: '0 6px 20px rgba(253, 194, 23, 0.18)',
+            overflow: 'hidden'
           }}
         >
           {/* Close button */}

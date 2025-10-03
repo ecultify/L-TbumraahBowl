@@ -39,6 +39,7 @@ CRITICAL - TRANSPARENT BACKGROUND:
 - BACKGROUND: 100% transparent - NO color, NO white, NO gray, NO background of ANY kind
 - The background must be completely see-through (transparent pixels only)
 - Only the person should be visible - everything else must be transparent
+- NO SOLID BACKGROUNDS, NO GRADIENTS, NO STUDIO BACKGROUNDS
 
 CRITICAL - COMPOSITION:
 - FRAME INCLUDES: Entire head, full width of both shoulders, and upper chest down to mid-chest
@@ -60,7 +61,8 @@ MANDATORY OUTPUT SPECIFICATIONS:
 - Format: PNG with transparency (not JPEG)
 - Background: Fully transparent alpha channel
 - Person cutout: Clean edges, no halo, no artifacts
-- Ensure shoulders and head are fully visible without being cropped on any side`;
+- Ensure shoulders and head are fully visible without being cropped on any side
+- NO BACKGROUND COLORS OR PATTERNS - ONLY TRANSPARENT PIXELS`;
 }
 
 // Enhanced negative prompt
@@ -132,16 +134,43 @@ export class GeminiTorsoService {
         console.log('Gemini 2.5 Flash Image Preview torso generation completed successfully via backend');
         
         // Apply background removal to make it fully transparent
-        console.log('Applying background removal for full transparency...');
-        const transparentImageUrl = await this.removeBackground(responseData.imageUrl);
+        console.log('🎨 [TORSO GEN] Applying background removal for full transparency...');
+        let transparentImageUrl: string | null = null;
+        
+        try {
+          transparentImageUrl = await this.removeBackground(responseData.imageUrl);
+          if (transparentImageUrl && transparentImageUrl !== responseData.imageUrl) {
+            console.log('✅ [TORSO GEN] Background removal completed successfully');
+          } else {
+            console.warn('⚠️ [TORSO GEN] Background removal returned original image, may not have worked');
+          }
+        } catch (bgError) {
+          console.error('❌ [TORSO GEN] Background removal failed with error:', bgError);
+          console.log('🔄 [TORSO GEN] Continuing with original image...');
+        }
         
         // Resize to 300x300 if not already
-        console.log('Resizing image to 300x300...');
-        const resizedImageUrl = await this.resizeImage(transparentImageUrl || responseData.imageUrl, 300, 300);
+        console.log('📏 [TORSO GEN] Resizing image to 300x300...');
+        const finalImageUrl = transparentImageUrl || responseData.imageUrl;
+        const resizedImageUrl = await this.resizeImage(finalImageUrl, 300, 300);
+        // Run a second background removal pass post-resize to guarantee transparent edges
+        let finalPng = resizedImageUrl;
+        try {
+          const secondPass = await this.removeBackground(resizedImageUrl);
+          if (secondPass && secondPass.startsWith('data:image/png')) {
+            finalPng = secondPass;
+          }
+        } catch {}
+        
+        if (!resizedImageUrl) {
+          console.error('❌ [TORSO GEN] Image resize failed, using original image');
+        } else {
+          console.log('✅ [TORSO GEN] Image resize completed successfully');
+        }
         
         return {
           success: true,
-          imageUrl: resizedImageUrl
+          imageUrl: finalPng
         };
       } else {
         return {
@@ -180,21 +209,31 @@ export class GeminiTorsoService {
             return;
           }
           
-          // Set exact dimensions
+          // Set exact canvas dimensions (square output)
           canvas.width = targetWidth;
           canvas.height = targetHeight;
-          
-          // Draw image with high quality scaling
+
+          // Compute aspect-fit (contain) to avoid squeezing
+          const iw = img.width;
+          const ih = img.height;
+          const scale = Math.min(targetWidth / iw, targetHeight / ih);
+          const dw = Math.round(iw * scale);
+          const dh = Math.round(ih * scale);
+          const dx = Math.floor((targetWidth - dw) / 2);
+          const dy = Math.floor((targetHeight - dh) / 2);
+
+          // Draw image with high quality scaling, centered with transparent padding
+          ctx.clearRect(0, 0, targetWidth, targetHeight);
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = 'high';
-          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          ctx.drawImage(img, dx, dy, dw, dh);
           
-          // Convert to data URL with compression for iOS compatibility
-          // Use JPEG for smaller file size, with quality adjusted for iOS
-          const quality = this.isIOS() ? 0.7 : 0.85; // Lower quality on iOS
-          const format = this.isIOS() ? 'image/jpeg' : 'image/png'; // JPEG is smaller on iOS
+          // ALWAYS use PNG to preserve transparency from background removal
+          // PNG supports alpha channel, JPEG does not
+          const format = 'image/png';
+          const quality = 1.0; // Max quality for PNG (transparency preservation)
           const resizedImageUrl = canvas.toDataURL(format, quality);
-          console.log(`✅ Image resized to ${targetWidth}x${targetHeight}, format: ${format}, quality: ${quality}`);
+          console.log(`✅ Image resized to ${targetWidth}x${targetHeight}, format: ${format}, preserving transparency`);
           resolve(resizedImageUrl);
         };
         
@@ -214,13 +253,23 @@ export class GeminiTorsoService {
   // Detect iOS devices
   private isIOS(): boolean {
     if (typeof window === 'undefined') return false;
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    console.log('🔍 [BG REMOVAL] iOS Detection:', {
+      userAgent: navigator.userAgent,
+      platform: navigator.platform,
+      maxTouchPoints: navigator.maxTouchPoints,
+      isIOS: isIOSDevice
+    });
+    return isIOSDevice;
   }
 
   // Remove background from image to make it fully transparent
   private async removeBackground(imageUrl: string): Promise<string> {
     try {
+      console.log('🔧 [BG REMOVAL] Starting background removal process...');
+      console.log('🔧 [BG REMOVAL] Image URL type:', imageUrl.startsWith('data:') ? 'Data URL' : 'External URL');
+      
       return new Promise((resolve, reject) => {
         const img = new Image();
         // Don't set crossOrigin for data URLs - causes issues on iOS
@@ -229,10 +278,12 @@ export class GeminiTorsoService {
         }
         
         img.onload = () => {
+          console.log('🔧 [BG REMOVAL] Image loaded successfully, dimensions:', img.width, 'x', img.height);
+          
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           if (!ctx) {
-            console.error('Canvas context not available');
+            console.error('❌ [BG REMOVAL] Canvas context not available');
             resolve(imageUrl); // Return original on error
             return;
           }
@@ -242,21 +293,23 @@ export class GeminiTorsoService {
           
           // Draw image
           ctx.drawImage(img, 0, 0);
+          console.log('🔧 [BG REMOVAL] Image drawn to canvas');
           
-          // Skip background removal on iOS to reduce processing load
-          if (this.isIOS()) {
-            console.log('⚠️ Skipping background removal on iOS for performance');
-            const simpleImageUrl = canvas.toDataURL('image/jpeg', 0.7);
-            resolve(simpleImageUrl);
-            return;
+          // Always process background removal, but use simpler algorithm on iOS for performance
+          const useSimplifiedAlgorithm = this.isIOS();
+          if (useSimplifiedAlgorithm) {
+            console.log('⚠️ [BG REMOVAL] Using simplified background removal on iOS for performance');
           }
           
           // Get image data
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imageData.data;
+          console.log('🔧 [BG REMOVAL] Image data extracted, processing', data.length / 4, 'pixels');
           
-          // Remove semi-transparent backgrounds
-          // Make any pixel with low alpha or grayish colors fully transparent
+          let transparentPixels = 0;
+          let processedPixels = 0;
+          
+          // PASS 1: Remove semi-transparent backgrounds and obvious background colors
           for (let i = 0; i < data.length; i += 4) {
             const r = data[i];
             const g = data[i + 1];
@@ -264,35 +317,191 @@ export class GeminiTorsoService {
             const a = data[i + 3];
             
             // Check if pixel is semi-transparent (alpha < 255)
-            // or if it's a grayish/whitish background color
-            const isGrayish = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
-            const isLight = (r + g + b) / 3 > 200;
             const isSemiTransparent = a < 255;
             
-            // Make background fully transparent
-            if (isSemiTransparent || (isGrayish && isLight)) {
-              data[i + 3] = 0; // Set alpha to 0 (fully transparent)
+            if (useSimplifiedAlgorithm) {
+              // Simplified algorithm for iOS - only remove semi-transparent and very light pixels
+              const isVeryLight = (r + g + b) / 3 > 240;
+              
+              if (isSemiTransparent || isVeryLight) {
+                data[i + 3] = 0; // Set alpha to 0 (fully transparent)
+                transparentPixels++;
+              }
+            } else {
+              // Full algorithm for non-iOS devices
+              // Check if it's a grayish/whitish background color
+              const isGrayish = Math.abs(r - g) < 30 && Math.abs(g - b) < 30 && Math.abs(r - b) < 30;
+              const isLight = (r + g + b) / 3 > 200;
+              
+              // Check if it's a very light color (likely background)
+              const isVeryLight = (r + g + b) / 3 > 240;
+              
+              // Check if it's a solid color background (all RGB values are similar and high)
+              const isSolidBackground = Math.abs(r - g) < 10 && Math.abs(g - b) < 10 && Math.abs(r - b) < 10 && (r + g + b) / 3 > 180;
+              
+              // Check if it's a blue-ish background (common in AI generated images)
+              const isBlueBackground = b > r && b > g && b > 150 && (r + g) < b;
+              
+              // Make background fully transparent
+              if (isSemiTransparent || 
+                  (isGrayish && isLight) || 
+                  isVeryLight || 
+                  isSolidBackground || 
+                  isBlueBackground) {
+                data[i + 3] = 0; // Set alpha to 0 (fully transparent)
+                transparentPixels++;
+              }
             }
+            processedPixels++;
           }
+          
+          console.log('🔧 [BG REMOVAL] Pass 1 complete - Basic background removal');
+          
+          // PASS 2: Erosion - Remove isolated pixels and noise
+          if (!useSimplifiedAlgorithm) {
+            console.log('🔧 [BG REMOVAL] Starting Pass 2 - Erosion (remove noise and spots)...');
+            const width = canvas.width;
+            const height = canvas.height;
+            const pixelsToRemove: number[] = [];
+            
+            for (let y = 1; y < height - 1; y++) {
+              for (let x = 1; x < width - 1; x++) {
+                const idx = (y * width + x) * 4;
+                const currentAlpha = data[idx + 3];
+                
+                // Skip if already transparent
+                if (currentAlpha === 0) continue;
+                
+                // Check 8 surrounding pixels
+                let transparentNeighbors = 0;
+                const neighbors = [
+                  [-1, -1], [0, -1], [1, -1],
+                  [-1,  0],          [1,  0],
+                  [-1,  1], [0,  1], [1,  1]
+                ];
+                
+                for (const [dx, dy] of neighbors) {
+                  const nx = x + dx;
+                  const ny = y + dy;
+                  const nIdx = (ny * width + nx) * 4;
+                  if (data[nIdx + 3] === 0) {
+                    transparentNeighbors++;
+                  }
+                }
+                
+                // If 6+ neighbors are transparent, this is likely noise
+                if (transparentNeighbors >= 6) {
+                  pixelsToRemove.push(idx);
+                }
+              }
+            }
+            
+            // Remove isolated pixels
+            for (const idx of pixelsToRemove) {
+              data[idx + 3] = 0;
+              transparentPixels++;
+            }
+            
+            console.log('🔧 [BG REMOVAL] Pass 2 complete - Removed', pixelsToRemove.length, 'isolated noise pixels');
+          }
+          
+          // PASS 3: Aggressive edge cleanup - Remove semi-transparent edge artifacts
+          if (!useSimplifiedAlgorithm) {
+            console.log('🔧 [BG REMOVAL] Starting Pass 3 - Edge artifact cleanup...');
+            const width = canvas.width;
+            const height = canvas.height;
+            let edgePixelsRemoved = 0;
+            
+            for (let y = 1; y < height - 1; y++) {
+              for (let x = 1; x < width - 1; x++) {
+                const idx = (y * width + x) * 4;
+                const currentAlpha = data[idx + 3];
+                
+                // Skip if already transparent or fully opaque
+                if (currentAlpha === 0 || currentAlpha === 255) continue;
+                
+                // Check if this pixel is on the edge of transparency
+                let hasTransparentNeighbor = false;
+                const neighbors = [
+                  [-1, -1], [0, -1], [1, -1],
+                  [-1,  0],          [1,  0],
+                  [-1,  1], [0,  1], [1,  1]
+                ];
+                
+                for (const [dx, dy] of neighbors) {
+                  const nx = x + dx;
+                  const ny = y + dy;
+                  const nIdx = (ny * width + nx) * 4;
+                  if (data[nIdx + 3] === 0) {
+                    hasTransparentNeighbor = true;
+                    break;
+                  }
+                }
+                
+                // If on edge and semi-transparent (likely artifact), make fully transparent
+                if (hasTransparentNeighbor && currentAlpha < 128) {
+                  data[idx + 3] = 0;
+                  edgePixelsRemoved++;
+                }
+              }
+            }
+            
+            console.log('🔧 [BG REMOVAL] Pass 3 complete - Removed', edgePixelsRemoved, 'edge artifacts');
+          }
+          
+          // PASS 4: Color-based cleanup - Remove remaining background-like pixels
+          if (!useSimplifiedAlgorithm) {
+            console.log('🔧 [BG REMOVAL] Starting Pass 4 - Color-based final cleanup...');
+            let colorPixelsRemoved = 0;
+            
+            for (let i = 0; i < data.length; i += 4) {
+              const r = data[i];
+              const g = data[i + 1];
+              const b = data[i + 2];
+              const a = data[i + 3];
+              
+              // Skip if already transparent
+              if (a === 0) continue;
+              
+              // More aggressive color detection for background-like colors
+              const avg = (r + g + b) / 3;
+              const colorVariance = Math.max(Math.abs(r - avg), Math.abs(g - avg), Math.abs(b - avg));
+              
+              // Remove pixels that are:
+              // 1. Very light (> 220 average)
+              // 2. Low color variance (< 20) - grayish
+              // 3. Semi-transparent (< 200 alpha)
+              if ((avg > 220 && colorVariance < 20) || a < 200) {
+                data[i + 3] = 0;
+                colorPixelsRemoved++;
+              }
+            }
+            
+            console.log('🔧 [BG REMOVAL] Pass 4 complete - Removed', colorPixelsRemoved, 'background-like pixels');
+          }
+          
+          console.log('🔧 [BG REMOVAL] Processed', processedPixels, 'pixels, made', transparentPixels, 'transparent');
           
           // Put the modified image data back
           ctx.putImageData(imageData, 0, 0);
           
           // Convert to data URL
           const transparentImageUrl = canvas.toDataURL('image/png');
-          console.log('✅ Background removed successfully');
+          console.log('✅ [BG REMOVAL] Background removed successfully, output size:', transparentImageUrl.length, 'characters');
           resolve(transparentImageUrl);
         };
         
         img.onerror = (error) => {
-          console.error('Failed to load image for background removal:', error);
+          console.error('❌ [BG REMOVAL] Failed to load image for background removal:', error);
+          console.error('❌ [BG REMOVAL] Image URL that failed:', imageUrl.substring(0, 100) + '...');
           resolve(imageUrl); // Return original on error
         };
         
+        console.log('🔧 [BG REMOVAL] Setting image source...');
         img.src = imageUrl;
       });
     } catch (error) {
-      console.error('Background removal error:', error);
+      console.error('❌ [BG REMOVAL] Background removal error:', error);
       return imageUrl; // Return original on error
     }
   }
@@ -307,39 +516,35 @@ export class GeminiTorsoService {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Canvas not available');
       
-      // Set canvas size for chest-level portrait
-      canvas.width = 400;
-      canvas.height = 500;
+      // Set exact canvas size: 300x300 (square) and keep background fully transparent
+      canvas.width = 300;
+      canvas.height = 300;
+      // Ensure fully transparent background
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
       
-      // Fill with a gradient background (blue jersey color)
-      const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
-      gradient.addColorStop(0, '#1e3a8a'); // Dark blue
-      gradient.addColorStop(1, '#3b82f6'); // Lighter blue
-      
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      
-      // Draw jersey collar
+      // Draw a simplified chest-level jersey (no arms/hands), leaving background transparent
+      // Collar
       ctx.fillStyle = '#f97316'; // Orange trim
-      ctx.fillRect(50, 80, canvas.width - 100, 10);
+      ctx.fillRect(60, 70, canvas.width - 120, 8);
       
       // Add "INDIA" text
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 24px Arial';
+      ctx.font = 'bold 22px Arial';
       ctx.textAlign = 'center';
-      ctx.fillText('INDIA', canvas.width / 2, 120);
+      ctx.fillText('INDIA', canvas.width / 2, 110);
       
-      // Draw arm shapes (folded across chest)
-      ctx.fillStyle = '#1e3a8a';
-      
-      // Left arm
+      // Draw a simple upper chest shape (no arms)
+      ctx.fillStyle = '#1e3a8a'; // Jersey blue
       ctx.beginPath();
-      ctx.ellipse(100, 200, 40, 80, Math.PI / 6, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Right arm
-      ctx.beginPath();
-      ctx.ellipse(300, 200, 40, 80, -Math.PI / 6, 0, 2 * Math.PI);
+      // Rounded shoulder line
+      ctx.moveTo(40, 150);
+      ctx.quadraticCurveTo(75, 120, 110, 120);
+      ctx.lineTo(190, 120);
+      ctx.quadraticCurveTo(225, 120, 260, 150);
+      // Chest down to mid-chest
+      ctx.lineTo(260, 220);
+      ctx.lineTo(40, 220);
+      ctx.closePath();
       ctx.fill();
       
       // Add the face/head image
@@ -351,18 +556,18 @@ export class GeminiTorsoService {
           headImg.src = request.croppedHeadImage;
         });
         
-        // Calculate head position and size
-        const headWidth = 140;
-        const headHeight = 140;
+        // Calculate head position and size to fit chest-level framing
+        const headWidth = 120;
+        const headHeight = 120;
         const headX = (canvas.width - headWidth) / 2;
-        const headY = 10;
+        const headY = 8;
         
         // Draw the head
         ctx.drawImage(headImg, headX, headY, headWidth, headHeight);
       }
       
-      // Convert canvas to base64
-      const compositeImageUrl = canvas.toDataURL('image/png', 0.9);
+      // Convert canvas to PNG (preserve transparency) and exact 300x300
+      const compositeImageUrl = canvas.toDataURL('image/png', 1.0);
       
       console.log('Composite torso generation completed');
       return {
@@ -417,4 +622,15 @@ export function getGeminiTorsoService(): GeminiTorsoService {
     geminiTorsoService = new GeminiTorsoService();
   }
   return geminiTorsoService;
+}
+
+// Test function for background removal (for debugging)
+export async function testBackgroundRemoval(imageUrl: string): Promise<string> {
+  console.log('🧪 [TEST] Testing background removal with image:', imageUrl.substring(0, 100) + '...');
+  const service = getGeminiTorsoService();
+  
+  // Access private method for testing
+  const result = await (service as any).removeBackground(imageUrl);
+  console.log('🧪 [TEST] Background removal test result:', result ? 'Success' : 'Failed');
+  return result;
 }

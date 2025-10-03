@@ -60,14 +60,23 @@ export async function POST(request: NextRequest) {
     console.log('📥 [API - VERIFY OTP] Response status:', response.status);
     console.log('📥 [API - VERIFY OTP] Response headers:', Object.fromEntries(response.headers.entries()));
     
+    // Get response text first to see what we're actually getting
+    const responseText = await response.text();
+    console.log('📥 [API - VERIFY OTP] Raw response text:', responseText);
+    
     let data;
     try {
-      data = await response.json();
-      console.log('📥 [API - VERIFY OTP] Response data:', data);
+      data = JSON.parse(responseText);
+      console.log('📥 [API - VERIFY OTP] Parsed response data:', data);
     } catch (jsonError: any) {
       console.error('❌ [API - VERIFY OTP] Failed to parse response JSON:', jsonError);
+      console.error('❌ [API - VERIFY OTP] Response was not valid JSON. First 500 chars:', responseText.substring(0, 500));
       return NextResponse.json(
-        { error: 'Invalid response from OTP verification service' },
+        { 
+          error: 'Invalid response from OTP verification service', 
+          details: 'Response was not valid JSON',
+          responsePreview: responseText.substring(0, 200)
+        },
         { status: 502 }
       );
     }

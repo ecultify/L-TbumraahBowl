@@ -248,28 +248,51 @@ export default function DetailsPage() {
         duration: videoRef.current.duration,
         readyState: videoRef.current.readyState,
         videoWidth: videoRef.current.videoWidth,
-        videoHeight: videoRef.current.videoHeight
+        videoHeight: videoRef.current.videoHeight,
+        src: videoRef.current.src.substring(0, 100)
       });
       
-      // Wait for video to have enough data to play
-      if (videoRef.current.readyState < 3) {
-        console.log('⏳ Waiting for video to load enough data...');
+      // CRITICAL: Wait for video to be fully loaded (especially for blob URLs on localhost)
+      if (videoRef.current.readyState < 4) {
+        console.log('⏳ Waiting for video to be fully loaded (readyState: ' + videoRef.current.readyState + ')...');
         await new Promise<void>((resolve) => {
-          const handleCanPlay = () => {
+          const handleCanPlayThrough = () => {
+            console.log('✅ Video can play through without buffering (readyState: ' + videoRef.current?.readyState + ')');
+            videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
             videoRef.current?.removeEventListener('canplay', handleCanPlay);
-            console.log('✅ Video has enough data to play');
             resolve();
           };
+          
+          const handleCanPlay = () => {
+            console.log('✅ Video has enough data to play (readyState: ' + videoRef.current?.readyState + ')');
+            // Still wait a bit more for blob URLs
+            setTimeout(() => {
+              videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
+              videoRef.current?.removeEventListener('canplay', handleCanPlay);
+              resolve();
+            }, 500);
+          };
+          
+          videoRef.current?.addEventListener('canplaythrough', handleCanPlayThrough);
           videoRef.current?.addEventListener('canplay', handleCanPlay);
-          // Timeout after 10 seconds
+          
+          // Timeout after 15 seconds
           setTimeout(() => {
+            console.log('⚠️ Video load timeout (readyState: ' + videoRef.current?.readyState + '), proceeding anyway');
+            videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
             videoRef.current?.removeEventListener('canplay', handleCanPlay);
-            console.log('⚠️ Video load timeout, proceeding anyway');
             resolve();
-          }, 10000);
+          }, 15000);
         });
       }
       
+      // Extra delay for blob URLs on localhost to ensure they're ready
+      if (videoRef.current.src.startsWith('blob:')) {
+        console.log('🔄 Blob URL detected, adding stabilization delay...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      console.log('▶️ Starting video playback NOW...');
       await videoRef.current.play();
       frameSamplerRef.current.start();
       console.log('✅ Frame sampler started');
@@ -592,7 +615,7 @@ export default function DetailsPage() {
 
           {/* Right side - Large Glass Box Container */}
           <div className="flex-1 flex justify-end items-stretch" style={{ paddingLeft: '60px' }}>
-            <div className="relative" style={{ width: 740, height: '100%' }}>
+            <div className="relative" style={{ width: 900, height: '100%' }}>
               {/* Large Glass Box Background */}
               <div
                 style={{

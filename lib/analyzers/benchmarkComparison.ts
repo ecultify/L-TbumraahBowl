@@ -1034,9 +1034,13 @@ export class BenchmarkComparisonAnalyzer {
         identicalCount++;
       }
     }
+    if (identicalCount >= resampled1.length * 0.95) {
+      console.log('Identical arrays detected, returning 1.0 similarity');
+      return 1.0;
+    }
     if (identicalCount >= resampled1.length * 0.8) {
-      console.log('✅ compareArrays: Arrays are nearly identical, returning high similarity');
-      return 0.95; // High similarity for nearly identical arrays
+      console.log('Arrays are nearly identical, returning 0.99 similarity');
+      return 0.99;
     }
     
     // Calculate Pearson correlation coefficient
@@ -1094,6 +1098,9 @@ export class BenchmarkComparisonAnalyzer {
     }
 
     // Blend: DTW (robust to timing shifts) + correlation (shape agreement)
+    if (corrSim > 0.985 && dtwSim > 0.985) {
+      return 0.99;
+    }
     const result = Math.max(0, Math.min(1, 0.6 * dtwSim + 0.4 * corrSim));
     console.log(`✅ compareArrays: Final similarity: ${result.toFixed(3)} (DTW: ${dtwSim.toFixed(3)}, Corr: ${corrSim.toFixed(3)})`);
     
@@ -1320,3 +1327,4 @@ export class BenchmarkComparisonAnalyzer {
     }
   }
 }
+

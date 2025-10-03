@@ -8,7 +8,8 @@ const execAsync = promisify(exec);
 
 export async function POST(request: NextRequest) {
   try {
-    const { analysisData } = await request.json();
+    const body = await request.json();
+    const { analysisData, thumbnailDataUrl, userVideoPublicPath, uploadedVideoData } = body || {};
 
     if (!analysisData) {
       return NextResponse.json(
@@ -18,6 +19,15 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Starting video generation with data:', analysisData);
+
+    // Server-side gating: Only allow rendering if similarity > 85
+    const similarity = Number(analysisData?.similarity ?? NaN);
+    if (!Number.isFinite(similarity) || similarity <= 85) {
+      return NextResponse.json(
+        { success: false, error: 'Rendering is available only for scores above 85%.' },
+        { status: 403 }
+      );
+    }
 
     // Ensure output directory exists
     const outputDir = path.join(process.cwd(), 'public', 'generated-videos');
@@ -30,6 +40,82 @@ export async function POST(request: NextRequest) {
     const outputPath = path.join(outputDir, `analysis-video-${timestamp}.mp4`);
     const publicUrl = `/generated-videos/analysis-video-${timestamp}.mp4`;
 
+    // Ensure uploads directory exists
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    if (!existsSync(uploadsDir)) {
+      mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Resolve user video path
+    let userVideoRelPath: string | null = null; // path relative to public/, e.g. 'uploads/abc.mp4'
+    if (typeof userVideoPublicPath === 'string' && userVideoPublicPath.trim()) {
+      // Accept '/uploads/...' or 'uploads/...'
+      const cleaned = userVideoPublicPath.replace(/^\/?public\//, '').replace(/^\//, '');
+      const fullCheck = path.join(process.cwd(), 'public', cleaned);
+      if (existsSync(fullCheck)) {
+        userVideoRelPath = cleaned;
+      } else {
+        console.warn('Provided userVideoPublicPath does not exist on disk:', fullCheck);
+      }
+    }
+
+    // If not provided, try to decode uploadedVideoData (data URL)
+    if (!userVideoRelPath && typeof uploadedVideoData === 'string' && uploadedVideoData.startsWith('data:')) {
+      try {
+        const match = uploadedVideoData.match(/^data:(.+?);base64,(.*)$/);
+        if (!match) {
+          throw new Error('Invalid uploadedVideoData format');
+        }
+        const mime = match[1] || 'video/mp4';
+        const base64 = match[2];
+        const buffer = Buffer.from(base64, 'base64');
+        const ext = mime.includes('quicktime') ? 'mov' : (mime.split('/')[1] || 'mp4');
+        const userVideoFilename = `user-upload-${timestamp}.${ext}`;
+        const userVideoFullPath = path.join(uploadsDir, userVideoFilename);
+        writeFileSync(userVideoFullPath, buffer);
+        userVideoRelPath = path.join('uploads', userVideoFilename).replace(/\\/g, '/');
+        console.log('Saved uploaded user video to:', userVideoRelPath);
+      } catch (e) {
+        console.error('Failed to save uploadedVideoData:', e);
+      }
+    }
+
+    // Generate default frameIntensities if not provided
+    let frameIntensities = analysisData.frameIntensities || [];
+    
+    if (!frameIntensities || frameIntensities.length === 0) {
+      console.warn('⚠️ No frameIntensities provided, generating default motion data...');
+      // Generate realistic bowling motion data based on analysis
+      const duration = 3.5; // Total bowling action duration
+      const frameCount = 35; // Number of data points
+      const finalIntensity = analysisData.similarity || analysisData.intensity || 86;
+      
+      for (let i = 0; i < frameCount; i++) {
+        const timestamp = (i / (frameCount - 1)) * duration;
+        const progress = i / (frameCount - 1);
+        
+        // Simulate bowling motion phases with realistic curve
+        let intensity;
+        if (progress < 0.3) {
+          // Run-up phase: gradual increase
+          intensity = finalIntensity * 0.2 + (finalIntensity * 0.3 * (progress / 0.3));
+        } else if (progress < 0.6) {
+          // Delivery phase: rapid increase
+          const deliveryProgress = (progress - 0.3) / 0.3;
+          intensity = finalIntensity * 0.5 + (finalIntensity * 0.5 * deliveryProgress);
+        } else {
+          // Follow-through: maintain high intensity
+          intensity = finalIntensity * (0.95 + 0.05 * Math.random());
+        }
+        
+        frameIntensities.push({
+          timestamp: Number(timestamp.toFixed(3)),
+          intensity: Number(intensity.toFixed(3))
+        });
+      }
+      console.log('✅ Generated', frameIntensities.length, 'default frame intensities');
+    }
+    
     // Prepare props for Remotion CLI
     const props = {
       analysisData: {
@@ -37,7 +123,7 @@ export async function POST(request: NextRequest) {
         speedClass: analysisData.speedClass || 'Zooooom',
         kmh: analysisData.kmh || 86,
         similarity: analysisData.similarity || 86,
-        frameIntensities: analysisData.frameIntensities || [], // Include frame intensities
+        frameIntensities: frameIntensities, // Include frame intensities (generated or provided)
         phases: {
           runUp: analysisData.phases?.runUp || 50,
           delivery: analysisData.phases?.delivery || 60,
@@ -51,7 +137,12 @@ export async function POST(request: NextRequest) {
         },
         recommendations: analysisData.recommendations || ['Focus on arm swing technique and timing'],
         playerName: analysisData.playerName || 'Player'
-      }
+      },
+      // Additional props for Remotion
+      userVideoSrc: userVideoRelPath || undefined,
+      thumbnailDataUrl: typeof thumbnailDataUrl === 'string' && thumbnailDataUrl.startsWith('data:')
+        ? thumbnailDataUrl
+        : undefined,
     };
 
     // Write props to temporary file

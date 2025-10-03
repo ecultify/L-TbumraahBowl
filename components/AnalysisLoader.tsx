@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Lottie from 'lottie-react';
 import bikeProgressAnimation from '../Bike Progress.json';
 
@@ -39,6 +39,55 @@ function LoadingDots() {
 }
 
 export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
+  const [displayProgress, setDisplayProgress] = useState(0);
+
+  useEffect(() => {
+    if (!isVisible) {
+      setDisplayProgress(0);
+      return;
+    }
+
+    // Slowly progress to 80% over time (simulating initial processing)
+    if (progress < 100) {
+      const interval = setInterval(() => {
+        setDisplayProgress((prev) => {
+          // If actual progress is 0, slowly increment to 80%
+          if (progress === 0) {
+            if (prev < 80) {
+              return prev + 0.5; // Slow increment (0.5% every 100ms = ~16 seconds to reach 80%)
+            }
+            return prev;
+          }
+          
+          // If actual progress is between 0-95%, sync with it but cap at 80%
+          if (progress > 0 && progress < 100) {
+            const targetProgress = Math.min(progress, 80);
+            if (prev < targetProgress) {
+              return Math.min(prev + 1, targetProgress);
+            }
+            return prev;
+          }
+          
+          return prev;
+        });
+      }, 100);
+
+      return () => clearInterval(interval);
+    } else if (progress === 100) {
+      // When analysis completes, quickly jump to 100%
+      const quickInterval = setInterval(() => {
+        setDisplayProgress((prev) => {
+          if (prev < 100) {
+            return Math.min(prev + 5, 100); // Fast increment (5% every 100ms = 2 seconds max to reach 100%)
+          }
+          return 100;
+        });
+      }, 100);
+
+      return () => clearInterval(quickInterval);
+    }
+  }, [isVisible, progress]);
+
   if (!isVisible) return null;
 
   return (
@@ -132,7 +181,7 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
             <div 
               className="h-full transition-all duration-300 ease-out"
               style={{
-                width: `${progress}%`,
+                width: `${displayProgress}%`,
                 backgroundColor: '#007bff',
                 borderRadius: '18px'
               }}
@@ -140,11 +189,11 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
           </div>
           
           {/* Lottie animation positioned on top of progress bar - outside the progress bar div */}
-          {progress > 0 && progress < 100 && (
+          {displayProgress > 0 && displayProgress < 100 && (
             <div 
               className="absolute"
               style={{
-                left: `${Math.max(0, Math.min(progress, 100))}%`,
+                left: `${Math.max(0, Math.min(displayProgress, 100))}%`,
                 bottom: 'calc(50% - 38px)',
                 transform: 'translate(-50%, 0) scaleX(-1)',
                 width: '100px',

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Phone, User } from 'lucide-react';
-import { encrypt } from '@/lib/utils/encryption';
 
 interface DetailsCardSubmitPayload {
   name: string;
@@ -72,8 +71,8 @@ export function DetailsCard({
     setOtpVerified(false);
   }, []);
 
-  const handleGetOtp = useCallback(async () => {
-    console.log('🔵 [GET OTP] Button clicked');
+  const handleGetOtp = useCallback(() => {
+    console.log('🔵 [GET OTP] Button clicked (OTP disabled)');
     console.log('📱 [GET OTP] Phone number:', phone);
     
     // Validate phone number
@@ -83,76 +82,33 @@ export function DetailsCard({
       return;
     }
 
-    console.log('✅ [GET OTP] Validation passed, sending OTP request...');
+    console.log('✅ [GET OTP] Validation passed, simulating OTP sent...');
     setOtpSending(true);
     setError(null);
 
-    try {
-      // Encrypt the phone number
-      console.log('🔐 [GET OTP] Encrypting phone number:', phone);
-      const encryptedPhone = encrypt(phone);
-      
-      if (!encryptedPhone) {
-        throw new Error('Failed to encrypt phone number');
-      }
-      
-      console.log('🔐 [GET OTP] Encrypted phone:', encryptedPhone);
-      
-      const requestBody = {
-        body: encryptedPhone,
-      };
-      console.log('📤 [GET OTP] Sending request to /api/send-otp');
-      console.log('📦 [GET OTP] Request body:', requestBody);
-      
-      // Call send OTP API
-      const response = await fetch('/api/send-otp', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody),
-      });
-
-      console.log('📥 [GET OTP] Response status:', response.status);
-      const data = await response.json();
-      console.log('📥 [GET OTP] Response data:', data);
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send OTP');
-      }
-
-      console.log('✅ [GET OTP] OTP sent successfully!');
+    // Simulate OTP sending without API call
+    setTimeout(() => {
+      console.log('✅ [GET OTP] OTP simulation completed!');
       setShowOtpBoxes(true);
       setIsTimerActive(true);
       setRemainingTime(59);
       setOtpValues(Array(OTP_BOX_COUNT).fill(''));
       setOtpVerified(false); // Reset verification status
+      setOtpSending(false);
       
       // Show success alert
       if (typeof window !== 'undefined') {
-        alert('OTP sent successfully!');
+        alert('OTP sent successfully! (Simulated)');
       }
-    } catch (error: any) {
-      console.error('❌ [GET OTP] Error:', error);
-      console.error('❌ [GET OTP] Error message:', error.message);
-      setError(error.message || 'Failed to send OTP. Please try again.');
-      
-      // Show error alert
-      if (typeof window !== 'undefined') {
-        alert('Failed to send OTP. Please try again.');
-      }
-    } finally {
-      setOtpSending(false);
-      console.log('🔵 [GET OTP] Request completed');
-    }
+    }, 1000);
   }, [phone]);
 
   const handleResend = useCallback(async () => {
     await handleGetOtp();
   }, [handleGetOtp]);
 
-  const handleOtpChange = useCallback(async (index: number, value: string) => {
-    console.log(`🔵 [OTP CHANGE] Index ${index}, Value: ${value}`);
+  const handleOtpChange = useCallback((index: number, value: string) => {
+    console.log(`🔵 [OTP CHANGE] Index ${index}, Value: ${value} (OTP disabled)`);
     
     if (value.length > 1) return;
     
@@ -173,67 +129,21 @@ export function DetailsCard({
     console.log(`🔍 [OTP CHANGE] All filled: ${allFilled}, Is last input: ${isLastInput}`);
     
     if (allFilled && isLastInput) {
-      console.log('✅ [OTP VERIFY] All OTP boxes filled, starting verification...');
+      console.log('✅ [OTP VERIFY] All OTP boxes filled, simulating verification...');
       const otpString = newOtpValues.join('');
       console.log('🔢 [OTP VERIFY] Complete OTP:', otpString);
       
-      // Verify OTP
-      try {
-        // Encrypt the OTP for verification
-        console.log('🔐 [OTP VERIFY] Encrypting OTP:', otpString);
-        const encryptedOtp = encrypt(otpString);
-        
-        if (!encryptedOtp) {
-          throw new Error('Failed to encrypt OTP');
-        }
-        
-        console.log('🔐 [OTP VERIFY] Encrypted OTP:', encryptedOtp);
-        
-        const requestBody = {
-          body: encryptedOtp,
-        };
-        console.log('📤 [OTP VERIFY] Sending request to /api/verify-otp');
-        console.log('📦 [OTP VERIFY] Request body:', requestBody);
-        
-        const response = await fetch('/api/verify-otp', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        console.log('📥 [OTP VERIFY] Response status:', response.status);
-        const data = await response.json();
-        console.log('📥 [OTP VERIFY] Response data:', data);
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to verify OTP');
-        }
-
-        console.log('✅ [OTP VERIFY] OTP verified successfully!');
+      // Simulate OTP verification without API call
+      setTimeout(() => {
+        console.log('✅ [OTP VERIFY] OTP verification simulated successfully!');
         setOtpVerified(true);
         setError(null);
         
         // Show success alert
         if (typeof window !== 'undefined') {
-          alert('OTP verified successfully!');
+          alert('OTP verified successfully! (Simulated)');
         }
-      } catch (error: any) {
-        console.error('❌ [OTP VERIFY] Error:', error);
-        console.error('❌ [OTP VERIFY] Error message:', error.message);
-        setError(error.message || 'Invalid OTP. Please try again.');
-        setOtpVerified(false);
-        
-        // Show error alert
-        if (typeof window !== 'undefined') {
-          alert('Invalid OTP. Please try again.');
-        }
-        
-        // Clear OTP fields
-        console.log('🔄 [OTP VERIFY] Clearing OTP fields');
-        setOtpValues(Array(OTP_BOX_COUNT).fill(''));
-      }
+      }, 500);
     }
   }, [otpValues]);
 
@@ -276,14 +186,8 @@ export function DetailsCard({
         return;
       }
 
-      if (!otpVerified) {
-        console.log('❌ [SUBMIT] Validation failed - OTP not verified');
-        setError('Please verify OTP before proceeding.');
-        if (typeof window !== 'undefined') {
-          alert('Please verify OTP before proceeding.');
-        }
-        return;
-      }
+      // OTP verification disabled - skip this check
+      console.log('⚠️ [SUBMIT] OTP verification disabled - skipping check');
 
       console.log('✅ [SUBMIT] All validations passed');
       setSubmitting(true);
@@ -319,7 +223,7 @@ export function DetailsCard({
         console.log('🔵 [SUBMIT] Form submission completed');
       }
     },
-    [consent, name, onSubmit, otpValues, phone, resetOtp, otpVerified]
+    [consent, name, onSubmit, otpValues, phone, resetOtp]
   );
 
   const renderSubmitControl = useMemo(() => {
