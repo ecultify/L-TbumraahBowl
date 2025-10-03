@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
       const supabaseFilename = `generated-videos/analysis-video-${timestamp}.mp4`;
       
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('user-videos')
+        .from('bowling-avatars')
         .upload(supabaseFilename, videoBuffer, {
           contentType: 'video/mp4',
           cacheControl: '3600',
@@ -280,7 +280,7 @@ export async function POST(request: NextRequest) {
         console.warn('⚠️ Supabase upload failed, using local URL:', uploadError.message);
       } else {
         const { data: publicUrlData } = supabase.storage
-          .from('user-videos')
+          .from('bowling-avatars')
           .getPublicUrl(supabaseFilename);
         
         supabaseVideoUrl = publicUrlData.publicUrl;

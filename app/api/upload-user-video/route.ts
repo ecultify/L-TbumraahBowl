@@ -36,9 +36,9 @@ export async function POST(request: NextRequest) {
 
     console.log('📦 Uploading to Supabase Storage:', filename);
 
-    // Upload to Supabase Storage
+    // Upload to Supabase Storage (using bowling-avatars bucket that already exists)
     const { data, error } = await supabase.storage
-      .from('user-videos')
+      .from('bowling-avatars')
       .upload(filename, arrayBuffer, {
         contentType: file.type || 'video/mp4',
         cacheControl: '3600',
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
 
     // Get public URL
     const { data: publicUrlData } = supabase.storage
-      .from('user-videos')
+      .from('bowling-avatars')
       .getPublicUrl(filename);
 
     const publicUrl = publicUrlData.publicUrl;
