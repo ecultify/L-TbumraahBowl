@@ -29,7 +29,14 @@ export class FrameSampler {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 320; // Downscale for performance
     this.canvas.height = 240;
-    this.ctx = (this.canvas.getContext('2d', { willReadFrequently: true } as any) || this.canvas.getContext('2d'))!;
+    let ctx = this.canvas.getContext('2d', { willReadFrequently: true } as any) as CanvasRenderingContext2D | null;
+    if (!ctx) {
+      ctx = this.canvas.getContext('2d') as CanvasRenderingContext2D | null;
+    }
+    if (!ctx) {
+      throw new Error('2D canvas context not supported');
+    }
+    this.ctx = ctx;
   }
 
   start(): void {

@@ -193,6 +193,34 @@ export default function SimplifiedAnalyzePage() {
     }
   }, []);
 
+  // Fallback: if no analysisVideoData but a noBowling flag exists, synthesize minimal data so UI can render
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const hasAnalysis = !!window.sessionStorage.getItem('analysisVideoData');
+      const noAction = window.sessionStorage.getItem('noBowlingActionDetected') === 'true';
+      if (!hasAnalysis && noAction) {
+        const storedPlayerName = window.sessionStorage.getItem('playerName');
+        const minimalData = {
+          intensity: 0,
+          speedClass: 'No Action',
+          kmh: 0,
+          similarity: 0,
+          frameIntensities: [],
+          phases: { runUp: 0, delivery: 0, followThrough: 0 },
+          technicalMetrics: { armSwing: 0, bodyMovement: 0, rhythm: 0, releasePoint: 0 },
+          recommendations: ['We could not detect a bowling motion. Try a clearer full-action clip.'],
+          playerName: storedPlayerName || 'Player',
+          createdAt: new Date().toISOString(),
+        } as any;
+        window.sessionStorage.setItem('analysisVideoData', JSON.stringify(minimalData));
+        window.sessionStorage.setItem('analysisVideoData_backup', JSON.stringify(minimalData));
+        window.sessionStorage.setItem('analysisVideoData_timestamp', Date.now().toString());
+        setSessionAnalysisData(minimalData);
+      }
+    } catch {}
+  }, []);
+
   // Auto-submit to leaderboard when analysis data is loaded
   React.useEffect(() => {
     const shouldSubmit = 
