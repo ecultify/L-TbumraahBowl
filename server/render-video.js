@@ -521,7 +521,14 @@ app.get('/health', (req, res) => {
 const activeRenders = new Map();
 
 // 🆕 RENDER QUEUE - Prevent resource exhaustion from concurrent renders
-const MAX_CONCURRENT_RENDERS = 2; // Only allow 2 renders at a time
+// Adjust this based on your server specs:
+// - 2GB RAM, 1 CPU: MAX_CONCURRENT_RENDERS = 1
+// - 4GB RAM, 2 CPU: MAX_CONCURRENT_RENDERS = 2
+// - 8GB RAM, 4 CPU: MAX_CONCURRENT_RENDERS = 3-4
+// - 16GB RAM, 8 CPU: MAX_CONCURRENT_RENDERS = 6-8
+const MAX_CONCURRENT_RENDERS = process.env.MAX_CONCURRENT_RENDERS ? parseInt(process.env.MAX_CONCURRENT_RENDERS) : 2;
+console.log(`🎬 [Queue] Configured for ${MAX_CONCURRENT_RENDERS} concurrent renders`);
+
 const renderQueue = [];
 let currentlyRenderingCount = 0;
 

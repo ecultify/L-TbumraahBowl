@@ -271,7 +271,7 @@ export class GeminiTorsoService {
       console.log('[BG REMOVAL] 🎨 Compressing image before sending...');
       
       // Compress image to reduce payload size (fix 413 error)
-      const compressedImage = await this.compressImage(imageDataUrl, 800, 0.9);
+      const compressedImage = await this.compressImage(imageUrl, 800, 0.9);
       const compressedBase64 = compressedImage.split(',')[1]; // Remove data:image prefix
       
       console.log('[BG REMOVAL] 🚀 Calling background removal via backend API...');
