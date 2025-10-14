@@ -709,8 +709,20 @@ async function renderInBackground(renderId, analysisData, userVideoUrl, thumbnai
       thumbnailDataUrl,
     };
     
+    // 🔍 DEBUG: Log the actual data being sent to Remotion
     console.log('🎬 [Render Server] Starting Remotion CLI render...');
     console.log('📁 [Render Server] Output path:', outputPath);
+    console.log('📊 [Render Server] Analysis data structure:');
+    console.log('  - playerName:', analysisData?.playerName);
+    console.log('  - similarity:', analysisData?.similarity);
+    console.log('  - phases:', analysisData?.phases ? 'Present' : 'MISSING ❌');
+    console.log('  - technicalMetrics:', analysisData?.technicalMetrics ? 'Present' : 'MISSING ❌');
+    if (!analysisData?.phases) {
+      console.error('❌ [Render Server] CRITICAL: phases data is missing!');
+    }
+    if (!analysisData?.technicalMetrics) {
+      console.error('❌ [Render Server] CRITICAL: technicalMetrics data is missing!');
+    }
     
     // STEP 3: Use CLI instead of programmatic API!
     const remotionProcess = spawn('npx', [
