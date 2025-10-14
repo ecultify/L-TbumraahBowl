@@ -7,8 +7,7 @@
 
 const express = require('express');
 const cors = require('cors');
-const {bundle} = require('@remotion/bundler');
-const {renderMedia, selectComposition} = require('@remotion/renderer');
+const {spawn} = require('child_process');
 const {S3Client, PutObjectCommand} = require('@aws-sdk/client-s3');
 const {createClient} = require('@supabase/supabase-js');
 const FormData = require('form-data');
@@ -681,113 +680,97 @@ app.post('/render', async (req, res) => {
   }
 });
 
-// Background rendering function
+// Background rendering function using CLI (MUCH SIMPLER!)
 async function renderInBackground(renderId, analysisData, userVideoUrl, thumbnailDataUrl, outputPath, leaderboardId, phoneNumber) {
   try {
-
-    console.log('🚀 [Render Server] Starting render process...');
+    console.log('🚀 [Render Server] Starting CLI render process...');
     
-    // STEP 1: PRE-DOWNLOAD VIDEOS TO LOCAL DISK
-    // This is CRITICAL for speed - loading videos from Supabase during render causes timeouts!
+    // STEP 1: PRE-DOWNLOAD VIDEOS TO LOCAL DISK (if needed)
     let localUserVideoPath = userVideoUrl;
     
     if (userVideoUrl && userVideoUrl.startsWith('http')) {
       console.log('📥 [Render Server] Pre-downloading user video from Supabase...');
-      console.log('📥 [Render Server] URL:', userVideoUrl.substring(0, 100));
       const tempVideoPath = path.join(TEMP_DIR, `${renderId}-user-video.mov`);
       
       try {
         await downloadVideo(userVideoUrl, tempVideoPath);
-        // Use local file path instead of Supabase URL
         localUserVideoPath = tempVideoPath;
         console.log('✅ [Render Server] User video cached locally!');
       } catch (err) {
-        console.warn('⚠️ [Render Server] Failed to download user video, will use Supabase URL:', err.message);
-        localUserVideoPath = userVideoUrl; // Fallback to Supabase URL
+        console.warn('⚠️ [Render Server] Failed to download user video:', err.message);
+        localUserVideoPath = userVideoUrl;
       }
     }
     
-    console.log('📦 [Render Server] Bundling Remotion project...');
+    // STEP 2: Prepare input props
+    const inputProps = {
+      analysisData,
+      userVideoUrl: localUserVideoPath,
+      thumbnailDataUrl,
+    };
     
-    // Bundle the Remotion project
-    const bundleLocation = await bundle({
-      entryPoint: path.join(__dirname, '../remotion/index.ts'),
-      // webpackOverride: (config) => config, // Optional: customize webpack
-    });
-
-    console.log('✅ [Render Server] Bundle created at:', bundleLocation);
-    console.log('🎥 [Render Server] Selecting composition...');
-
-    // Get composition
-    const composition = await selectComposition({
-      serveUrl: bundleLocation,
-      id: 'first-frame',
-      inputProps: {
-        analysisData,
-        userVideoUrl: localUserVideoPath, // Use local path instead of Supabase URL!
-        thumbnailDataUrl,
-      },
-    });
-
-    console.log('✅ [Render Server] Composition selected:', composition.id);
-    console.log('📐 [Render Server] Composition settings:',{
-      width: composition.width,
-      height: composition.height,
-      fps: composition.fps,
-      durationInFrames: composition.durationInFrames,
-    });
-
-    console.log('🎬 [Render Server] Starting render...');
+    console.log('🎬 [Render Server] Starting Remotion CLI render...');
     console.log('📁 [Render Server] Output path:', outputPath);
-
-    // Render the video
-    await renderMedia({
-      composition,
-      serveUrl: bundleLocation,
-      codec: 'h264',
-      outputLocation: outputPath,
-      inputProps: {
-        analysisData,
-        userVideoUrl: localUserVideoPath, // Use local path instead of Supabase URL!
-        thumbnailDataUrl,
-      },
-      onProgress: ({progress, renderedFrames, encodedFrames}) => {
-        // Calculate ACTUAL percentage based on rendered + encoded frames
-        // Rendering is 70% of the work, encoding is 30%
-        const renderProgress = (renderedFrames / composition.durationInFrames) * 0.7;
-        const encodeProgress = (encodedFrames / composition.durationInFrames) * 0.3;
-        const actualProgress = renderProgress + encodeProgress;
-        const percentage = Math.round(actualProgress * 100);
-        
-        // Log every 10 frames and especially near the end
-        if (renderedFrames % 10 === 0 || renderedFrames > composition.durationInFrames - 10) {
-          console.log(`⏳ [Render Server] Progress: ${percentage}% (rendered: ${renderedFrames}/${composition.durationInFrames}, encoded: ${encodedFrames}/${composition.durationInFrames})`);
+    
+    // STEP 3: Use CLI instead of programmatic API!
+    const remotionProcess = spawn('npx', [
+      'remotion',
+      'render',
+      'remotion/index.ts',
+      'first-frame',
+      outputPath,
+      '--props', JSON.stringify(inputProps),
+      '--codec', 'h264',
+      '--overwrite'
+    ], {
+      cwd: path.join(__dirname, '..'),
+      env: { ...process.env }
+    });
+    
+    let lastProgress = 0;
+    
+    // Capture stdout for progress
+    remotionProcess.stdout.on('data', (data) => {
+      const output = data.toString();
+      console.log('[Remotion CLI]', output);
+      
+      // Parse progress from Remotion CLI output
+      const progressMatch = output.match(/(\d+)%/);
+      if (progressMatch) {
+        const percentage = parseInt(progressMatch[1]);
+        if (percentage !== lastProgress) {
+          lastProgress = percentage;
+          
+          // Update render status
+          const renderStatus = activeRenders.get(renderId);
+          if (renderStatus) {
+            renderStatus.percentage = percentage;
+            renderStatus.progress = percentage / 100;
+          }
         }
-        
-        // Special logging for frames 280-288 (the problematic area!)
-        if (renderedFrames >= 280) {
-          console.log(`🔍 [Render Server] NEAR END: Rendered ${renderedFrames}/${composition.durationInFrames}, Encoded ${encodedFrames}/${composition.durationInFrames} = ${percentage}%`);
+      }
+    });
+    
+    // Capture stderr for errors
+    remotionProcess.stderr.on('data', (data) => {
+      console.error('[Remotion CLI ERROR]', data.toString());
+    });
+    
+    // Wait for process to complete
+    await new Promise((resolve, reject) => {
+      remotionProcess.on('close', (code) => {
+        if (code === 0) {
+          console.log('✅ [Render Server] Remotion CLI completed successfully!');
+          resolve();
+        } else {
+          reject(new Error(`Remotion CLI exited with code ${code}`));
         }
-        
-        // Update render status
-        const renderStatus = activeRenders.get(renderId);
-        if (renderStatus) {
-          renderStatus.progress = actualProgress;
-          renderStatus.percentage = percentage;
-          renderStatus.renderedFrames = renderedFrames;
-          renderStatus.encodedFrames = encodedFrames;
-          renderStatus.totalFrames = composition.durationInFrames;
-        }
-      },
-      // Timeout - needs to be VERY high for video loading
-      timeoutInMilliseconds: 300000, // 5 minutes per frame (videos can take time to load!)
-      // Chromium options (no GL issues locally!)
-      chromiumOptions: {
-        // Local rendering usually works fine without special GL settings
-      },
-      // Performance options
-      concurrency: null, // Auto-detect CPU cores (local files are fast!)
-      verbose: true,
+      });
+      
+      remotionProcess.on('error', (err) => {
+        console.error('❌ [Render Server] Remotion CLI process error:', err);
+        reject(err);
+      });
     });
 
     console.log('✅ [Render Server] Render complete!');
