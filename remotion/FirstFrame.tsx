@@ -18,12 +18,12 @@ interface AnalysisData {
   kmh: number;
   similarity: number;
   frameIntensities?: FrameIntensity[];
-  phases: {
+  phases?: {
     runUp: number;
     delivery: number;
     followThrough: number;
   };
-  technicalMetrics: {
+  technicalMetrics?: {
     armSwing: number;
     bodyMovement: number;
     rhythm: number;
@@ -336,17 +336,18 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
     },
   ];
 
+  // 🔧 Add default values to prevent crashes if data is missing
   const phases = [
-    {label: 'Run-up', value: Math.round(data.phases.runUp)},
-    {label: 'Delivery', value: Math.round(data.phases.delivery)},
-    {label: 'Follow-through', value: Math.round(data.phases.followThrough)},
+    {label: 'Run-up', value: Math.round(data.phases?.runUp || 75)},
+    {label: 'Delivery', value: Math.round(data.phases?.delivery || 80)},
+    {label: 'Follow-through', value: Math.round(data.phases?.followThrough || 85)},
   ];
 
   const technicalRows = [
-    {label: 'Arm Swing', value: data.technicalMetrics.armSwing, scheme: 'blue'},
-    {label: 'Body Movement', value: data.technicalMetrics.bodyMovement, scheme: 'yellow'},
-    {label: 'Rhythm', value: data.technicalMetrics.rhythm, scheme: 'blue'},
-    {label: 'Release Point', value: data.technicalMetrics.releasePoint, scheme: 'yellow'},
+    {label: 'Arm Swing', value: data.technicalMetrics?.armSwing || 80, scheme: 'blue'},
+    {label: 'Body Movement', value: data.technicalMetrics?.bodyMovement || 75, scheme: 'yellow'},
+    {label: 'Rhythm', value: data.technicalMetrics?.rhythm || 85, scheme: 'blue'},
+    {label: 'Release Point', value: data.technicalMetrics?.releasePoint || 90, scheme: 'yellow'},
   ];
 
   const recommendationsText = data.recommendations?.[0] ?? 'Focus on arm swing technique and timing';
