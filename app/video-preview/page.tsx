@@ -3,15 +3,29 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAnalysis } from '@/context/AnalysisContext';
+import { useAnalysis, FrameIntensity, AnalyzerMode } from '@/context/AnalysisContext';
 import { getFaceDetectionService, storeCroppedHeadImage } from '@/lib/utils/faceDetection';
 import { getGeminiTorsoService, storeGeneratedTorsoImage } from '@/lib/utils/geminiService';
 import { uploadGeminiAvatar } from '@/lib/utils/avatarUpload';
+import { uploadUserVideoToSupabase } from '@/lib/utils/videoUpload';
 import { GlassBackButton } from '@/components/GlassBackButton';
 import { ProcessingModal } from '@/components/ProcessingModal';
+import { AnalysisLoader } from '@/components/AnalysisLoader';
+import { PoseBasedAnalyzer } from '@/lib/analyzers/poseBased';
+import { BenchmarkComparisonAnalyzer } from '@/lib/analyzers/benchmarkComparison';
+import { FrameSampler } from '@/lib/video/frameSampler';
+import { classifySpeed, intensityToKmh, normalizeIntensity } from '@/lib/utils/normalize';
+import { usePageProtection } from '@/lib/hooks/usePageProtection';
+import { UnauthorizedAccess } from '@/components/UnauthorizedAccess';
 
 export default function VideoPreviewPage() {
+  // ALL HOOKS MUST BE CALLED FIRST, BEFORE ANY CONDITIONAL RETURNS
+  // Protect this page - require OTP verification and proper flow
+  const isAuthorized = usePageProtection('video-preview');
+  
   const router = useRouter();
+  
+  // All state hooks
   const [videoUrl, setVideoUrl] = useState<string>('');
   const [videoDuration, setVideoDuration] = useState<string>('00:00');
   const [fileName, setFileName] = useState<string>('');
@@ -23,8 +37,12 @@ export default function VideoPreviewPage() {
   const [isFaceDetectionRunning, setIsFaceDetectionRunning] = useState(false);
   const [faceDetectionCompleted, setFaceDetectionCompleted] = useState(false);
   const [supabaseUploadComplete, setSupabaseUploadComplete] = useState(false);
-  const { state } = useAnalysis();
+  const [showTransitionBlur, setShowTransitionBlur] = useState(false);
+  const { state, dispatch } = useAnalysis();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameSamplerRef = useRef<FrameSampler | null>(null);
+  const poseAnalyzerRef = useRef<PoseBasedAnalyzer>(new PoseBasedAnalyzer());
+  const benchmarkAnalyzerRef = useRef<BenchmarkComparisonAnalyzer>(new BenchmarkComparisonAnalyzer());
 
   // Background Supabase upload function (non-blocking)
   const uploadVideoToSupabase = useCallback(async () => {
@@ -88,28 +106,63 @@ export default function VideoPreviewPage() {
     }
   }, []);
 
+  // Direct Supabase upload (static hosting-safe)
+  const uploadVideoToSupabaseDirect = useCallback(async () => {
+    if (sessionStorage.getItem('uploadedVideoPublicPath')) {
+      setSupabaseUploadComplete(true);
+      return;
+    }
+    try {
+      let videoFile: File | null = null;
+      if (typeof window !== 'undefined' && (window as any).tempVideoFile) {
+        videoFile = (window as any).tempVideoFile as File;
+      } else {
+        const storedVideoData = sessionStorage.getItem('uploadedVideoData');
+        const storedFileName = sessionStorage.getItem('uploadedFileName') || 'video.mp4';
+        const storedMimeType = sessionStorage.getItem('uploadedMimeType') || 'video/mp4';
+        if (storedVideoData && storedVideoData.startsWith('data:')) {
+          const resp = await fetch(storedVideoData);
+          const blob = await resp.blob();
+          videoFile = new File([blob], storedFileName, { type: storedMimeType });
+        }
+      }
+      if (!videoFile) return;
+      const publicUrl = await uploadUserVideoToSupabase(videoFile);
+      if (publicUrl) {
+        setSupabaseUploadComplete(true);
+      }
+    } catch {}
+  }, []);
+
   // Auto-upload to Supabase in background (doesn't block UI)
   useEffect(() => {
     if (videoUrl && !supabaseUploadComplete && !sessionStorage.getItem('uploadedVideoPublicPath')) {
       // Delay upload slightly to ensure page is loaded
       const timer = setTimeout(() => {
-        uploadVideoToSupabase();
+        uploadVideoToSupabaseDirect();
       }, 2000);
       
       return () => clearTimeout(timer);
     }
-  }, [videoUrl, supabaseUploadComplete, uploadVideoToSupabase]);
+  }, [videoUrl, supabaseUploadComplete, uploadVideoToSupabaseDirect]);
 
-  // Check if face detection data already exists in sessionStorage
+  // Clear old face detection data when page loads (fresh start for each video)
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const existingCroppedHead = sessionStorage.getItem('croppedHeadImage');
-      const existingTorso = sessionStorage.getItem('generatedTorsoImage');
+      console.log('🧹 Clearing old face detection data for fresh detection...');
+      // Clear sessionStorage
+      sessionStorage.removeItem('croppedHeadImage');
+      sessionStorage.removeItem('generatedTorsoImage');
+      sessionStorage.removeItem('detectedFrameDataUrl');
       
-      if (existingCroppedHead || existingTorso) {
-        console.log('✅ Face detection data already exists in sessionStorage - skipping detection');
-        setFaceDetectionCompleted(true);
-      }
+      // 🆕 CRITICAL: Clear localStorage to prevent cross-user face frame contamination
+      console.log('🧹 Clearing localStorage to prevent cross-user contamination...');
+      localStorage.removeItem('userVideoThumbnail');
+      localStorage.removeItem('torsoVideoUrl');
+      console.log('✅ Face detection data cleared from both storages');
+      
+      // Don't set faceDetectionCompleted - let detection run fresh
+      setFaceDetectionCompleted(false);
     }
   }, []);
 
@@ -481,6 +534,508 @@ export default function VideoPreviewPage() {
     }
   }, [videoUrl, detectFaceAndGenerateTorso, isFaceDetectionRunning, hasAnalysisData, faceDetectionCompleted]);
 
+  // Handle navigation after analysis completion with a delay to show the loader
+  useEffect(() => {
+    const shouldNavigate = !state.isAnalyzing && state.progress === 100 && (
+      (typeof state.finalIntensity === 'number' && !isNaN(state.finalIntensity) && state.finalIntensity > 0) ||
+      state.speedClass === 'No Action' ||
+      (state.speedClass && state.speedClass !== null) // Navigate if we have any valid speed class
+    );
+    
+    if (shouldNavigate) {
+      console.log('🔄 Analysis completed - navigating to /analyze in 2 seconds...');
+      console.log('📊 Navigation criteria:', {
+        isAnalyzing: state.isAnalyzing,
+        progress: state.progress,
+        finalIntensity: state.finalIntensity,
+        speedClass: state.speedClass,
+        shouldNavigate
+      });
+      
+      // Show blur overlay immediately when analysis completes
+      setShowTransitionBlur(true);
+      
+      const timer = setTimeout(() => {
+        console.log('🚀 Navigating to analyze page (client-side navigation - console logs will be preserved)');
+        // Use Next.js router.push() for client-side navigation
+        // This preserves console logs unlike window.location.replace()
+        router.push('/analyze');
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [state.isAnalyzing, state.progress, state.finalIntensity, state.speedClass, router]);
+
+  const startAnalysis = useCallback(async () => {
+    console.log('🚀 Starting video analysis...');
+    
+    if (!videoRef.current || !videoUrl) {
+      console.error('❌ No video available for analysis');
+      return;
+    }
+
+    // Clear any previous no bowling action flag
+    if (typeof window !== 'undefined') {
+      window.sessionStorage.removeItem('noBowlingActionDetected');
+    }
+    
+    dispatch({ type: 'START_ANALYSIS' });
+    dispatch({ type: 'SET_VIDEO', payload: videoUrl });
+    dispatch({ type: 'SET_ANALYZER_MODE', payload: 'benchmark' });
+    
+    console.log('📊 Analysis state after dispatch:', { isAnalyzing: state.isAnalyzing, progress: state.progress });
+
+    try {
+      console.log('Starting analysis with benchmark mode');
+
+      // Initialize benchmark analyzer
+      console.log('🔄 Initializing benchmark analyzer...');
+      const initialized = await benchmarkAnalyzerRef.current.loadBenchmarkPattern();
+      if (!initialized) {
+        console.error('❌ Benchmark analyzer failed to initialize');
+        dispatch({ type: 'RESET_ANALYSIS' });
+        return;
+      }
+      console.log('✅ Benchmark analyzer initialized successfully');
+
+      const analyzer = benchmarkAnalyzerRef.current;
+      console.log('✅ Analyzer reset completed');
+
+      // Start frame sampling
+      const intensities: FrameIntensity[] = [];
+      let frameCount = 0;
+      const totalFrames = Math.floor(videoRef.current.duration * 12); // Estimate frames
+      console.log(`Processing ${totalFrames} frames at 12 FPS`);
+      // Flag to disable certain timeouts while deterministic fallback runs
+      let isFallbackRunning = false;
+
+      frameSamplerRef.current = new FrameSampler(
+        videoRef.current,
+        12, // 12 FPS
+        async (frame) => {
+          try {
+            frameCount++;
+            const progress = Math.min((frameCount / totalFrames) * 100, 95);
+            dispatch({ type: 'UPDATE_PROGRESS', payload: progress });
+
+            const intensity = await analyzer.analyzeFrame(frame);
+            
+            // Debug logging for frame analysis
+            if (frameCount <= 5 || frameCount % 50 === 0) {
+              console.log(`🎬 Frame ${frameCount}:`, {
+                timestamp: frame.timestamp,
+                intensity: intensity,
+                progress: progress.toFixed(1) + '%'
+              });
+            }
+
+            const frameIntensity: FrameIntensity = {
+              timestamp: frame.timestamp,
+              intensity
+            };
+
+            intensities.push(frameIntensity);
+            dispatch({ type: 'ADD_FRAME_INTENSITY', payload: frameIntensity });
+          } catch (frameError: any) {
+            console.error('Error in frame sampling callback:', frameError);
+            console.error('Frame error stack:', frameError.stack);
+          }
+        }
+      );
+
+      // Reset video and start analysis
+      videoRef.current.currentTime = 0;
+      console.log('▶️ Starting video playback for analysis...');
+      console.log('📊 Video details:', {
+        duration: videoRef.current.duration,
+        readyState: videoRef.current.readyState,
+        videoWidth: videoRef.current.videoWidth,
+        videoHeight: videoRef.current.videoHeight,
+        src: videoRef.current.src.substring(0, 100)
+      });
+      
+      // CRITICAL: Wait for video to be fully loaded (especially for blob URLs on localhost)
+      if (videoRef.current.readyState < 4) {
+        console.log('⏳ Waiting for video to be fully loaded (readyState: ' + videoRef.current.readyState + ')...');
+        
+        // Force video to load by setting load() explicitly
+        try {
+          videoRef.current.load();
+          console.log('📥 Explicitly called video.load()');
+        } catch (e) {
+          console.warn('⚠️ Error calling video.load():', e);
+        }
+        
+        await new Promise<void>((resolve) => {
+          let resolved = false;
+          
+          const cleanup = () => {
+            if (resolved) return;
+            resolved = true;
+            videoRef.current?.removeEventListener('canplaythrough', handleCanPlayThrough);
+            videoRef.current?.removeEventListener('loadeddata', handleLoadedData);
+            videoRef.current?.removeEventListener('canplay', handleCanPlay);
+            videoRef.current?.removeEventListener('error', handleError);
+          };
+          
+          const handleCanPlayThrough = () => {
+            console.log('✅ Video can play through without buffering (readyState: ' + videoRef.current?.readyState + ')');
+            cleanup();
+            resolve();
+          };
+          
+          const handleLoadedData = () => {
+            console.log('✅ Video metadata and first frame loaded (readyState: ' + videoRef.current?.readyState + ')');
+            // Wait a bit more for blob URLs to stabilize
+            setTimeout(() => {
+              cleanup();
+              resolve();
+            }, 1000);
+          };
+          
+          const handleCanPlay = () => {
+            console.log('✅ Video has enough data to play (readyState: ' + videoRef.current?.readyState + ')');
+            // Still wait a bit more for blob URLs
+            setTimeout(() => {
+              cleanup();
+              resolve();
+            }, 1000);
+          };
+          
+          const handleError = (e: any) => {
+            console.error('❌ Video loading error:', e);
+            cleanup();
+            resolve(); // Continue anyway to avoid infinite wait
+          };
+          
+          videoRef.current?.addEventListener('canplaythrough', handleCanPlayThrough);
+          videoRef.current?.addEventListener('loadeddata', handleLoadedData);
+          videoRef.current?.addEventListener('canplay', handleCanPlay);
+          videoRef.current?.addEventListener('error', handleError);
+          
+          // Increased timeout to 30 seconds for large videos
+          setTimeout(() => {
+            if (isFallbackRunning) {
+              console.log('⏭️ Skipping timeout - fallback is running');
+              return;
+            }
+            console.log('⚠️ Video load timeout after 30s (readyState: ' + videoRef.current?.readyState + ')');
+            if (videoRef.current && videoRef.current.readyState < 2) {
+              console.error('❌ Video failed to load - readyState still too low. Cannot analyze.');
+              cleanup();
+              // Don't resolve - we need valid video data
+              dispatch({ type: 'RESET_ANALYSIS' });
+              alert('Failed to load video. Please try uploading again.');
+              return;
+            }
+            cleanup();
+            resolve();
+          }, 30000);
+        });
+      }
+      
+      // Extra delay for blob URLs on localhost to ensure they're ready
+      if (videoRef.current.src.startsWith('blob:')) {
+        console.log('🔄 Blob URL detected, adding stabilization delay...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      console.log('▶️ Starting video playback NOW...');
+      await videoRef.current.play();
+      frameSamplerRef.current.start();
+      console.log('✅ Frame sampler started');
+
+      // Wait for video to finish
+      console.log('🔄 Waiting for video to complete...');
+      console.log('Video duration:', videoRef.current.duration);
+      console.log('Video current time at start:', videoRef.current.currentTime);
+      
+      await new Promise<void>((resolve) => {
+        const handleEnded = () => {
+          console.log('Video ended event fired!');
+          frameSamplerRef.current?.stop();
+          resolve();
+        };
+        
+        const handleTimeUpdate = () => {
+          const currentTime = videoRef.current?.currentTime || 0;
+          const duration = videoRef.current?.duration || 0;
+          console.log(`Video time: ${currentTime.toFixed(2)}/${duration.toFixed(2)}`);
+          
+          // Auto-resolve if we're very close to the end
+          if (duration > 0 && currentTime >= duration - 0.1) {
+            console.log('Video near end, triggering completion manually');
+            videoRef.current?.removeEventListener('ended', handleEnded);
+            videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
+            frameSamplerRef.current?.stop();
+            resolve();
+          }
+        };
+        
+        // Add timeout as fallback
+        const timeout = setTimeout(() => {
+          console.log('Video completion timeout reached');
+          videoRef.current?.removeEventListener('ended', handleEnded);
+          videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
+          frameSamplerRef.current?.stop();
+          resolve();
+        }, 30000); // 30 second timeout
+        
+        const cleanup = () => {
+          clearTimeout(timeout);
+          videoRef.current?.removeEventListener('ended', handleEnded);
+          videoRef.current?.removeEventListener('timeupdate', handleTimeUpdate);
+        };
+        
+        videoRef.current?.addEventListener('ended', () => {
+          cleanup();
+          handleEnded();
+        });
+        
+        videoRef.current?.addEventListener('timeupdate', handleTimeUpdate);
+      });
+
+      // Complete analysis
+      if (frameSamplerRef.current) {
+        frameSamplerRef.current.stop();
+      }
+
+      // Deterministic seek-based fallback sampling if we under-sampled
+      try {
+        const expected = Math.max(1, Math.floor((videoRef.current?.duration || 0) * 12));
+        if (intensities.length < expected * 0.5 && videoRef.current) {
+          console.log(`⚠️ Under-sampled (${intensities.length}/${expected}). Running deterministic 12fps sampling fallback...`);
+          isFallbackRunning = true;
+          const vid = videoRef.current;
+          vid.pause();
+          // Clear contaminated frames and reset detector
+          await analyzer.reset();
+          // Dispose old detector to clear smoothing state
+          const analyzerAny = benchmarkAnalyzerRef.current as any;
+          if (analyzerAny && analyzerAny.detector) {
+            try { analyzerAny.detector.dispose?.(); } catch {}
+            analyzerAny.detector = null;
+            analyzerAny.isInitialized = false;
+          }
+          // Reinitialize with fresh state
+          await benchmarkAnalyzerRef.current.loadBenchmarkPattern();
+          const fallbackCanvas = document.createElement('canvas');
+          fallbackCanvas.width = 320;
+          fallbackCanvas.height = 240;
+          const fctx = fallbackCanvas.getContext('2d');
+          if (fctx) {
+            const step = 1 / 12;
+            for (let t = 0; t < vid.duration; t += step) {
+              await new Promise<void>((resolve) => {
+                const onSeeked = () => {
+                  vid.removeEventListener('seeked', onSeeked);
+                  resolve();
+                };
+                vid.addEventListener('seeked', onSeeked);
+                try { vid.currentTime = Math.min(t, Math.max(0, vid.duration - 0.001)); } catch {}
+              });
+
+              try {
+                fctx.clearRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+                fctx.drawImage(vid, 0, 0, fallbackCanvas.width, fallbackCanvas.height);
+                const imageData = fctx.getImageData(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+                const intensity = await analyzer.analyzeFrame({ imageData, timestamp: vid.currentTime });
+                const progress = Math.min(((intensities.length + 1) / expected) * 100, 95);
+                dispatch({ type: 'UPDATE_PROGRESS', payload: progress });
+                const frameIntensity: FrameIntensity = { timestamp: vid.currentTime, intensity };
+                intensities.push(frameIntensity);
+                dispatch({ type: 'ADD_FRAME_INTENSITY', payload: frameIntensity });
+              } catch (seekErr) {
+                console.warn('⚠️ Fallback sampling error at t=', t.toFixed(2), seekErr);
+              }
+            }
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('⚠️ Deterministic sampling fallback failed:', fallbackErr);
+      }
+      // Fallback complete (or skipped)
+      isFallbackRunning = false;
+
+      // Calculate final results
+      console.log('=== STARTING FINAL RESULTS CALCULATION ===');
+      const rawFinalIntensity = analyzer.getFinalIntensity();
+      console.log(`Raw final intensity: ${rawFinalIntensity}`);
+      
+      // For benchmark comparison, rawFinalIntensity is already a similarity percentage (0-100)
+      let finalIntensity: number;
+      // Always use benchmark mode since we're setting it explicitly
+      finalIntensity = rawFinalIntensity; // Already 0-100 for benchmark mode
+      
+      console.log(`Final intensity: ${finalIntensity}`);
+      console.log('About to classify speed...');
+      const speedResult = classifySpeed(finalIntensity);
+      console.log('Speed classified successfully:', speedResult);
+      
+      console.log('📊 Final Analysis Results:');
+      console.log('  - Raw Final Intensity:', rawFinalIntensity);
+      console.log('  - Clamped Final Intensity:', finalIntensity);
+      console.log('  - Speed Result:', speedResult);
+      console.log('  - Frame Intensities Count:', intensities.length);
+      console.log('  - Last 5 intensities:', intensities.slice(-5).map(i => i.intensity));
+
+      // Check if no bowling action was detected
+      if (finalIntensity === 0) {
+        console.log('🚫 No bowling action detected - setting flag');
+        // Store a flag indicating no bowling action was detected
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('noBowlingActionDetected', 'true');
+          console.log('📊 Set noBowlingActionDetected flag in sessionStorage');
+        }
+
+        dispatch({
+          type: 'COMPLETE_ANALYSIS',
+          payload: {
+            finalIntensity: 0,
+            speedClass: 'No Action',
+            confidence: 0,
+          }
+        });
+
+        // Navigation will be handled by useEffect when analysis state updates
+        return;
+      }
+
+      // Get detailed analysis data
+      console.log('📊 Getting detailed analysis data...');
+      const detailedAnalysis = analyzer.getDetailedAnalysis();
+      console.log('📊 Detailed analysis retrieved:', detailedAnalysis);
+
+      // Store detailed analysis in sessionStorage immediately
+      if (detailedAnalysis && typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem('benchmarkDetailedData', JSON.stringify(detailedAnalysis));
+          console.log('✅ Stored detailed analysis in sessionStorage');
+
+          // Get player name from sessionStorage
+          const storedPlayerName = window.sessionStorage.getItem('playerName');
+          
+          // Helper function to safely parse and round values
+          const safeParseAndRound = (value: any, fallback: number) => {
+            if (value === null || value === undefined) return fallback;
+            const parsed = parseFloat(String(value));
+            return isNaN(parsed) ? fallback : Math.round(parsed * 100);
+          };
+          
+          // Also store in the more comprehensive format
+          const analysisVideoData = {
+            intensity: finalIntensity,
+            speedClass: speedResult.speedClass,
+            kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
+            similarity: finalIntensity,
+            frameIntensities: intensities.map(({ timestamp, intensity }) => ({
+              timestamp: Number(timestamp.toFixed(3)),
+              intensity: isNaN(intensity) ? 0 : Number(intensity.toFixed(3)),
+            })),
+            phases: {
+              runUp: safeParseAndRound(detailedAnalysis.runUp, 83),
+              delivery: safeParseAndRound(detailedAnalysis.delivery, 86),
+              followThrough: safeParseAndRound(detailedAnalysis.followThrough, 87),
+            },
+            technicalMetrics: {
+              armSwing: safeParseAndRound(detailedAnalysis.armSwing, 80),
+              bodyMovement: safeParseAndRound(detailedAnalysis.bodyMovement, 86),
+              rhythm: safeParseAndRound(detailedAnalysis.rhythm, 81),
+              releasePoint: safeParseAndRound(detailedAnalysis.releasePoint, 82),
+            },
+            recommendations: detailedAnalysis.recommendations || ['Focus on maintaining consistency'],
+            playerName: storedPlayerName || 'Player',
+            createdAt: new Date().toISOString(),
+          };
+
+          window.sessionStorage.setItem('analysisVideoData', JSON.stringify(analysisVideoData));
+          window.sessionStorage.setItem('analysisVideoData_backup', JSON.stringify(analysisVideoData));
+          window.sessionStorage.setItem('analysisVideoData_timestamp', Date.now().toString());
+          console.log('✅ Stored comprehensive analysis data in sessionStorage');
+          
+          // Verify storage immediately
+          const verification = window.sessionStorage.getItem('analysisVideoData');
+          console.log('Verification - can retrieve immediately?', verification ? 'YES' : 'NO');
+        } catch (error) {
+          console.error('❌ Failed to store detailed analysis:', error);
+        }
+      } else {
+        console.warn('⚠️ No detailed analysis data available to store');
+      }
+
+      console.log('🏆 Analysis Complete! Final Results:', {
+        finalIntensity,
+        speedClass: speedResult.speedClass,
+        confidence: speedResult.confidence,
+        kmh: Number(intensityToKmh(finalIntensity).toFixed(2))
+      });
+
+      dispatch({
+        type: 'COMPLETE_ANALYSIS',
+        payload: {
+          finalIntensity,
+          speedClass: speedResult.speedClass,
+          confidence: speedResult.confidence,
+        }
+      });
+
+      if (typeof window !== 'undefined') {
+        const storedPlayerName = window.sessionStorage.getItem('playerName');
+        const pendingEntry = {
+          predicted_kmh: Number(intensityToKmh(finalIntensity).toFixed(2)),
+          similarity_percent: Number(finalIntensity.toFixed(2)),
+          intensity_percent: Number(finalIntensity.toFixed(2)),
+          speed_class: speedResult.speedClass,
+          name: storedPlayerName || null,
+          meta: {
+            analyzer_mode: 'benchmark',
+            app: 'bowling-analyzer',
+            player_name: storedPlayerName || null,
+            playerName: storedPlayerName || null,
+          },
+          created_at: new Date().toISOString(),
+        };
+        window.sessionStorage.setItem('pendingLeaderboardEntry', JSON.stringify(pendingEntry));
+      }
+
+      // Navigation will be handled by useEffect when analysis state updates
+
+    } catch (error) {
+      console.error('❌ Analysis failed with error:', error);
+      
+      // Clean up
+      if (frameSamplerRef.current) {
+        frameSamplerRef.current.stop();
+      }
+      
+      dispatch({ type: 'RESET_ANALYSIS' });
+      
+      // Show user-friendly error
+      if (typeof window !== 'undefined') {
+        alert('Analysis failed. Please try again or upload a different video.');
+      }
+    }
+  }, [videoUrl, dispatch, state.analyzerMode, router]);
+
+  // Show loading state while checking authorization
+  if (isAuthorized === null) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#000'
+      }}>
+        <div style={{ color: '#fff', fontSize: '18px' }}>Loading...</div>
+      </div>
+    );
+  }
+
+  // Show unauthorized page if not authorized
+  if (isAuthorized === false) {
+    return <UnauthorizedAccess />;
+  }
+
   return (
     <>
       {/* Processing Modal */}
@@ -488,6 +1043,22 @@ export default function VideoPreviewPage() {
         isOpen={isFaceDetectionRunning} 
         message="Finding the best frame from your video." 
       />
+      
+      {/* Analysis Loading Overlay */}
+      <AnalysisLoader isVisible={state.isAnalyzing} progress={state.progress} />
+
+      {/* Transition Blur Overlay - appears after analysis completes before navigation */}
+      {showTransitionBlur && (
+        <div
+          className="fixed inset-0 z-50"
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            transition: 'all 0.3s ease-in-out',
+          }}
+        />
+      )}
       
       <div
         className="min-h-screen flex flex-col relative"
@@ -701,13 +1272,17 @@ export default function VideoPreviewPage() {
                             <video
                               ref={videoRef}
                               src={videoUrl}
-                              controls
+                              controls={!state.isAnalyzing}
                               preload="metadata"
                               playsInline
-                              muted={false}
+                              muted={state.isAnalyzing}
                               crossOrigin="anonymous"
                               className={isPortraitVideo ? 'w-full h-full object-contain bg-black' : 'w-full h-full object-cover'}
-                              style={{ borderRadius: '20px' }} // Changed from 16px to 20px to match mobile
+                              style={{ 
+                                borderRadius: '20px',
+                                pointerEvents: state.isAnalyzing ? 'none' : 'auto',
+                                opacity: state.isAnalyzing ? 0.5 : 1
+                              }}
                               onLoadedMetadata={handleVideoLoadedMetadata}
                               onError={handleVideoError}
                             >
@@ -781,62 +1356,29 @@ export default function VideoPreviewPage() {
                         Retry
                       </Link>
 
-                      {/* Continue to Details Page */}
+                      {/* View Analysis Button */}
                       <button
                         onClick={async () => {
-                          // Ensure video data is properly stored before navigation
-                          if (videoUrl && typeof window !== 'undefined') {
-                            try {
-                              // Store current video URL in sessionStorage for details page
-                              sessionStorage.setItem('uploadedVideoUrl', videoUrl);
-                              
-                              // Store other video metadata
-                              if (fileName) sessionStorage.setItem('uploadedFileName', fileName);
-                              if (videoSource) sessionStorage.setItem('uploadedSource', videoSource);
-                              if (mimeType) sessionStorage.setItem('uploadedMimeType', mimeType);
-                              
-                              // Also store the video as base64 for more reliable persistence
-                              if (videoRef.current) {
-                                const canvas = document.createElement('canvas');
-                                const ctx = canvas.getContext('2d');
-                                if (ctx) {
-                                  canvas.width = videoRef.current.videoWidth || 640;
-                                  canvas.height = videoRef.current.videoHeight || 480;
-                                  ctx.drawImage(videoRef.current, 0, 0);
-                                  const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                                  sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
-                                  try { localStorage.setItem('userVideoThumbnail', thumbnailDataUrl); } catch {}
-                                }
-                              }
-                              
-                              // Store temp file reference if available
-                              if ((window as any).tempVideoFile) {
-                                sessionStorage.setItem('uploadedVideoData', 'file-reference-available');
-                              }
-                              
-                              console.log('✅ Video data stored before navigation to details page');
-                            } catch (error) {
-                              console.error('❌ Error storing video data:', error);
-                            }
-                          }
-                          router.push('/details');
+                          console.log('🎬 View Analysis button clicked - Starting analysis');
+                          await startAnalysis();
                         }}
-                        className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
+                        disabled={state.isAnalyzing}
+                        className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         style={{
                           backgroundColor: '#FFCA04',
-                          borderRadius: '20px', // Changed from 16px to 20px to match mobile
+                          borderRadius: '20px',
                           fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                           fontWeight: '700',
-                          fontSize: 'clamp(12px, 2.5vw, 14px)', // Increased from 12 to 14 (+2) and made responsive
+                          fontSize: 'clamp(12px, 2.5vw, 14px)',
                           color: 'black',
-                          minWidth: '142px', // Added minWidth to match mobile
+                          minWidth: '142px',
                           height: '36px',
                           border: 'none',
-                          padding: '0 16px', // Changed from 12px to 16px to match mobile
-                          cursor: 'pointer'
+                          padding: '0 16px',
+                          cursor: state.isAnalyzing ? 'not-allowed' : 'pointer'
                         }}
                       >
-                        Continue
+                        {state.isAnalyzing ? 'Analyzing...' : 'View Analysis'}
                       </button>
                     </div>
                   </div>
@@ -860,7 +1402,7 @@ export default function VideoPreviewPage() {
                   lineHeight: '1.4'
                 }}
               >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
               </p>
             </div>
             
@@ -880,40 +1422,32 @@ export default function VideoPreviewPage() {
               {/* Social Icons */}
               <div className="flex gap-3 md:gap-4">
                 {/* Facebook */}
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <a href="https://m.facebook.com/LnTFS?wtsid=rdr_0GljAOcj6obaXQY93" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+                <a href="https://m.facebook.com/LnTFS?wtsid=rdr_0GljAOcj6obaXQY93" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                     <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                   </svg>
-                  </a>
-                </div>
+                </a>
                 
                 {/* Instagram */}
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <a href="https://www.instagram.com/lntfinance?igsh=a3ZvY2JxaWdnb25s" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+                <a href="https://www.instagram.com/lntfinance?igsh=a3ZvY2JxaWdnb25s" target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                     <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.40s-.644-1.44-1.439-1.40z"/>
                   </svg>
-                  </a>
-                </div>
+                </a>
                 
                 {/* Twitter */}
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <a href="https://x.com/LnTFinance" target="_blank" rel="noopener noreferrer" aria-label="Twitter">
+                <a href="https://x.com/LnTFinance" target="_blank" rel="noopener noreferrer" aria-label="Twitter" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                     <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/>
                   </svg>
-                  </a>
-                </div>
+                </a>
                 
                 {/* YouTube */}
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <a href="https://x.com/LnTFinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
+                <a href="https://www.youtube.com/user/ltfinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                   </svg>
-                  </a>
-                </div>
+                </a>
               </div>
             </div>
           </div>
@@ -972,7 +1506,7 @@ export default function VideoPreviewPage() {
                 {/* Universal Back Arrow Box - Top Left */}
                 <GlassBackButton />
                 {/* Preview Your Delivery headline */}
-                <div className="mb-6 text-center">
+                <div className="mb-6 text-center" style={{ marginTop: '30px' }}>
                   <div className="flex justify-center mb-1">
                     <img
                       src="/images/newhomepage/previewyourdelivery.png"
@@ -1025,10 +1559,16 @@ export default function VideoPreviewPage() {
                         <video
                           ref={videoRef}
                           src={videoUrl}
-                          controls
+                          controls={!state.isAnalyzing}
                           preload="metadata"
+                          playsInline
+                          muted={state.isAnalyzing}
                           className={isPortraitVideo ? 'w-full h-full object-contain bg-black' : 'w-full h-full object-cover'}
-                          style={{ borderRadius: '20px' }}
+                          style={{ 
+                            borderRadius: '20px',
+                            pointerEvents: state.isAnalyzing ? 'none' : 'auto',
+                            opacity: state.isAnalyzing ? 0.5 : 1
+                          }}
                           onLoadedMetadata={handleVideoLoadedMetadata}
                           onError={handleVideoError}
                         >
@@ -1103,47 +1643,14 @@ export default function VideoPreviewPage() {
                     Retry
                   </Link>
 
-                  {/* Continue to Details Page */}
+                  {/* View Analysis Button */}
                   <button
                     onClick={async () => {
-                      // Ensure video data is properly stored before navigation
-                      if (videoUrl && typeof window !== 'undefined') {
-                        try {
-                          // Store current video URL in sessionStorage for details page
-                          sessionStorage.setItem('uploadedVideoUrl', videoUrl);
-                          
-                          // Store other video metadata
-                          if (fileName) sessionStorage.setItem('uploadedFileName', fileName);
-                          if (videoSource) sessionStorage.setItem('uploadedSource', videoSource);
-                          if (mimeType) sessionStorage.setItem('uploadedMimeType', mimeType);
-                          
-                          // Also store the video as base64 for more reliable persistence
-                          if (videoRef.current) {
-                            const canvas = document.createElement('canvas');
-                            const ctx = canvas.getContext('2d');
-                            if (ctx) {
-                              canvas.width = videoRef.current.videoWidth || 640;
-                              canvas.height = videoRef.current.videoHeight || 480;
-                              ctx.drawImage(videoRef.current, 0, 0);
-                              const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.8);
-                              sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
-                                  try { localStorage.setItem('userVideoThumbnail', thumbnailDataUrl); } catch {}
-                            }
-                          }
-                          
-                          // Store temp file reference if available
-                          if ((window as any).tempVideoFile) {
-                            sessionStorage.setItem('uploadedVideoData', 'file-reference-available');
-                          }
-                          
-                          console.log('✅ Video data stored before navigation to details page');
-                        } catch (error) {
-                          console.error('❌ Error storing video data:', error);
-                        }
-                      }
-                      router.push('/details');
+                      console.log('🎬 View Analysis button clicked - Starting analysis');
+                      await startAnalysis();
                     }}
-                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1"
+                    disabled={state.isAnalyzing}
+                    className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 transform hover:scale-105 flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     style={{
                       backgroundColor: '#FFCA04',
                       borderRadius: '20px',
@@ -1155,10 +1662,10 @@ export default function VideoPreviewPage() {
                       height: '36px',
                       border: 'none',
                       padding: '0 16px',
-                      cursor: 'pointer'
+                      cursor: state.isAnalyzing ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    Continue
+                    {state.isAnalyzing ? 'Analyzing...' : 'View Analysis'}
                   </button>
                 </div>
               </div>
@@ -1179,7 +1686,7 @@ export default function VideoPreviewPage() {
                   lineHeight: '1.4'
                 }}
               >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
               </p>
             </div>
             
@@ -1220,11 +1727,11 @@ export default function VideoPreviewPage() {
                 </div>
                 
                 {/* YouTube */}
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
+                <a href="https://www.youtube.com/user/ltfinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                     <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                   </svg>
-                </div>
+                </a>
               </div>
             </div>
           </div>

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { encrypt, decrypt } from '@/lib/utils/encryption';
 
-// Configure runtime to use Node.js instead of Edge
-export const runtime = 'nodejs';
+// Only force dynamic in development/server mode, not during static export
+export const runtime = process.env.NEXT_OUTPUT_EXPORT === 'true' ? undefined : 'nodejs';
+export const dynamic = process.env.NEXT_OUTPUT_EXPORT === 'true' ? undefined : 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   console.log('🔵 [API - SEND OTP] Request received');
@@ -19,15 +21,48 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const { body } = requestData;
+    const { phone } = requestData;
 
-    if (!body) {
-      console.error('❌ [API - SEND OTP] Missing body in request');
+    if (!phone) {
+      console.error('❌ [API - SEND OTP] Missing phone in request');
       return NextResponse.json(
-        { error: 'Missing encrypted phone number in request body' },
+        { error: 'Missing phone number in request' },
         { status: 400 }
       );
     }
+
+    // Validate phone number format
+    if (!/^\d{10}$/.test(phone)) {
+      console.error('❌ [API - SEND OTP] Invalid phone format:', phone);
+      return NextResponse.json(
+        { error: 'Phone number must be 10 digits' },
+        { status: 400 }
+      );
+    }
+
+    // Create payload in the correct format (matching client's format)
+    const payload = {
+      number: phone,
+      Customer_Name: "Test User", // You might want to get this from request or use a default
+      Loan_Application_Id: `BL${Date.now()}`, // Generate a unique ID
+      flsId: "VEN03799"
+    };
+
+    console.log('📋 [API - SEND OTP] Payload to encrypt:', payload);
+
+    // Encrypt using CryptoJS (matching client's implementation)
+    const plaintext = JSON.stringify(payload);
+    const encrypted = encrypt(plaintext);
+    
+    if (!encrypted) {
+      console.error('❌ [API - SEND OTP] Encryption failed');
+      return NextResponse.json(
+        { error: 'Failed to encrypt phone number' },
+        { status: 500 }
+      );
+    }
+
+    console.log('🔐 [API - SEND OTP] Encrypted payload length:', encrypted.length);
 
     const apiUrl = 'https://apiclouduat.ltfs.com:1132/LTFSME/api/sendBumraPosterOtp';
     const headers = {
@@ -36,11 +71,11 @@ export async function POST(request: NextRequest) {
       'producttype': 'SME',
       'Content-Type': 'application/json',
     };
-    const requestBody = { body };
+    const requestBody = { body: encrypted };
 
     console.log('📤 [API - SEND OTP] Calling external API:', apiUrl);
     console.log('📋 [API - SEND OTP] Headers:', headers);
-    console.log('📦 [API - SEND OTP] Body:', requestBody);
+    console.log('📦 [API - SEND OTP] Body length:', requestBody.body.length);
 
     let response;
     try {
@@ -90,7 +125,7 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('✅ [API - SEND OTP] Request successful');
-    return NextResponse.json(data);
+    return NextResponse.json({ success: true, data });
   } catch (error: any) {
     console.error('❌ [API - SEND OTP] Unexpected error:', error);
     console.error('❌ [API - SEND OTP] Error stack:', error.stack);

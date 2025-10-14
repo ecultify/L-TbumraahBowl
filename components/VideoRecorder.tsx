@@ -16,6 +16,7 @@ interface VideoRecorderProps {
   orientation?: 'landscape' | 'portrait';
   autoSubmitOnStop?: boolean;
   onRecordingComplete?: (payload: RecordingCompletePayload) => void;
+  facingMode?: 'user' | 'environment'; // ✅ ADD THIS LINE
 }
 
 const FALLBACK_MIME_TYPE = 'video/webm';
@@ -63,6 +64,7 @@ export function VideoRecorder({
   orientation = 'landscape',
   autoSubmitOnStop = false,
   onRecordingComplete,
+  facingMode = 'environment', // ✅ ADD THIS LINE - default to back camera
 }: VideoRecorderProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -76,57 +78,149 @@ export function VideoRecorder({
   const isPortrait = orientation === 'portrait';
   const preferredMimeType = useMemo(resolvePreferredMimeType, []);
 
+  // ✅ REPLACE THE ENTIRE initializeCamera FUNCTION WITH THIS:
   const initializeCamera = useCallback(async () => {
+    console.log('🎥 Initializing camera with facingMode:', facingMode);
     setIsInitializing(true);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        console.error('❌ MediaDevices API not available');
+        throw new Error('MediaDevices API not available');
+      }
+
       // Stop previous stream if any
       if (streamRef.current) {
+        console.log('🛑 Stopping previous stream...');
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
 
       let stream: MediaStream | null = null;
-      const constraints: MediaStreamConstraints = {
+
+      // Detect if mobile device
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      console.log('📱 Is Mobile Device:', isMobile);
+
+      // Try with exact facing mode first (if specified)
+      const exactConstraints: MediaStreamConstraints = {
         video: {
           width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
           height: isPortrait ? { ideal: 1280 } : { ideal: 720 },
-          facingMode: { ideal: 'environment' },
+          facingMode: isMobile ? { exact: facingMode } : facingMode,
         },
         audio: false,
       };
 
       try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        console.log('📹 Trying exact facingMode:', facingMode);
+        stream = await navigator.mediaDevices.getUserMedia(exactConstraints);
+        console.log('✅ Got stream with exact facingMode');
       } catch (err) {
-        // Fallback for devices that do not support environment camera selection
-        console.warn('Environment camera unavailable, falling back to default camera', err);
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: isPortrait
-            ? { facingMode: { ideal: 'environment' }, width: 720, height: 1280 }
-            : true,
+        console.log('⚠️ Exact facingMode failed, trying ideal mode...');
+        
+        // Fallback: try with ideal (less strict)
+        const idealConstraints: MediaStreamConstraints = {
+          video: {
+            width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
+            height: isPortrait ? { ideal: 1280 } : { ideal: 720 },
+            facingMode: facingMode, // Direct string is more compatible
+          },
           audio: false,
-        });
+        };
+
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(idealConstraints);
+          console.log('✅ Got stream with ideal facingMode');
+        } catch (fallbackErr) {
+          console.error('⚠️ Facing mode constraint failed, using default camera:', fallbackErr);
+          
+          // Last fallback for devices that do not support camera selection
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: isPortrait
+              ? { width: 720, height: 1280 }
+              : { width: 1280, height: 720 },
+            audio: false,
+          });
+          console.log('✅ Got stream with basic constraints');
+        }
       }
 
-      if (videoRef.current) {
+      // Verify which camera we got
+      try {
+        const track = stream?.getVideoTracks?.()?.[0];
+        const settings = track?.getSettings?.();
+        const actualFacingMode = settings?.facingMode as string | undefined;
+        console.log('📷 Camera Settings:', {
+          requestedFacing: facingMode,
+          actualFacing: actualFacingMode,
+          width: settings?.width,
+          height: settings?.height,
+        });
+
+        // If we didn't get the requested camera and we're on mobile, try device enumeration
+        if (isMobile && actualFacingMode !== facingMode && facingMode === 'environment') {
+          console.log('🔄 Attempting to switch to rear camera via device enumeration...');
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+            console.log('📷 Available cameras:', videoInputs.map(d => ({ label: d.label, id: d.deviceId })));
+            
+            const rearCamera =
+              videoInputs.find((d) => /back|rear|environment|facing back/i.test(d.label)) ||
+              videoInputs[videoInputs.length - 1]; // Last camera is often rear
+            
+            if (rearCamera?.deviceId) {
+              console.log('🔄 Switching to:', rearCamera.label);
+              const rearStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  deviceId: { exact: rearCamera.deviceId },
+                  width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
+                  height: isPortrait ? { ideal: 1280 } : { ideal: 720 },
+                },
+                audio: false,
+              });
+              
+              // Stop previous and switch
+              stream?.getTracks().forEach((t) => t.stop());
+              stream = rearStream;
+              console.log('✅ Successfully switched to rear camera');
+            }
+          } catch (switchErr) {
+            console.warn('⚠️ Could not switch to rear camera via enumeration:', switchErr);
+          }
+        }
+      } catch (verifyErr) {
+        console.warn('⚠️ Could not verify camera settings:', verifyErr);
+      }
+
+      // Attach final stream to video element
+      if (videoRef.current && stream) {
+        console.log('✅ Attaching stream to video element...');
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
         try {
           await videoRef.current.play();
+          console.log('✅ Video playing successfully');
         } catch (playError) {
-          console.warn('Autoplay failed, awaiting user interaction', playError);
+          console.warn('⚠️ Autoplay failed, awaiting user interaction', playError);
         }
+      } else {
+        console.error('❌ Video ref or stream not available', { 
+          hasVideoRef: !!videoRef.current, 
+          hasStream: !!stream 
+        });
       }
 
-      streamRef.current = stream;
+      streamRef.current = stream || null;
       setHasPermission(true);
+      console.log('✅ Camera initialized successfully');
     } catch (error) {
-      console.error('Camera access denied:', error);
+      console.error('❌ Camera access denied:', error);
       setHasPermission(false);
     } finally {
       setIsInitializing(false);
     }
-  }, [isPortrait]);
+  }, [isPortrait, facingMode]); // ✅ ADD facingMode to dependencies
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -220,9 +314,19 @@ export function VideoRecorder({
 
   useEffect(() => {
     if (autoStart && hasPermission === null && !isInitializing) {
+      console.log('🎥 VideoRecorder: Auto-starting camera...');
       initializeCamera();
     }
   }, [autoStart, hasPermission, isInitializing, initializeCamera]);
+  
+  // Force camera initialization when component mounts if autoStart is true
+  useEffect(() => {
+    if (autoStart) {
+      console.log('🎥 VideoRecorder: Component mounted with autoStart=true');
+      initializeCamera();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const containerStyle = {
     aspectRatio: isPortrait ? '9 / 16' : '16 / 9',
@@ -236,7 +340,7 @@ export function VideoRecorder({
     <div className="space-y-6">
       {/* Camera Preview */}
       <div className={containerClasses} style={containerStyle}>
-        {!hasPermission && !isInitializing && (
+        {hasPermission === false && !isInitializing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-white p-8 text-center">
             <Camera className="w-16 h-16 mb-4 opacity-50" />
             <p className="text-lg mb-4">Camera access needed for recording</p>
@@ -268,6 +372,13 @@ export function VideoRecorder({
           <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 text-white px-3 py-1 rounded-full">
             <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
             <span className="text-sm font-medium">Recording...</span>
+          </div>
+        )}
+
+        {/* ✅ ADD CAMERA MODE INDICATOR */}
+        {hasPermission && !recordedVideoUrl && (
+          <div className="absolute top-4 right-4 bg-black/60 text-white px-3 py-1 rounded-full text-sm">
+            📷 {facingMode === 'environment' ? 'Back Camera' : 'Front Camera'}
           </div>
         )}
       </div>
@@ -312,7 +423,7 @@ export function VideoRecorder({
             )}
             <button
               onClick={retakeVideo}
-              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semibold transition-all duration-200"
+              className="flex items-center gap-2 bg-gray-600 hover:bg-gray-700 text-white px-6 py-3 rounded-xl font-semold transition-all duration-200"
             >
               <Camera className="w-5 h-5" />
               Record Again

@@ -34,10 +34,35 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   const [imageLoadError, setImageLoadError] = useState(false);
   const [scale, setScale] = useState(1);
   const [isReady, setIsReady] = useState(false);
+  // 🚫 DISABLED: Restored session - Always generate fresh composite card
+  const [isRestoredSession, setIsRestoredSession] = useState(false);
+  const [restoredCompositeUrl, setRestoredCompositeUrl] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Load generated torso image from session storage
+  // Check if this is a restored session (existing user)
+  // 🚫 DISABLED: Allow users to generate unlimited composite cards
+  // useEffect(() => {
+  //   if (typeof window !== 'undefined') {
+  //     const restoredFlag = window.sessionStorage.getItem('restoredSession');
+  //     const compositeUrl = window.sessionStorage.getItem('compositeCardUrl');
+  //     
+  //     if (restoredFlag === 'true' && compositeUrl) {
+  //       console.log('🔄 Restored session detected - displaying existing composite card');
+  //       console.log('🔗 Composite URL:', compositeUrl);
+  //       setIsRestoredSession(true);
+  //       setRestoredCompositeUrl(compositeUrl);
+  //     }
+  //   }
+  // }, []);
+
+  // Load generated torso image from session storage (only for NEW sessions)
   useEffect(() => {
+    // 🚫 DISABLED: Restored session check - Always load fresh torso
+    // if (isRestoredSession) {
+    //   console.log('⏭️ Skipping torso image load - using restored composite card');
+    //   return;
+    // }
+    
     const torsoImage = getGeneratedTorsoImage();
     if (torsoImage) {
       // Validate image data URL before setting
@@ -51,7 +76,7 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
     } else {
       console.warn('⚠️ No generated torso image found in session storage');
     }
-  }, []);
+  }, [isRestoredSession]);
 
   // Calculate scale based on actual card width (reference: 346px at 430x932 viewport)
   useEffect(() => {
@@ -109,6 +134,47 @@ export const CompositeCard: React.FC<CompositeCardProps> = ({
   const defaultAvatarSize = 300;
   const generatedTorsoSize = 285;
 
+  // 🚫 DISABLED: Restored session composite card display - Always generate fresh
+  // if (isRestoredSession && restoredCompositeUrl) {
+  //   return (
+  //     <div 
+  //       id="composite-card" 
+  //       ref={containerRef}
+  //       className="composite-card-container"
+  //       style={{ 
+  //         position: "relative", 
+  //         width: "100%", 
+  //         marginBottom: 16,
+  //         isolation: "isolate",
+  //         transform: "translateZ(0)",
+  //         willChange: "auto",
+  //         overflow: "visible"
+  //       }}
+  //     >
+  //       <img
+  //         src={restoredCompositeUrl}
+  //         alt="Your Composite Card"
+  //         crossOrigin="anonymous"
+  //         style={{
+  //           width: "100%",
+  //           height: "auto",
+  //           display: "block",
+  //           borderRadius: 8
+  //         }}
+  //         onLoad={() => {
+  //           console.log('✅ Restored composite card loaded successfully');
+  //           setIsReady(true);
+  //         }}
+  //         onError={() => {
+  //           console.error('❌ Failed to load restored composite card');
+  //           setImageLoadError(true);
+  //         }}
+  //       />
+  //     </div>
+  //   );
+  // }
+
+  // Otherwise, generate the composite card as usual (NEW sessions)
   return (
     <div 
       id="composite-card" 

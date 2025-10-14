@@ -1,11 +1,11 @@
 import CryptoJS from 'crypto-js';
 
-// Constants from the Python implementation
-const KEY_MAIN = "njCYgvluCmiQoeWydE32jjTTrdpB9Wg8";
+// Constants from the Python implementation - MUST MATCH EXACTLY
+const KEY_MAIN = "njCYgvluCmiQoeWydE32jjTTrdpB9Wg8";  // Capital 'C' in 'Cmi'
 const INIT_VECTOR = "VFoEgjZNsT1pAtXS";
 
-/**
- * Encrypts a string value using AES-CBC with PKCS7 padding
+/**as
+ * Encrypts a string vatlue using AES-CBC with PKCS7 padding
  * @param {string} value - The string to encrypt
  * @returns {string} Base64 encoded encrypted string
  */

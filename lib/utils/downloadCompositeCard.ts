@@ -1,4 +1,5 @@
 // Manual canvas rendering - exact mirror of CompositeCard DOM
+// NOTE: Upload to Supabase happens automatically on generation (see uploadCompositeCardOnGeneration.ts)
 export async function downloadCompositeCardManual(options: {
   accuracyDisplay: number;
   runUpScore: number;
@@ -32,6 +33,20 @@ export async function downloadCompositeCardManual(options: {
     console.log('📥 Starting manual canvas - rendering at reference width 346px (v2.0 - Fixed positioning)');
     
     await document.fonts.ready;
+    
+    // Explicitly load Helvetica Condensed font before rendering
+    try {
+      // Try to load Helvetica Condensed from system fonts
+      const helveticaCondensed = new FontFace(
+        'Helvetica Condensed',
+        'local("Helvetica Condensed"), local("HelveticaNeue-CondensedBold"), local("Arial Narrow")'
+      );
+      await helveticaCondensed.load();
+      document.fonts.add(helveticaCondensed);
+      console.log('✅ Helvetica Condensed font loaded for download');
+    } catch (fontError) {
+      console.warn('⚠️ Could not load Helvetica Condensed for download, will use fallback font:', fontError);
+    }
     
     // Reference dimensions (always render at 346px wide for consistency)
     const REFERENCE_WIDTH = 346;
@@ -93,7 +108,7 @@ export async function downloadCompositeCardManual(options: {
       // Gemini generated torso - match UI placement with updated offset
       const torsoSize = 285;
       const torsoTop = 105;
-      const torsoRightOffset = -15; // Updated to match CompositeCard.tsx
+      const torsoRightOffset = 20; // Moved 35px to the right (was -15, now 20) to match UI
       const x = REFERENCE_WIDTH + torsoRightOffset - torsoSize;
       // Add a subtle drop shadow to prevent blending with background
       ctx.save();
@@ -108,7 +123,7 @@ export async function downloadCompositeCardManual(options: {
       // Default avatar - match UI placement
       const defaultSize = 300;
       const defaultTop = 105;
-      const defaultRightOffset = -15; // Updated to match CompositeCard.tsx
+      const defaultRightOffset = 20; // Moved 35px to the right (was -15, now 20) to match UI
       const x = REFERENCE_WIDTH + defaultRightOffset - defaultSize;
       ctx.drawImage(defaultAvatar, x, defaultTop, defaultSize, defaultSize);
       console.log('🎨 Drew default avatar at x:', x, 'size:', defaultSize);
@@ -121,7 +136,7 @@ export async function downloadCompositeCardManual(options: {
     ctx.fillStyle = 'white';
     ctx.font = '700 32.18px "Helvetica Condensed", Arial, sans-serif';
     ctx.textBaseline = 'top';
-    ctx.fillText(`${accuracyDisplay}%`, 16, 98.39); // Match UI exactly: 98.39px instead of 103px
+    ctx.fillText(`${accuracyDisplay}%`, 16, 110); // Moved closer to MATCH box (was 98.39px, now 110px)
     
     // MATCH box
     ctx.fillStyle = '#114F80';
@@ -150,8 +165,8 @@ export async function downloadCompositeCardManual(options: {
       ctx.fillStyle = 'white';
       ctx.font = '700 13.56px "Helvetica Condensed", Arial, sans-serif';
       ctx.textAlign = 'center';
-      ctx.textBaseline = 'top';
-      ctx.fillText(`${pct}%`, 47.655, t); // Match UI: exactly at t (215, 255, 295)
+      ctx.textBaseline = 'alphabetic';
+      ctx.fillText(`${pct}%`, 47.655, t + 11); // Use alphabetic baseline + offset for stable positioning
       
       // Label box - rounded rect at top + 20
       ctx.fillStyle = '#FFCA04';
@@ -245,16 +260,22 @@ export async function downloadCompositeCardManual(options: {
     ctx.fillRect(16, 453.35, 157.82, 0.89);
     ctx.drawImage(vector, 16 + (157.82 * accuracyDisplay / 100) - 1.475, 448.85, 2.95, 9.85);
     
-    // Download
+    // Upload to Supabase before downloading
     console.log('🎨 Canvas rendering complete - all positions match UI:');
-    console.log('  - Main %: 98.39px');
+    console.log('  - Main %: 110px (closer to MATCH box)');
     console.log('  - MATCH text: 146px (box 144 + offset 2)');
     console.log('  - Phases: 215, 255, 295px (labels at +20)');
     console.log('  - All other elements aligned to UI');
     
     const url = canvas.toDataURL('image/png', 1.0);
+    
+    // NOTE: Upload to Supabase now happens automatically on generation (see uploadCompositeCardOnGeneration.ts)
+    // This download function only handles downloading to the user's device
+    
+    // Download to user's device
+    console.log('💾 Downloading composite card to device...');
     const a = document.createElement('a');
-    a.download = `bowling-report-v2-${Date.now()}.png`;
+    a.download = `bowling-report-${playerName}-${Date.now()}.png`;
     a.href = url;
     document.body.appendChild(a);
     a.click();

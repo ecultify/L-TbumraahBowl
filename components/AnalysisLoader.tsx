@@ -40,6 +40,18 @@ function LoadingDots() {
 
 export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
   const [displayProgress, setDisplayProgress] = useState(0);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => {
+    const checkDesktop = () => {
+      setIsDesktop(window.innerWidth >= 768);
+    };
+    
+    checkDesktop();
+    window.addEventListener('resize', checkDesktop);
+    
+    return () => window.removeEventListener('resize', checkDesktop);
+  }, []);
 
   useEffect(() => {
     if (!isVisible) {
@@ -105,15 +117,13 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
         <img 
           src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
           alt="Bumrah Ball in Hand"
-          className="absolute"
+          className="absolute w-[320px] h-[320px] md:w-[480px] md:h-[480px]"
           style={{
-            width: '320px',
-            height: '320px',
             objectFit: 'contain',
             zIndex: 9,
             top: '28%',
             left: '50%',
-            transform: 'translate(-50%, -50%)'
+            transform: 'translate(-50%, calc(-50% + 40px))'
           }}
           onError={(e) => {
             const target = e.target as HTMLImageElement;
@@ -127,10 +137,8 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
       
       {/* Main yellow container */}
       <div 
-        className="flex flex-col items-center justify-center text-center relative"
+        className="flex flex-col items-center justify-center text-center relative w-[400px] h-[140px] md:w-[600px] md:h-[210px] mt-[40px] md:mt-[140px]"
         style={{
-          width: '400px',
-          height: '140px',
           backgroundColor: '#FFC315',
           borderRadius: '18px',
           boxShadow: '0 8px 32px 0 rgba(31, 38, 135, 0.37)',
@@ -139,13 +147,12 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
         }}
       >
         {/* Headline */}
-        <div className="mb-4">
+        <div className="mb-4 md:mb-6">
           <h2 
-            className="text-black"
+            className="text-black text-[18px] md:text-[27px]"
             style={{
               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
               fontWeight: '700',
-              fontSize: '18px',
               lineHeight: '1.2'
             }}
           >
@@ -156,10 +163,8 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
 
         {/* Progress bar container */}
         <div 
-          className="relative"
+          className="relative w-[300px] h-[90px] md:w-[450px] md:h-[135px]"
           style={{
-            width: '300px',
-            height: '90px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
@@ -167,10 +172,8 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
         >
           {/* Progress bar background */}
           <div 
-            className="relative"
+            className="relative w-[300px] h-[8px] md:w-[450px] md:h-[12px]"
             style={{
-              width: '300px',
-              height: '8px',
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '2px solid #000',
               borderRadius: '20px',
@@ -191,13 +194,11 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
           {/* Lottie animation positioned on top of progress bar - outside the progress bar div */}
           {displayProgress > 0 && displayProgress < 100 && (
             <div 
-              className="absolute"
+              className="absolute w-[100px] h-[100px] md:w-[150px] md:h-[150px]"
               style={{
                 left: `${Math.max(0, Math.min(displayProgress, 100))}%`,
-                bottom: 'calc(50% - 38px)',
+                bottom: isDesktop ? 'calc(50% - 58px)' : 'calc(50% - 38px)',
                 transform: 'translate(-50%, 0) scaleX(-1)',
-                width: '100px',
-                height: '100px',
                 zIndex: 10,
                 transition: 'left 0.3s ease-out'
               }}
@@ -215,18 +216,20 @@ export function AnalysisLoader({ isVisible, progress }: AnalysisLoaderProps) {
 
       {/* Bottom text */}
       <div 
-        className="absolute mt-48 text-center"
+        className="absolute text-center w-[400px] md:w-[600px] px-4"
         style={{
-          width: '400px'
+          top: '50%',
+          marginTop: '120px',
+          zIndex: 15
         }}
       >
         <p 
-          className="text-white"
+          className="text-white text-[16px] md:text-[18px]"
           style={{
             fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
             fontWeight: '700',
-            fontSize: '12px',
-            lineHeight: '12px'
+            lineHeight: '1.4',
+            marginTop: isDesktop ? '60px' : '0'
           }}
         >
           Hang tight — your <span style={{ color: '#FFC315' }}>#BumrahKiSpeedPar</span> report is on its way!

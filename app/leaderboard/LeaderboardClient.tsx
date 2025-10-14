@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 import type { SpeedClass } from '@/context/AnalysisContext';
 import { GlassBackButton } from '@/components/GlassBackButton';
+import { usePageProtection } from '@/lib/hooks/usePageProtection';
+import { UnauthorizedAccess } from '@/components/UnauthorizedAccess';
 
 type LeaderboardEntry = {
   id: string;
@@ -33,20 +35,27 @@ const fallbackName = (entry: LeaderboardEntry, index: number) =>
   `PLAYER ${index + 1}`;
 
 export default function LeaderboardClient() {
+  // ALL HOOKS MUST BE CALLED FIRST, BEFORE ANY CONDITIONAL RETURNS
+  // Protect this page - require OTP verification and proper flow
+  // const isAuthorized = usePageProtection('leaderboard');
+
+  // All state hooks
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showMore, setShowMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [isMobileView, setIsMobileView] = useState(false);
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
+      // Use latest_bowling_attempts view - shows only the most recent attempt per phone number
       let query = supabase
-        .from('leaderboard_all_time')
+        .from('latest_bowling_attempts')
         .select('*')
         .order('predicted_kmh', { ascending: false })
         .order('similarity_percent', { ascending: false })
@@ -55,15 +64,29 @@ export default function LeaderboardClient() {
       let { data, error: queryError } = await query;
 
       if (queryError) {
+        console.warn('[Leaderboard] View query failed, trying fallback:', queryError);
+        // Fallback: manually filter to latest per phone in client-side
         const fallback = await supabase
           .from('bowling_attempts')
           .select('*')
-          .order('predicted_kmh', { ascending: false })
-          .order('similarity_percent', { ascending: false })
-          .limit(3);
+          .not('phone_number', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(50); // Get more records to filter client-side
 
         if (fallback.error) throw fallback.error;
-        data = fallback.data as LeaderboardEntry[];
+        
+        // Filter to latest per phone number
+        const latestByPhone = new Map();
+        (fallback.data || []).forEach((record: any) => {
+          if (!latestByPhone.has(record.phone_number)) {
+            latestByPhone.set(record.phone_number, record);
+          }
+        });
+        
+        // Sort by kmh and take top 3
+        data = Array.from(latestByPhone.values())
+          .sort((a, b) => (b.predicted_kmh || 0) - (a.predicted_kmh || 0))
+          .slice(0, 3) as LeaderboardEntry[];
       }
 
       setEntries((data || []) as LeaderboardEntry[]);
@@ -79,8 +102,9 @@ export default function LeaderboardClient() {
     
     setLoadingMore(true);
     try {
+      // Use latest_bowling_attempts view - shows only the most recent attempt per phone number
       let query = supabase
-        .from('leaderboard_all_time')
+        .from('latest_bowling_attempts')
         .select('*')
         .order('predicted_kmh', { ascending: false })
         .order('similarity_percent', { ascending: false })
@@ -89,15 +113,29 @@ export default function LeaderboardClient() {
       let { data, error: queryError } = await query;
 
       if (queryError) {
+        console.warn('[Leaderboard] View query failed, trying fallback:', queryError);
+        // Fallback: manually filter to latest per phone in client-side
         const fallback = await supabase
           .from('bowling_attempts')
           .select('*')
-          .order('predicted_kmh', { ascending: false })
-          .order('similarity_percent', { ascending: false })
-          .range(3, 9); // Get entries 4-10 (indices 3-9)
+          .not('phone_number', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(100); // Get more records to filter client-side
 
         if (fallback.error) throw fallback.error;
-        data = fallback.data as LeaderboardEntry[];
+        
+        // Filter to latest per phone number
+        const latestByPhone = new Map();
+        (fallback.data || []).forEach((record: any) => {
+          if (!latestByPhone.has(record.phone_number)) {
+            latestByPhone.set(record.phone_number, record);
+          }
+        });
+        
+        // Sort by kmh and take entries 4-10
+        data = Array.from(latestByPhone.values())
+          .sort((a, b) => (b.predicted_kmh || 0) - (a.predicted_kmh || 0))
+          .slice(3, 10) as LeaderboardEntry[];
       }
 
       // Append new entries to existing ones
@@ -147,15 +185,45 @@ export default function LeaderboardClient() {
     };
   }, [loadLeaderboard]);
 
+  // Mobile view detection
+  useEffect(() => {
+    const updateView = () => {
+      setIsMobileView(window.innerWidth < 768);
+    };
+    updateView();
+    window.addEventListener('resize', updateView);
+    return () => window.removeEventListener('resize', updateView);
+  }, []);
+
   const ranked = React.useMemo<RankedEntry[]>(
     () => entries.map((entry, index) => ({ ...entry, rank: index + 1 })),
     [entries]
   );
 
+  // Show loading state while checking authorization
+  // if (isAuthorized === null) {
+  //   return (
+  //     <div style={{
+  //       minHeight: '100vh',
+  //       display: 'flex',
+  //       alignItems: 'center',
+  //       justifyContent: 'center',
+  //       backgroundColor: '#000'
+  //     }}>
+  //       <div style={{ color: '#fff', fontSize: '18px' }}>Loading...</div>
+  //     </div>
+  //   );
+  // }
+
+  // Show unauthorized page if not authorized
+  // if (isAuthorized === false) {
+  //   return <UnauthorizedAccess />;
+  // }
+
   const LeaderboardContent = () => (
     <>
               {/* Headline and Subheadline */}
-              <div className="mb-3 text-center">
+              <div className="mb-3 text-center" style={{ marginTop: '30px' }}>
                 <div
                   style={{
                     position: "relative",
@@ -1024,7 +1092,6 @@ export default function LeaderboardClient() {
                         position: "relative",
                         marginLeft: 25,
                         marginTop: 8.57,
-                        background: "#FFFFFF26",
                         borderRadius: 3.13,
                         clipPath: "polygon(0 0, 100% 0, calc(100% - 10px) 100%, 0 100%)",
                         border: "1px solid",
@@ -1304,7 +1371,7 @@ export default function LeaderboardClient() {
               </div>
 
               {/* Leaderboard Content - Centered */}
-              <div className="relative flex flex-col items-center justify-center" style={{ height: '100%', paddingTop: 40, paddingBottom: 40, zIndex: 2 }}>
+              <div className="relative flex flex-col items-center justify-center" style={{ height: '100%', paddingTop: isMobileView ? 100 : 40, paddingBottom: 40, zIndex: 2 }}>
                 <div
                   className="w-full"
                   style={{
@@ -1344,7 +1411,7 @@ export default function LeaderboardClient() {
                   lineHeight: '1.4'
                 }}
               >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
               </p>
             </div>
             <div className="flex items-center gap-3">

@@ -1,0 +1,8 @@
+﻿<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+
+# Map clean API paths to PHP files for static hosting
+RewriteRule ^api/generate-imagen$ api/generate-imagen.php [L]
+RewriteRule ^api/generate-video$ api/generate-video.php [L]
+</IfModule>

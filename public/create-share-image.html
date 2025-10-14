@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generate Share Image - Bowl Like Bumrah</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 20px;
+      background: #f0f0f0;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .instructions {
+      max-width: 1200px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .instructions h1 {
+      color: #0066cc;
+      margin-top: 0;
+    }
+
+    .instructions ol {
+      line-height: 1.8;
+    }
+
+    .instructions code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+    }
+
+    /* OPEN GRAPH IMAGE - DO NOT MODIFY DIMENSIONS */
+    #share-image {
+      width: 1200px;
+      height: 630px;
+      background: linear-gradient(135deg, #0066cc 0%, #004a99 50%, #003d7a 100%);
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    /* Background pattern */
+    #share-image::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        radial-gradient(circle at 20% 80%, rgba(255,255,255,0.05) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 50%);
+    }
+
+    .content-wrapper {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 1;
+    }
+
+    .logo-container {
+      /* Logo centered perfectly */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      height: 100%;
+      padding: 100px;
+    }
+
+    .logo-container img {
+      /* Fixed maximum width for consistent smaller size */
+      max-width: 600px;
+      max-height: 300px;
+      width: auto;
+      height: auto;
+      display: block;
+      object-fit: contain;
+    }
+
+    .download-btn {
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 15px 40px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0,102,204,0.3);
+      transition: all 0.3s ease;
+    }
+
+    .download-btn:hover {
+      background: #0052a3;
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0,102,204,0.4);
+    }
+
+    .dimension-info {
+      background: #fff3cd;
+      padding: 15px;
+      border-radius: 6px;
+      margin-top: 10px;
+      border-left: 4px solid #ffc107;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="instructions">
+    <h1>📸 Generate Your Share Image</h1>
+    <p><strong>Perfect for WhatsApp, Facebook, Twitter, LinkedIn!</strong></p>
+    <p>Clean, simple design: L&T Finance logo on blue gradient background.</p>
+    
+    <div class="dimension-info">
+      <strong>⚠️ Important:</strong> The image below is <strong>exactly 1200×630 pixels</strong> (Open Graph standard). 
+      Do not resize it! Follow the instructions to capture it.
+    </div>
+
+    <h2>Instructions:</h2>
+    <ol>
+      <li>Scroll down to see the blue share image below</li>
+      <li><strong>Take a screenshot of ONLY the blue box</strong> (not the entire page)</li>
+      <li><strong>Windows:</strong> Use Snipping Tool or Win+Shift+S</li>
+      <li><strong>Mac:</strong> Use Cmd+Shift+4 and select the blue area</li>
+      <li>Save the screenshot as: <code>og-share-image.png</code></li>
+      <li>Upload it to: <code>public/images/og-share-image.png</code></li>
+      <li>Update <code>app/layout.tsx</code> to use the new image path</li>
+    </ol>
+
+    <h2>Or Use Built-in Download (Experimental):</h2>
+    <ol>
+      <li>Right-click on the blue image below</li>
+      <li>Select "Save image as..." or "Download image"</li>
+      <li>If that doesn't work, use the screenshot method above</li>
+    </ol>
+  </div>
+
+  <div id="share-image">
+    <div class="content-wrapper">
+      <div class="logo-container">
+        <img src="/images/newhomepage/Bowling Campaign Logo.avif" alt="L&T Finance - Bowl Like Bumrah Contest">
+      </div>
+    </div>
+  </div>
+
+  <button class="download-btn" onclick="downloadAsImage()">
+    📥 Try to Download Image (Experimental)
+  </button>
+
+  <div class="instructions" style="margin-top: 20px;">
+    <h2>✅ After Creating the Image:</h2>
+    <ol>
+      <li>Save the image as: <code>og-share-image.png</code></li>
+      <li>Upload to VPS at: <code>/var/www/html/bowling-project/public/images/og-share-image.png</code></li>
+      <li>Update the image path in <code>app/layout.tsx</code>:
+        <pre style="background: #f5f5f5; padding: 15px; border-radius: 6px; overflow-x: auto;">
+url: 'https://bowllikebumrah.com/images/og-share-image.png'</pre>
+      </li>
+      <li>Rebuild: <code>npm run build && pm2 restart bowling-web</code></li>
+      <li>Clear cache at: <a href="https://developers.facebook.com/tools/debug/" target="_blank">Facebook Debugger</a></li>
+    </ol>
+
+    <h2>🎨 Customization Options:</h2>
+    <p>If you want to change the design:</p>
+    <ul>
+      <li><strong>Background color:</strong> Modify the <code>background: linear-gradient(...)</code> in the CSS (line ~48)</li>
+      <li><strong>Logo size:</strong> Adjust <code>max-width</code> in <code>.logo-container img</code> (currently 800px)</li>
+      <li><strong>Add text:</strong> Uncomment or add text elements in the HTML content section</li>
+    </ul>
+  </div>
+
+  <script>
+    // Experimental: Try to download the image using html2canvas
+    async function downloadAsImage() {
+      alert('Note: This experimental feature may not work in all browsers. If it fails, please use the screenshot method described above.');
+      
+      try {
+        // Check if html2canvas is available (it's not included by default)
+        if (typeof html2canvas === 'undefined') {
+          // Fallback: Just use screenshot method
+          alert('html2canvas library not loaded. Please use the screenshot method:\n\n1. Take a screenshot of just the blue box\n2. Save as og-share-image.png\n3. Upload to your project');
+          return;
+        }
+
+        const element = document.getElementById('share-image');
+        const canvas = await html2canvas(element, {
+          width: 1200,
+          height: 630,
+          scale: 1,
+          logging: false,
+          backgroundColor: null
+        });
+
+        canvas.toBlob(function(blob) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'og-share-image.png';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }, 'image/png');
+
+      } catch (error) {
+        alert('Download failed. Please use the screenshot method instead:\n\n1. Take a screenshot of the blue box\n2. Save as og-share-image.png');
+        console.error(error);
+      }
+    }
+  </script>
+
+</body>
+</html>
+

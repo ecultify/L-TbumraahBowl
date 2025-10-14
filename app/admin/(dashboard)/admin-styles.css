@@ -1,0 +1,147 @@
+/* Admin Panel Custom Styles */
+
+/* Main content headings - Yellow */
+.admin-content h1 {
+  color: #FFCB17 !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.admin-content > div > div > p:first-of-type,
+.admin-content > div > div > p {
+  color: #FFCB17 !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* All Card components - WHITE background with shadow */
+.admin-content [data-radix-collection-item],
+.admin-content div[class*="card"],
+.admin-content div[class*="Card"] {
+  background-color: white !important;
+  border: 1px solid #e5e7eb !important;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1) !important;
+}
+
+/* Card hover effect */
+.admin-content div[class*="card"]:hover,
+.admin-content div[class*="Card"]:hover {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+}
+
+/* All text inside cards - keep natural colors */
+.admin-content [data-radix-collection-item] *,
+.admin-content div[class*="card"] *,
+.admin-content div[class*="Card"] * {
+  color: inherit;
+}
+
+/* Card titles */
+.admin-content [class*="CardTitle"] {
+  color: #111827 !important;
+}
+
+/* Card descriptions */
+.admin-content [class*="CardDescription"] {
+  color: #6b7280 !important;
+}
+
+/* Muted text */
+.admin-content .text-muted-foreground {
+  color: #9ca3af !important;
+}
+
+/* Badges - use subtle backgrounds */
+.admin-content [class*="badge"],
+.admin-content [class*="Badge"] {
+  background-color: #f3f4f6 !important;
+  color: #374151 !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+/* Success badges */
+.admin-content [class*="bg-green"] {
+  background-color: #d1fae5 !important;
+  color: #065f46 !important;
+  border-color: #6ee7b7 !important;
+}
+
+/* Links - keep blue */
+.admin-content a {
+  color: #2563eb !important;
+}
+
+.admin-content a:hover {
+  color: #1d4ed8 !important;
+}
+
+/* Buttons - Yellow background with black text */
+.admin-content button {
+  background-color: #FFCB17 !important;
+  color: black !important;
+  border: 2px solid #FFCB17 !important;
+  font-weight: 600 !important;
+  transition: all 0.2s ease !important;
+}
+
+.admin-content button:hover:not(:disabled) {
+  background-color: #E6B815 !important;
+  color: black !important;
+  border-color: #E6B815 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+.admin-content button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Icons - use muted color */
+.admin-content svg {
+  color: #6b7280;
+}
+
+/* Tables */
+.admin-content table {
+  background-color: transparent !important;
+}
+
+.admin-content thead {
+  background-color: #f9fafb !important;
+}
+
+.admin-content thead th {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}
+
+.admin-content tbody tr:hover {
+  background-color: #f9fafb !important;
+}
+
+/* Skeleton loaders */
+.admin-content [class*="Skeleton"],
+.admin-content [class*="skeleton"] {
+  background-color: #e5e7eb !important;
+}
+
+/* Conversion funnel - improve design */
+.admin-content .funnel-bar {
+  background: white !important;
+  border: 2px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  padding: 12px !important;
+  transition: all 0.3s ease !important;
+}
+
+.admin-content .funnel-bar:hover {
+  border-color: #0EA5E9 !important;
+  box-shadow: 0 4px 6px -1px rgb(14 165 233 / 0.2) !important;
+}
+
+/* Metric numbers - larger and bold */
+.admin-content [class*="text-4xl"],
+.admin-content [class*="text-5xl"] {
+  color: #0EA5E9 !important;
+  font-weight: 700 !important;
+}
+

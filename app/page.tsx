@@ -12,6 +12,17 @@ import {
   CarouselPrevious,
   type CarouselApi,
 } from '@/components/ui/carousel';
+import { getTopCompositeCards } from '@/lib/utils/compositeCardUpload';
+
+// Helper function to optimize Supabase images with resize parameters
+function getOptimizedSupabaseUrl(url: string, width: number, height: number, quality: number = 80): string {
+  if (!url || !url.includes('supabase')) return url;
+  
+  // Supabase supports image transformations via URL parameters
+  // Format: ?width=X&height=Y&quality=Z
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}width=${width}&height=${height}&quality=${quality}`;
+}
 
 export default function Home() {
   // Intersection observers for each section
@@ -22,18 +33,78 @@ export default function Home() {
   const fifthSection = useIntersectionObserver({ threshold: 0.5, freezeOnceVisible: true });
   const footerSection = useIntersectionObserver({ threshold: 0.3, freezeOnceVisible: true });
 
-  // Carousel state for dots
-  const [carouselApi, setCarouselApi] = useState<CarouselApi | null>(null);
+  // Carousel state for dots - separate for mobile and desktop
+  const [mobileCarouselApi, setMobileCarouselApi] = useState<CarouselApi | null>(null);
+  const [desktopCarouselApi, setDesktopCarouselApi] = useState<CarouselApi | null>(null);
   const [selectedDot, setSelectedDot] = useState(0);
+  
+  // Autoscroll functionality for mobile carousel
   useEffect(() => {
-    if (!carouselApi) return;
-    const onSelect = () => setSelectedDot(carouselApi.selectedScrollSnap());
-    carouselApi.on('select', onSelect);
+    if (!mobileCarouselApi) return;
+    
+    const interval = setInterval(() => {
+      mobileCarouselApi.scrollNext();
+    }, 3000); // Auto-scroll every 3 seconds
+    
+    return () => clearInterval(interval);
+  }, [mobileCarouselApi]);
+  
+  // Autoscroll functionality for desktop carousel
+  useEffect(() => {
+    if (!desktopCarouselApi) return;
+    
+    const interval = setInterval(() => {
+      desktopCarouselApi.scrollNext();
+    }, 3000); // Auto-scroll every 3 seconds
+    
+    return () => clearInterval(interval);
+  }, [desktopCarouselApi]);
+  
+  // Wall of Fame composite cards
+  const [compositeCards, setCompositeCards] = useState<any[]>([]);
+  const [isLoadingCards, setIsLoadingCards] = useState(true);
+  // Mobile carousel event listener
+  useEffect(() => {
+    if (!mobileCarouselApi) return;
+    const onSelect = () => setSelectedDot(mobileCarouselApi.selectedScrollSnap());
+    mobileCarouselApi.on('select', onSelect);
     onSelect();
     return () => {
-      try { carouselApi.off('select', onSelect); } catch {}
+      try { mobileCarouselApi.off('select', onSelect); } catch {}
     };
-  }, [carouselApi]);
+  }, [mobileCarouselApi]);
+  
+  // Desktop carousel event listener
+  useEffect(() => {
+    if (!desktopCarouselApi) return;
+    const onSelect = () => setSelectedDot(desktopCarouselApi.selectedScrollSnap());
+    desktopCarouselApi.on('select', onSelect);
+    onSelect();
+    return () => {
+      try { desktopCarouselApi.off('select', onSelect); } catch {}
+    };
+  }, [desktopCarouselApi]);
+  
+  // Fetch top composite cards for Wall of Fame - Load immediately
+  useEffect(() => {
+    const fetchCompositeCards = async () => {
+      try {
+        const cards = await getTopCompositeCards(12); // Get top 12 cards (4 cards × 3 slides)
+        if (cards && cards.length > 0) {
+          setCompositeCards(cards);
+        } else {
+          // Fallback to dummy if no cards available
+          setCompositeCards([]);
+        }
+      } catch (error) {
+        console.error('Failed to fetch composite cards:', error);
+        setCompositeCards([]);
+      } finally {
+        setIsLoadingCards(false);
+      }
+    };
+    fetchCompositeCards();
+  }, []);
 
   // Video modal state
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
@@ -76,9 +147,9 @@ export default function Home() {
 
   // Hero background container (bottom corners rounded)
   const heroContainerStyle: CSSProperties = {
-    minHeight: 740,
+    minHeight: 580, // reduced from 620 to reduce hero section height even more
     paddingTop: 20, // reduced from 44 to pull content up
-    backgroundImage: 'url("/images/newhomepage/front%20bg.jpg")',
+    backgroundImage: 'url("/images/newhomepage/front%20bg.avif")',
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
@@ -162,8 +233,9 @@ export default function Home() {
   const heroButtonStyle: CSSProperties = {
     backgroundColor: '#FFC315',
     borderRadius: 25.62,
-    fontFamily: 'Frutiger, Inter, sans-serif',
+    fontFamily: 'FrutigerLT Pro',
     fontWeight: 700,
+    fontStyle: 'normal',
     fontSize: 16,
     color: 'black',
     width: 261,
@@ -199,14 +271,14 @@ export default function Home() {
           <div style={responsiveHeroStageStyle}>
             <Link href="/">
               <img
-                src="/images/newhomepage/Bowling%20Campaign%20Logo.png"
+                src="/images/newhomepage/Bowling%20Campaign%20Logo.avif"
                 alt="Bowling Campaign Logo"
                 style={{...campaignLogoStyle, cursor: "pointer"}}
                 className={`animate-fadeInDown ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               />
             </Link>
             <img
-              src="/images/bowlkarbumrahkispeedpar.png"
+              src="/images/bowlkarbumrahkispeedpar.avif"
               alt="Bowl Kar Bumraah Ki Speed Par"
               style={heroTaglineStyle}
               className={`animate-fadeInUp animate-delay-200 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
@@ -216,15 +288,15 @@ export default function Home() {
               style={heroSubtextStyle}
               className={`animate-fadeInUp animate-delay-300 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             >
-              <div style={{ transform: 'rotate(-0.5deg)', transformOrigin: 'center', display: 'flex', justifyContent: 'center', marginTop: '-15px' }}>
+              <div style={{ transform: 'rotate(-1deg)', transformOrigin: 'center', display: 'flex', justifyContent: 'center', marginTop: '-15px' }}>
                 <img
-                  src="/images/showoff.png"
+                  src="/images/Group 1437254156.avif"
                   alt="Bowl Like Me and Get a Chance to Meet Me"
                   style={{
                     width: 'auto',
                     height: 'auto',
-                    maxWidth: '120%',
-                    maxHeight: '120px'
+                    maxWidth: '110%',
+                    maxHeight: '110px'
                   }}
                 />
               </div>
@@ -234,7 +306,7 @@ export default function Home() {
               className={`animate-scaleIn animate-delay-400 ${heroSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             >
               <img
-                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
+                src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.avif"
                 alt="Bumrah ball in hand"
                 style={{
                   position: 'absolute',
@@ -263,7 +335,7 @@ export default function Home() {
             {/* And also Win word with woosh icon attached to A */}
             <div style={{...winWordStyle, marginTop: 8}}>
               <img
-                src="/images/andalsowinasterisk.png"
+                src="/images/andalsowinmobile.avif"
                 alt="And Also Win"
                 style={{
                   height: 24,
@@ -285,7 +357,7 @@ export default function Home() {
                 marginTop: -15 // reduced from -10 for closer spacing
               }}
             >
-              Bumrah's signed gears & vouchers*
+              Bumrah's signed gears & vouchers
             </div>
           </div>
         </div>
@@ -309,7 +381,7 @@ export default function Home() {
 
         {/* Gratifications image straddling the hero bottom border - hidden on desktop */}
         <img
-          src="/images/gratificationnew.png"
+          src="/images/gratificationnew.avif"
           alt="Gratifications"
           aria-hidden
           className="md:hidden"
@@ -317,9 +389,9 @@ export default function Home() {
             position: 'absolute',
             left: '50%',
             top: '100%',
-            transform: 'translate(-50%, -40%)', // moved up by 10px (from -30% to -40%)
+            transform: 'translate(-50%, -40%)', // moved up by 20px (from -40% to -50%)
             width: 320,
-            height: 140,
+            height: 160,
             zIndex: 2, // above hero background so upper half is in front
             pointerEvents: 'none',
           }}
@@ -332,7 +404,7 @@ export default function Home() {
         <div 
           className="relative overflow-hidden"
           style={{
-            backgroundImage: 'url(/images/Landing%20page%20BG.jpg)',
+            backgroundImage: 'url(/images/desktopbchanged.avif)',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
             backgroundRepeat: 'no-repeat',
@@ -344,10 +416,10 @@ export default function Home() {
           
           <div className="relative z-10 max-w-7xl mx-auto px-8 pt-6 pb-16">
             {/* Logo at the top */}
-            <div className="mb-8" style={{ marginLeft: '-45px' }}>
+            <div className="mb-8" style={{ marginLeft: '0px' }}>
               <Link href="/">
               <img 
-                src="/images/newhomepage/Bowling%20Campaign%20Logo.png" 
+                src="/images/newhomepage/Bowling%20Campaign%20Logo.avif" 
                 alt="Bowling Campaign Logo" 
                   className="h-20 md:h-24 w-auto cursor-pointer"
               />
@@ -366,7 +438,7 @@ export default function Home() {
                   }}
                 >
                   <img
-                    src="/images/bowlkarbumrahkispeedpar.png"
+                    src="/images/bowlkarbumrahkispeedpar.avif"
                     alt="Bowl Kar Bumraah Ki Speed Par"
                     className="h-20 md:h-24 lg:h-32 w-auto"
                   />
@@ -385,7 +457,7 @@ export default function Home() {
                       marginTop: '-10px'
                     }}
                   >
-                    SHOW OFF YOUR BOWLING STYLE AND GET A CHANCE TO MEET ME
+                    SHOW OFF YOUR BOWLING STYLE AND GET A CHANCE TO MEET ME*
                   </div>
                 </div>
 
@@ -397,8 +469,9 @@ export default function Home() {
                     style={{
                       backgroundColor: '#FFC315',
                       borderRadius: '25px',
-                      fontFamily: 'Frutiger, Inter, sans-serif',
-                      fontWeight: '700',
+                      fontFamily: 'FrutigerLT Pro',
+                      fontWeight: 700,
+                      fontStyle: 'normal',
                       fontSize: '18px',
                       color: 'black',
                       padding: '12px 40px'
@@ -411,11 +484,11 @@ export default function Home() {
                 {/* WIN Section replaced with andalsowin + subline + desktop gratifications (Desktop only) */}
                 <div 
                   className="hidden md:flex flex-col items-start gap-2"
-                  style={{ marginTop: 'calc(4rem + 85px)' }}
+                  style={{ marginTop: 'calc(4rem - 25px)' }} // moved up by 110px total (from 85px to -25px)
                 >
                   {/* And Also Win banner */}
                   <img
-                    src="/images/andalsowindesktop2.png"
+                    src="/images/andalsowinnewversion.png"
                     alt="And Also Win"
                     style={{ height: 27, width: 'auto', marginLeft: '-30px' }}
                   />
@@ -431,11 +504,11 @@ export default function Home() {
                       marginTop: '-2px'
                     }}
                   >
-                    Bumrah's signed gears & vouchers*
+                    Bumrah's signed gears & vouchers
                   </div>
                   {/* Desktop gratifications visual */}
                   <img
-                    src="/images/desktop%20gratifiecation.png"
+                    src="/images/desktop%20gratifiecation.avif"
                     alt="Gratifications"
                     style={{ width: 520, height: 'auto', marginTop: '10px' }}
                   />
@@ -446,7 +519,7 @@ export default function Home() {
               <div className="relative flex items-center justify-center">
                 {/* Image positioned to extend beyond container */}
                   <img
-                    src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.png"
+                    src="/images/newhomepage/Bumrah%20Ball%20in%20Hand%201.avif"
                     alt="Bumrah ball in hand"
                     style={{
                       position: 'absolute',
@@ -485,7 +558,7 @@ export default function Home() {
 
         {/* Herosection Image - Following same behavior as Vector 11 on mobile */}
         <img
-          src="/images/herosection image.png"
+          src="/images/herosection image.avif"
           alt=""
           aria-hidden
           style={{
@@ -508,7 +581,7 @@ export default function Home() {
           {/* Take challenge image */}
           <div className={`mb-2 animate-fadeInUp ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <img 
-              src="/images/newhomepage/takechallenge.png" 
+              src="/images/newhomepage/takechallenge.avif" 
               alt="Take Challenge" 
               className="w-auto h-auto mx-auto"
               style={{ maxHeight: '50px' }}
@@ -521,7 +594,7 @@ export default function Home() {
         <div className="relative mx-auto mb-8" style={{ width: 350 }}>
           {/* Left Ball - Partially hidden behind vector */}
           <img 
-            src="/frontend-images/homepage/ball.png" 
+            src="/frontend-images/homepage/ball.avif" 
             alt="Cricket Ball" 
             className={`absolute z-0 animate-bowlingLeft animate-delay-500 ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             style={{
@@ -535,7 +608,7 @@ export default function Home() {
           
           {/* Right Ball - Bottom positioning */}
           <img 
-            src="/frontend-images/homepage/ball.png" 
+            src="/frontend-images/homepage/ball.avif" 
             alt="Cricket Ball" 
             className={`absolute bottom-0 z-0 animate-bowlingRight animate-delay-700 ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}
             style={{
@@ -635,7 +708,7 @@ export default function Home() {
         {/* Wall of Fame Image */}
         <div className="mx-auto mb-6 flex justify-center">
           <img
-            src="/images/newhomepage/walloffame.png"
+            src="/images/newhomepage/walloffame.avif"
             alt="Wall of Fame"
             className="w-auto h-auto"
             style={{ maxHeight: '120px' }}
@@ -644,43 +717,59 @@ export default function Home() {
 
         {/* Report card carousel */}
         <div className="mx-auto w-full flex flex-col items-center">
-          <Carousel
-            opts={{ align: 'center', loop: true, skipSnaps: false }}
-            setApi={setCarouselApi}
-            className="w-full max-w-[400px]"
-          >
-            <CarouselContent className="-ml-3 md:-ml-4">
-              {Array.from({ length: 2 }).map((_, i) => (
-                <CarouselItem key={i} className="pl-3 md:pl-4 basis-1/2">
-                  <div className="flex items-center justify-center">
-                    <img
-                      src="/images/newhomepage/Report Card.png"
-                      alt={`Report card ${i + 1}`}
-                      className="w-full h-auto object-contain rounded-xl"
-                      style={{ maxWidth: 250, aspectRatio: '185/325' }}
-                    />
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-            {/* Optional arrows hidden on mobile; uncomment if needed */}
-            <CarouselPrevious className="hidden" />
-            <CarouselNext className="hidden" />
-          </Carousel>
-          <div className="mt-3 flex justify-center gap-2">
-            {Array.from({ length: 2 }).map((_, i) => (
-              <span
-                key={i}
-                style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: '50%',
-                  backgroundColor: i === selectedDot ? '#FFC315' : 'rgba(255,255,255,0.6)',
-                  display: 'inline-block',
-                }}
-              />)
-            )}
-          </div>
+          {isLoadingCards ? (
+            <div className="flex items-center justify-center" style={{ minHeight: 300 }}>
+              <p style={{ color: 'white', fontSize: 14 }}>Loading...</p>
+            </div>
+          ) : compositeCards.length > 0 ? (
+            <>
+              <Carousel
+                opts={{ align: 'start', loop: true, skipSnaps: false }}
+                setApi={setMobileCarouselApi}
+                className="w-full max-w-[400px]"
+              >
+                <CarouselContent className="-ml-2">
+                  {compositeCards.slice(0, 12).map((card, i) => (
+                    <CarouselItem key={i} className="pl-2 basis-1/2">
+                      <div className="flex items-center justify-center">
+                        <img
+                          src={getOptimizedSupabaseUrl(card.composite_card_url, 350, 630, 75)}
+                          alt={`${card.player_name}'s report`}
+                          className="w-full h-auto object-contain rounded-lg"
+                          style={{ aspectRatio: '185/325' }}
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      </div>
+                    </CarouselItem>
+                  ))}
+                </CarouselContent>
+                <CarouselPrevious className="hidden" />
+                <CarouselNext className="hidden" />
+              </Carousel>
+              <div className="mt-3 flex justify-center gap-2">
+                {[0, 1, 2, 3, 4, 5].map((i) => (
+                  <span
+                    key={i}
+                    onClick={() => mobileCarouselApi?.scrollTo(i)}
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: '50%',
+                      backgroundColor: i === selectedDot ? '#FFC315' : 'rgba(255,255,255,0.6)',
+                      display: 'inline-block',
+                      cursor: 'pointer',
+                    }}
+                  />
+                ))}
+              </div>
+              
+            </>
+          ) : (
+            <div className="flex items-center justify-center" style={{ minHeight: 300 }}>
+              <p style={{ color: 'white', fontSize: 14 }}>No reports available yet</p>
+            </div>
+          )}
         </div>
 
         {/* Remove legacy second section content */}
@@ -801,7 +890,7 @@ export default function Home() {
           <div className={`relative animate-fadeInRight animate-delay-400 ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`} style={{ marginLeft: '12px' }}>
             {/* Top Left Ball */}
             <img 
-              src="/frontend-images/homepage/ball.png" 
+              src="/frontend-images/homepage/ball.avif" 
               alt="Cricket Ball" 
               className={`absolute z-10 animate-bowlingLeft animate-delay-500 ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               style={{
@@ -814,7 +903,7 @@ export default function Home() {
             
             {/* Bottom Right Ball - further to the right */}
             <img 
-              src="/frontend-images/homepage/ball.png" 
+              src="/frontend-images/homepage/ball.avif" 
               alt="Cricket Ball" 
               className={`absolute bottom-0 z-0 animate-bowlingRight animate-delay-700 ${secondSection.isIntersecting ? 'animate-on-scroll' : ''}`}
               style={{
@@ -1065,7 +1154,7 @@ export default function Home() {
            {/* Wall of Fame Image - pushed further down to clear vector boundary */}
            <div className="mx-auto mb-12 flex justify-center" style={{ marginTop: '50px' }}>
              <img
-               src="/images/newhomepage/walloffame.png"
+               src="/images/newhomepage/walloffame.avif"
                alt="Wall of Fame"
                className="w-auto h-auto"
                style={{ maxHeight: '240px' }}
@@ -1074,42 +1163,58 @@ export default function Home() {
 
           {/* Report card carousel */}
           <div className="mx-auto w-full flex flex-col items-center" style={{ marginTop: '70px' }}>
-            <Carousel
-              opts={{ align: 'center', loop: true, skipSnaps: false }}
-              setApi={setCarouselApi}
-              className="w-full max-w-[1320px]"
-            >
-              <CarouselContent className="ml-0">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <CarouselItem key={i} className="pl-0 basis-1/4">
-                    <div className="flex items-center justify-center">
-                      <img
-                        src="/images/newhomepage/Report Card.png"
-                        alt={`Report card ${i + 1}`}
-                        className="w-full h-auto object-contain rounded-xl"
-                        style={{ maxWidth: 300, aspectRatio: '185/325' }}
-                      />
-                    </div>
-                  </CarouselItem>
-                ))}
-              </CarouselContent>
-              <CarouselPrevious className="hidden" />
-              <CarouselNext className="hidden" />
-            </Carousel>
-            <div className="mt-6 flex justify-center gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <span
-                  key={i}
-                style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: '50%',
-                    backgroundColor: i === selectedDot ? '#FFC315' : 'rgba(255,255,255,0.6)',
-                    display: 'inline-block',
-                  }}
-                />
-              ))}
-            </div>
+            {isLoadingCards ? (
+              <div className="flex items-center justify-center" style={{ minHeight: 400 }}>
+                <p style={{ color: 'white', fontSize: 18 }}>Loading...</p>
+              </div>
+            ) : compositeCards.length > 0 ? (
+              <>
+                <Carousel
+                  opts={{ align: 'start', loop: true, skipSnaps: false }}
+                  setApi={setDesktopCarouselApi}
+                  className="w-full max-w-[1320px]"
+                >
+                  <CarouselContent className="ml-0">
+                    {compositeCards.slice(0, 12).map((card, i) => (
+                      <CarouselItem key={i} className="pl-0 basis-1/4">
+                        <div className="flex items-center justify-center">
+                          <img
+                            src={getOptimizedSupabaseUrl(card.composite_card_url, 350, 630, 75)}
+                            alt={`${card.player_name}'s report`}
+                            className="w-full h-auto object-contain rounded-xl"
+                            style={{ maxWidth: 300, aspectRatio: '185/325' }}
+                            loading="lazy"
+                            decoding="async"
+                          />
+                        </div>
+                      </CarouselItem>
+                    ))}
+                  </CarouselContent>
+                  <CarouselPrevious className="hidden" />
+                  <CarouselNext className="hidden" />
+                </Carousel>
+                <div className="mt-6 flex justify-center gap-3">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      onClick={() => desktopCarouselApi?.scrollTo(i)}
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: '50%',
+                        backgroundColor: i === selectedDot ? '#FFC315' : 'rgba(255,255,255,0.6)',
+                        display: 'inline-block',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center" style={{ minHeight: 400 }}>
+                <p style={{ color: 'white', fontSize: 18 }}>No reports available yet</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1119,7 +1224,7 @@ export default function Home() {
       <div className="relative w-full">
         {/* Full-width image to avoid stretching and side gaps */}
         <img
-          src="/images/watchdesktop.png"
+          src="/images/watchdesktop.avif"
           alt=""
           aria-hidden
           className="w-full h-auto block"
@@ -1133,7 +1238,7 @@ export default function Home() {
             <div className="col-span-12 lg:col-span-6 flex flex-col items-center text-center" style={{ marginTop: '-30px' }}>
               <div className="mb-8">
                 <img 
-                  src="/images/newhomepage/watchhow.png" 
+                  src="/images/newhomepage/watchhow.avif" 
                   alt="Watch How"
                   className="w-auto h-auto"
                   style={{ maxHeight: '240px' }}
@@ -1158,8 +1263,9 @@ export default function Home() {
                   style={{
                     backgroundColor: '#FFC315',
                     borderRadius: 25,
-                    fontFamily: 'Frutiger, Inter, sans-serif',
+                    fontFamily: 'FrutigerLT Pro',
                     fontWeight: 700,
+                    fontStyle: 'normal',
                     fontSize: 18,
                     color: 'black',
                     display: 'block',
@@ -1214,7 +1320,7 @@ export default function Home() {
                       }}
                       className="absolute inset-0 cursor-pointer group z-10"
                       style={{
-                        backgroundImage: 'url(/images/thumbnail.png)',
+                        backgroundImage: 'url(/images/thumbnail.avif)',
                         backgroundSize: 'cover',
                         backgroundPosition: 'center',
                         borderRadius: 20
@@ -1265,7 +1371,7 @@ export default function Home() {
                       objectFit: 'cover'
                     }}
                   >
-                    <source src="/how%20to%20video.mp4" type="video/mp4" />
+                    <source src="/how-to-video.mp4" type="video/mp4" />
                     Your browser does not support the video tag.
                   </video>
                 </div>
@@ -1285,7 +1391,7 @@ export default function Home() {
       <div className="relative w-full">
         {/* Full-width image to avoid stretching and side gaps */}
         <img
-          src="/images/aboutdesktop.png"
+          src="/images/aboutdesktop.avif"
           alt=""
           aria-hidden
           className="w-full h-auto block"
@@ -1298,7 +1404,7 @@ export default function Home() {
               {/* About LNT PNG */}
               <div className="mb-8">
                 <img 
-                  src="/images/newhomepage/aboutlnt.png" 
+                  src="/images/newhomepage/aboutlnt.avif" 
                   alt="About LNT" 
                   className="w-auto h-auto mx-auto"
                   style={{ maxHeight: 230 }}
@@ -1391,7 +1497,7 @@ export default function Home() {
           {/* Watch How PNG */}
           <div className="mb-4">
             <img 
-              src="/images/newhomepage/watchhow.png" 
+              src="/images/newhomepage/watchhow.avif" 
               alt="Watch How" 
               className="w-auto h-auto mx-auto"
               style={{ maxHeight: '120px' }}
@@ -1462,7 +1568,7 @@ export default function Home() {
                   }}
                   className="absolute inset-0 cursor-pointer group z-10"
                   style={{
-                    backgroundImage: 'url(/images/thumbnail.png)',
+                    backgroundImage: 'url(/images/thumbnail.avif)',
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                   }}
@@ -1526,7 +1632,7 @@ export default function Home() {
                   objectFit: 'cover'
                 }}
               >
-                <source src="/how%20to%20video.mp4" type="video/mp4" />
+                <source src="/how-to-video.mp4" type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
             </div>
@@ -1539,8 +1645,9 @@ export default function Home() {
             style={{
               backgroundColor: '#FFC315',
               borderRadius: '25.62px',
-              fontFamily: 'Frutiger, Inter, sans-serif',
-              fontWeight: '700',
+              fontFamily: 'FrutigerLT Pro',
+              fontWeight: 700,
+              fontStyle: 'normal',
               fontSize: 'clamp(14px, 3vw, 16px)',
               color: 'black',
               width: 'clamp(200px, 60vw, 261px)',
@@ -1575,7 +1682,7 @@ export default function Home() {
           {/* About LNT PNG */}
           <div className={`mb-6 animate-fadeInUp ${fourthSection.isIntersecting ? 'animate-on-scroll' : ''}`}>
             <img 
-              src="/images/newhomepage/aboutlnt.png" 
+              src="/images/newhomepage/aboutlnt.avif" 
               alt="About LNT" 
               className="w-auto h-auto mx-auto"
               style={{ maxHeight: '80px' }}
@@ -1656,17 +1763,25 @@ export default function Home() {
 
       {/* New Section - Group Image Background */}
       <div className="w-full relative" style={{ marginBottom: 0, marginTop: 0 }}>
-        {/* Group 1437254115 background */}
-        <img 
-          src="/images/newhomepage/Group%201437254115.png"
-          alt="L&T Finance"
-          className="w-full h-auto block"
-          style={{
-            maxWidth: '100%',
-            height: 'auto',
-            display: 'block'
-          }}
-        />
+        {/* Group 1437254115 background (clickable) */}
+        <a
+          href="https://justzoom.ltfinance.com/?utm_source=TWEAG_JZ&utm_medium=Bowl_Like_Bumrah_Website&utm_campaign=Bowl_Like_Bumrah_Footer_Banner_8Oct25&utm_term=Bowl_Like_Bumrah_Footer_Banner&utm_content=Bowl_Like_Bumrah_Footer_Banner_JZ"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Visit JustZoom by L&T Finance"
+          className="block"
+        >
+          <img 
+            src="/images/newhomepage/Group%201437254115.avif"
+            alt="L&T Finance"
+            className="w-full h-auto block"
+            style={{
+              maxWidth: '100%',
+              height: 'auto',
+              display: 'block'
+            }}
+          />
+        </a>
       </div>
       {/* Unified Responsive Footer */}
       <footer className="w-full bg-black px-4 md:px-8 pt-4 pb-6" ref={footerSection.ref}>
@@ -1682,7 +1797,7 @@ export default function Home() {
                 lineHeight: '1.4'
               }}
             >
-              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
             </p>
           </div>
           
@@ -1723,7 +1838,7 @@ export default function Home() {
               </a>
 
               {/* YouTube */}
-              <a href="https://www.youtube.com/@LnTFinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
+              <a href="https://www.youtube.com/user/ltfinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                   <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
                 </svg>
@@ -1757,7 +1872,7 @@ export default function Home() {
           <div className="relative z-10 flex items-center justify-start max-w-7xl mx-auto px-8 py-6">
             <div className="flex items-center">
               <img 
-                src="/images/newhomepage/Bowling%20Campaign%20Logo.png" 
+                src="/images/newhomepage/Bowling%20Campaign%20Logo.avif" 
                 alt="Bowling Campaign Logo" 
                 className="h-24 w-auto"
               />
@@ -1852,7 +1967,7 @@ export default function Home() {
               {/* Right Column - Visual */}
               <div className="relative flex items-center justify-center">
                 <img 
-                  src="/frontend-images/homepage/bumraahdesktoppic.png" 
+                  src="/frontend-images/homepage/bumraahdesktoppic.avif" 
                   alt="Bumraah Desktop" 
                   className="w-full max-w-lg h-auto object-contain"
                 />
@@ -2126,7 +2241,7 @@ export default function Home() {
         <div className="w-full py-16">
           <div className="max-w-7xl mx-auto px-8">
             <img 
-              src="/frontend-images/homepage/4thsection.png" 
+              src="/frontend-images/homepage/4thsection.avif" 
               alt="L&T Finance Two-Wheeler Loans" 
               className="w-full h-auto object-contain rounded-3xl"
             />
@@ -2146,7 +2261,7 @@ export default function Home() {
                   lineHeight: '1.4'
                 }}
               >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a> | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
               </p>
             </div>
             
@@ -2261,7 +2376,7 @@ export default function Home() {
                     console.error('Error details:', e.currentTarget.error);
                   }}
                 >
-                  <source src="/how%20to%20video.mp4" type="video/mp4" />
+                  <source src="/how-to-video.mp4" type="video/mp4" />
                   Your browser does not support the video tag.
                 </video>
               </div>

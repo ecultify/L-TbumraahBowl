@@ -101,17 +101,18 @@ export class BenchmarkComparisonAnalyzer {
       console.log('TensorFlow ready');
       
       const model = poseDetection.SupportedModels.MoveNet;
+      // Use Lightning model - faster, lighter, and more accessible than Thunder
+      // Thunder model has 403 Forbidden issues from TFHub
       this.detector = await poseDetection.createDetector(model, {
-        // Use higher-capacity model for more stable keypoints
-        modelType: 'SinglePose.Thunder',
+        modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING,
         // Smooth keypoints across frames to reduce jitter
         enableSmoothing: true
-      } as any);
-      console.log('Pose detector created');
+      });
+      console.log('Pose detector created with Lightning model');
 
       // Optional: load custom weights for similarity components
       try {
-        const wr = await fetch('/weights.json', { cache: 'force-cache' });
+        const wr = await fetch('/weights.json', { cache: 'no-store' });
         if (wr.ok) {
           const jw = await wr.json();
           const w = {
@@ -138,7 +139,7 @@ export class BenchmarkComparisonAnalyzer {
 
       // Prefer single benchmark pattern for consistency
       try {
-        const res = await fetch('/benchmarkPattern.json', { cache: 'force-cache' });
+        const res = await fetch('/benchmarkPattern.json', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json() as SerializedPattern;
           this.benchmarkPattern = this.deserializePattern(data);
@@ -601,75 +602,73 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   /**
-   * Checks if required FULL BODY keypoints are consistently detected across frames
-   * Requires BOTH upper body (shoulders, arms) AND lower body (hips, legs) keypoints
-   * Returns true if sufficient full body visibility, false otherwise
+   * Phase-Based Detection: Checks for standing position in early frames (run-up)
+   * Then allows any body visibility for remaining frames (delivery/follow-through)
+   * 
+   * Strategy:
+   * - First 30% of frames: Check for LOWER BODY (hips, knees, ankles) to detect standing
+   * - Remaining 70% of frames: Allow any body visibility (upper body close-up is OK)
+   * 
+   * This ensures:
+   * - Sitting bowling is REJECTED (no lower body in early frames)
+   * - Standing bowling with close-up is ACCEPTED (lower body detected early, upper body only later)
    */
   private checkRequiredFullBodyKeypoints(): boolean {
     if (this.inputPattern.keypoints.length === 0) {
       return false;
     }
 
-    let validFrameCount = 0;
-    let framesWithFullBody = 0;
-    const FULL_BODY_THRESHOLD = 0.6; // 60% of frames must have both upper and lower body keypoints
+    const totalFrames = this.inputPattern.keypoints.length;
+    const earlyPhaseFrameCount = Math.ceil(totalFrames * 0.3); // First 30% of frames
     const MIN_CONFIDENCE = 0.3; // only use keypoints >30% confidence
+    const LOWER_BODY_THRESHOLD = 0.5; // Need lower body in 50% of early frames to confirm standing
 
-    // Analyze frames for consistent full body keypoint detection
-    for (const frameData of this.inputPattern.keypoints) {
+    let earlyFramesChecked = 0;
+    let earlyFramesWithLowerBody = 0;
+
+    // === PHASE 1: Check for STANDING position in first 30% of frames (run-up) ===
+    for (let i = 0; i < Math.min(earlyPhaseFrameCount, totalFrames); i++) {
+      const frameData = this.inputPattern.keypoints[i];
       if (frameData.poses.length === 0) continue;
       
       const pose = frameData.poses[0];
-      validFrameCount++;
+      earlyFramesChecked++;
       
-      // === UPPER BODY KEYPOINTS ===
-      // Shoulders (critical for bowling analysis)
-      const leftShoulder = pose.keypoints.find(kp => kp.name === 'left_shoulder' && kp.score && kp.score > MIN_CONFIDENCE);
-      const rightShoulder = pose.keypoints.find(kp => kp.name === 'right_shoulder' && kp.score && kp.score > MIN_CONFIDENCE);
-      
-      // Arms (essential for bowling motion)
-      const leftElbow = pose.keypoints.find(kp => kp.name === 'left_elbow' && kp.score && kp.score > MIN_CONFIDENCE);
-      const rightElbow = pose.keypoints.find(kp => kp.name === 'right_elbow' && kp.score && kp.score > MIN_CONFIDENCE);
-      const leftWrist = pose.keypoints.find(kp => kp.name === 'left_wrist' && kp.score && kp.score > MIN_CONFIDENCE);
-      const rightWrist = pose.keypoints.find(kp => kp.name === 'right_wrist' && kp.score && kp.score > MIN_CONFIDENCE);
-      
-      // === LOWER BODY KEYPOINTS ===
-      // Hips (critical for stance analysis)
+      // === LOWER BODY KEYPOINTS ONLY (for sitting detection) ===
       const leftHip = pose.keypoints.find(kp => kp.name === 'left_hip' && kp.score && kp.score > MIN_CONFIDENCE);
       const rightHip = pose.keypoints.find(kp => kp.name === 'right_hip' && kp.score && kp.score > MIN_CONFIDENCE);
-      
-      // Legs (essential for full bowling motion)
       const leftKnee = pose.keypoints.find(kp => kp.name === 'left_knee' && kp.score && kp.score > MIN_CONFIDENCE);
       const rightKnee = pose.keypoints.find(kp => kp.name === 'right_knee' && kp.score && kp.score > MIN_CONFIDENCE);
       const leftAnkle = pose.keypoints.find(kp => kp.name === 'left_ankle' && kp.score && kp.score > MIN_CONFIDENCE);
       const rightAnkle = pose.keypoints.find(kp => kp.name === 'right_ankle' && kp.score && kp.score > MIN_CONFIDENCE);
       
-      // === UPPER BODY REQUIREMENTS ===
-      const hasShoulders = leftShoulder || rightShoulder;
-      const hasArms = (leftElbow || rightElbow) && (leftWrist || rightWrist);
-      const hasUpperBody = hasShoulders && hasArms;
-      
-      // === LOWER BODY REQUIREMENTS ===
+      // Check if lower body is visible (hips + legs)
       const hasHips = leftHip || rightHip;
       const hasLegs = (leftKnee || rightKnee) && (leftAnkle || rightAnkle);
       const hasLowerBody = hasHips && hasLegs;
       
-      // === FULL BODY CHECK ===
-      if (hasUpperBody && hasLowerBody) {
-        framesWithFullBody++;
+      if (hasLowerBody) {
+        earlyFramesWithLowerBody++;
       }
     }
 
-    if (validFrameCount === 0) {
+    if (earlyFramesChecked === 0) {
+      console.log('⚠️ No valid frames in early phase - cannot verify standing position');
       return false;
     }
 
-    const fullBodyRatio = framesWithFullBody / validFrameCount;
-    const hasRequiredFullBody = fullBodyRatio >= FULL_BODY_THRESHOLD;
+    const lowerBodyRatio = earlyFramesWithLowerBody / earlyFramesChecked;
+    const isStanding = lowerBodyRatio >= LOWER_BODY_THRESHOLD;
     
-    console.log(`Full body keypoint analysis: ${framesWithFullBody}/${validFrameCount} frames have complete body (${(fullBodyRatio * 100).toFixed(1)}%), threshold: ${(FULL_BODY_THRESHOLD * 100).toFixed(1)}%`);
+    console.log(`Phase-based detection: ${earlyFramesWithLowerBody}/${earlyFramesChecked} early frames have lower body (${(lowerBodyRatio * 100).toFixed(1)}%), threshold: ${(LOWER_BODY_THRESHOLD * 100).toFixed(1)}%`);
     
-    return hasRequiredFullBody;
+    if (isStanding) {
+      console.log('✅ Standing position confirmed in run-up phase - allowing analysis to proceed');
+    } else {
+      console.log('❌ Lower body not detected in early frames - likely sitting or invalid bowling position');
+    }
+    
+    return isStanding;
   }
 
   async analyzeFrame(frame: FrameData): Promise<number> {
@@ -797,7 +796,8 @@ export class BenchmarkComparisonAnalyzer {
   }
 
   private getWeights() {
-    return this.weights ?? {
+    if (this.weights) return this.weights;
+    const weights = {
       armSwing: 0.40,
       releasePoint: 0.25,
       rhythm: 0.15,
@@ -805,6 +805,10 @@ export class BenchmarkComparisonAnalyzer {
       runUp: 0.10,
       delivery: 0.05,
     };
+    const sum = Object.values(weights).reduce((a, b) => a + b, 0);
+    return Object.fromEntries(
+      Object.entries(weights).map(([k, v]) => [k, (v as number) / (sum || 1)])
+    ) as typeof weights;
   }
 
   private calculateOverallSimilarityAgainst(benchmark: BowlingActionPattern): number {

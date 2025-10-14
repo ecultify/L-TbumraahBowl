@@ -3,6 +3,7 @@
  */
 
 // All session storage keys used by the analysis system
+// NOTE: This should only include analysis-specific data, NOT user identity or authentication data
 const ANALYSIS_STORAGE_KEYS = [
   'analysisVideoData',
   'benchmarkDetailedData',
@@ -18,28 +19,47 @@ const ANALYSIS_STORAGE_KEYS = [
   'analysisVideoData_backup',
   'analysisVideoData_timestamp',
   'noBowlingActionDetected',
-  'playerName',
-  'playerPhone',
-  'detailsCompleted'
+  'detectedFrameDataUrl', // 🆕 Face detection frame (prevent cross-user contamination)
+  'generatedVideoUrl'     // 🆕 Generated video URL
+  // Excluded to preserve user identity across retries:
+  // - 'playerName' (needed for composite card and database association)
+  // - 'playerPhone' (needed for returning user lookup and database association)
+  // - 'detailsCompleted' (authentication state)
+];
+
+// 🆕 LocalStorage keys that need cleanup (face frames should NOT persist across users)
+const ANALYSIS_LOCALSTORAGE_KEYS = [
+  'userVideoThumbnail',  // Face detection frame stored in localStorage
+  'torsoVideoUrl'        // Torso generation data
 ];
 
 /**
- * Clear all analysis-related data from session storage
- * This ensures a fresh start for new analysis
+ * Clear all analysis-related data from session storage AND localStorage
+ * This ensures a fresh start for new analysis and prevents cross-user contamination
  */
 export function clearAnalysisSessionStorage(): void {
   if (typeof window === 'undefined') return;
   
   console.log('🧹 Clearing analysis session storage for fresh start');
   
+  // Clear sessionStorage
   ANALYSIS_STORAGE_KEYS.forEach(key => {
     if (window.sessionStorage.getItem(key)) {
       window.sessionStorage.removeItem(key);
-      console.log(`   Cleared: ${key}`);
+      console.log(`   ✓ Cleared sessionStorage: ${key}`);
     }
   });
   
-  console.log('✅ Analysis session storage cleared');
+  // 🆕 Clear localStorage (CRITICAL for preventing cross-user face frame contamination)
+  console.log('🧹 Clearing face detection data from localStorage...');
+  ANALYSIS_LOCALSTORAGE_KEYS.forEach(key => {
+    if (window.localStorage.getItem(key)) {
+      window.localStorage.removeItem(key);
+      console.log(`   ✓ Cleared localStorage: ${key}`);
+    }
+  });
+  
+  console.log('✅ Analysis session storage and localStorage cleared');
 }
 
 /**

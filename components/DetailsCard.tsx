@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { requestOtp, verifyOtp } from '@/lib/utils/otpService';
+import { normalizeVideoUrl } from '@/lib/utils/urlNormalization';
 import { Phone, User } from 'lucide-react';
 
 interface DetailsCardSubmitPayload {
@@ -29,8 +31,10 @@ export function DetailsCard({
   loading = false,
   className = '',
 }: DetailsCardProps) {
+  // OTP flow is now ENABLED with 1-minute timeout
+  const OTP_DISABLED = false;
   const [showOtpBoxes, setShowOtpBoxes] = useState(false);
-  const [remainingTime, setRemainingTime] = useState(59);
+  const [remainingTime, setRemainingTime] = useState(60); // 1 minute = 60 seconds
   const [otpValues, setOtpValues] = useState<string[]>(() => Array(OTP_BOX_COUNT).fill(''));
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [name, setName] = useState('');
@@ -41,7 +45,7 @@ export function DetailsCard({
   const [showTermsModal, setShowTermsModal] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false); // Requires OTP verification
 
   useEffect(() => {
     setIsMounted(true);
@@ -66,88 +70,191 @@ export function DetailsCard({
 
   const resetOtp = useCallback(() => {
     setOtpValues(Array(OTP_BOX_COUNT).fill(''));
-    setRemainingTime(59);
+    setRemainingTime(60); // 1 minute = 60 seconds
     setIsTimerActive(false);
     setOtpVerified(false);
   }, []);
 
-  const handleGetOtp = useCallback(() => {
-    console.log('🔵 [GET OTP] Button clicked (OTP disabled)');
-    console.log('📱 [GET OTP] Phone number:', phone);
-    
-    // Validate phone number
+  // Removed handleGetOtp simulation function - now using handleGetOtpReal
+
+  const handleResend = useCallback(async () => {
     if (!phone || phone.length !== 10) {
-      console.log('❌ [GET OTP] Validation failed - phone length:', phone?.length);
+      setError('Please enter a valid 10-digit phone number.');
+      return;
+    }
+    try {
+      setOtpSending(true);
+      setError(null);
+      if (OTP_DISABLED) {
+        console.log('[OTP] Resend suppressed (testing mode enabled)');
+      } else {
+        await requestOtp(phone);
+      }
+      setShowOtpBoxes(true);
+      setIsTimerActive(true);
+      setRemainingTime(60) // 1 minute;
+      setOtpValues(Array(OTP_BOX_COUNT).fill(''));
+      setOtpVerified(false);
+      if (!OTP_DISABLED && typeof window !== 'undefined') alert('OTP sent successfully');
+      if (OTP_DISABLED) console.log('[OTP] Showing OTP boxes without sending (testing mode)');
+    } catch (e: any) {
+      const msg = e?.message || 'Failed to send OTP';
+      setError(msg);
+      if (typeof window !== 'undefined') alert(msg);
+    } finally {
+      setOtpSending(false);
+    }
+  }, [phone]);
+
+  const handleGetOtpReal = useCallback(async () => {
+    if (!phone || phone.length !== 10) {
       setError('Please enter a valid 10-digit phone number.');
       return;
     }
 
-    console.log('✅ [GET OTP] Validation passed, simulating OTP sent...');
-    setOtpSending(true);
-    setError(null);
+    try {
+      setOtpSending(true);
+      setError(null);
 
-    // Simulate OTP sending without API call
-    setTimeout(() => {
-      console.log('✅ [GET OTP] OTP simulation completed!');
+      // Check if phone exists in database (returning user check)
+      console.log('[Phone Lookup] Checking if phone exists in database:', phone);
+      try {
+        const lookupResponse = await fetch('/api/lookup-phone', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone })
+        });
+
+        const lookupData = await lookupResponse.json();
+        console.log('[Phone Lookup] Result:', lookupData);
+
+        if (lookupData.exists) {
+          // Store existing record info in session
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.setItem('existingRecordId', lookupData.recordId);
+            window.sessionStorage.setItem('isReturningUser', 'true');
+            window.sessionStorage.setItem('hasCompositeCard', lookupData.hasCompositeCard.toString());
+            window.sessionStorage.setItem('hasVideo', lookupData.hasVideo.toString());
+            window.sessionStorage.setItem('existingSimilarityPercent', lookupData.similarityPercent?.toString() || '0');
+            
+            // 🆕 Store composite card record ID for UPDATE operations
+            if (lookupData.compositeCardRecordId) {
+              window.sessionStorage.setItem('existingCompositeCardRecordId', lookupData.compositeCardRecordId);
+              console.log('[Phone Lookup] Stored composite card record ID:', lookupData.compositeCardRecordId);
+            }
+            
+            if (lookupData.hasCompositeCard) {
+              const normalizedCompositeUrl = normalizeVideoUrl(lookupData.compositeCardUrl) || lookupData.compositeCardUrl;
+              window.sessionStorage.setItem('existingCompositeCardUrl', normalizedCompositeUrl);
+            }
+            if (lookupData.hasVideo) {
+              const normalizedVideoUrl = normalizeVideoUrl(lookupData.videoUrl) || lookupData.videoUrl;
+              window.sessionStorage.setItem('existingVideoUrl', normalizedVideoUrl);
+              console.log('[Phone Lookup] Stored normalized video URL');
+            }
+            
+            console.log('[Phone Lookup] Returning user detected - stored session data');
+            console.log('[Phone Lookup] Similarity score:', lookupData.similarityPercent);
+          }
+        } else {
+          // Clear any existing session flags for new users
+          if (typeof window !== 'undefined') {
+            window.sessionStorage.removeItem('isReturningUser');
+            window.sessionStorage.removeItem('existingRecordId');
+            window.sessionStorage.removeItem('existingCompositeCardRecordId'); // 🆕 Clear composite card record ID too
+            window.sessionStorage.removeItem('hasCompositeCard');
+            window.sessionStorage.removeItem('hasVideo');
+            window.sessionStorage.removeItem('existingCompositeCardUrl');
+            window.sessionStorage.removeItem('existingVideoUrl');
+            window.sessionStorage.removeItem('existingSimilarityPercent');
+            console.log('[Phone Lookup] New user - cleared session flags');
+          }
+        }
+      } catch (lookupError) {
+        console.error('[Phone Lookup] Error checking phone:', lookupError);
+        // Continue with OTP flow even if lookup fails
+      }
+
+      // ⚠️ Rate limiting disabled - proceeding directly with OTP send
+      if (OTP_DISABLED) {
+        console.log('[OTP] Send suppressed (testing mode enabled)');
+      } else {
+        await requestOtp(phone);
+      }
+
       setShowOtpBoxes(true);
       setIsTimerActive(true);
-      setRemainingTime(59);
+      setRemainingTime(60) // 1 minute;
       setOtpValues(Array(OTP_BOX_COUNT).fill(''));
-      setOtpVerified(false); // Reset verification status
+      setOtpVerified(false);
+      if (!OTP_DISABLED && typeof window !== 'undefined') alert('OTP sent successfully');
+      if (OTP_DISABLED) console.log('[OTP] Showing OTP boxes without sending (testing mode)');
+    } catch (e) {
+      const msg = (e as any)?.message || 'Failed to send OTP';
+      setError(msg);
+      if (typeof window !== 'undefined') alert(msg);
+    } finally {
       setOtpSending(false);
-      
-      // Show success alert
-      if (typeof window !== 'undefined') {
-        alert('OTP sent successfully! (Simulated)');
-      }
-    }, 1000);
+    }
   }, [phone]);
 
-  const handleResend = useCallback(async () => {
-    await handleGetOtp();
-  }, [handleGetOtp]);
-
   const handleOtpChange = useCallback((index: number, value: string) => {
-    console.log(`🔵 [OTP CHANGE] Index ${index}, Value: ${value} (OTP disabled)`);
-    
     if (value.length > 1) return;
-    
     const newOtpValues = [...otpValues];
     newOtpValues[index] = value;
     setOtpValues(newOtpValues);
-    console.log('📋 [OTP CHANGE] Current OTP values:', newOtpValues);
 
     if (value && index < OTP_BOX_COUNT - 1) {
       const nextInput = document.getElementById(`otp-${index + 1}`);
-      nextInput?.focus();
-      console.log(`➡️ [OTP CHANGE] Moving focus to input ${index + 1}`);
+      (nextInput as HTMLInputElement | null)?.focus();
     }
-
-    // Check if all OTP boxes are filled
-    const allFilled = newOtpValues.every(val => val !== '');
-    const isLastInput = index === OTP_BOX_COUNT - 1;
-    console.log(`🔍 [OTP CHANGE] All filled: ${allFilled}, Is last input: ${isLastInput}`);
-    
-    if (allFilled && isLastInput) {
-      console.log('✅ [OTP VERIFY] All OTP boxes filled, simulating verification...');
-      const otpString = newOtpValues.join('');
-      console.log('🔢 [OTP VERIFY] Complete OTP:', otpString);
-      
-      // Simulate OTP verification without API call
-      setTimeout(() => {
-        console.log('✅ [OTP VERIFY] OTP verification simulated successfully!');
-        setOtpVerified(true);
-        setError(null);
-        
-        // Show success alert
-        if (typeof window !== 'undefined') {
-          alert('OTP verified successfully! (Simulated)');
-        }
-      }, 500);
-    }
+    // No auto-verify - user must click "Verify OTP" button
   }, [otpValues]);
 
-  const isSubmitDisabled = loading || submitting;
+  const handleVerifyOtp = useCallback(async () => {
+    const otpString = otpValues.join('');
+    
+    if (otpString.length !== 6) {
+      setError('Please enter complete 6-digit OTP');
+      return;
+    }
+
+    if (!phone || phone.length !== 10) {
+      setError('Enter a valid phone number first');
+      return;
+    }
+
+    try {
+      setOtpSending(true);
+      setError(null);
+      
+      if (OTP_DISABLED) {
+        console.log('[OTP] Verify suppressed (testing mode). Entered:', otpString);
+        setOtpVerified(true);
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('otpVerified', 'true');
+        }
+
+      } else {
+        await verifyOtp(phone, otpString);
+        setOtpVerified(true);
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('otpVerified', 'true');
+          alert('OTP verified successfully!');
+        }
+      }
+    } catch (e) {
+      setOtpVerified(false);
+      const msg = (e as any)?.message || 'Invalid OTP';
+      setError(msg);
+      if (typeof window !== 'undefined') alert(msg);
+    } finally {
+      setOtpSending(false);
+    }
+  }, [otpValues, phone]);
+
+  const isSubmitDisabled = loading || submitting || !otpVerified || !consent;
+  const isFormDisabled = loading || submitting; // Don't disable form fields, only submit button
 
   const handleSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -185,11 +292,13 @@ export function DetailsCard({
         }
         return;
       }
-
-      // OTP verification disabled - skip this check
-      console.log('⚠️ [SUBMIT] OTP verification disabled - skipping check');
-
-      console.log('✅ [SUBMIT] All validations passed');
+      // OTP verification is now REQUIRED
+      if (!otpVerified) {
+        console.log('❌ [SUBMIT] Validation failed - OTP not verified');
+        setError("Please verify OTP before proceeding.");
+        if (typeof window !== "undefined") alert("Please verify OTP before proceeding.");
+        return;
+      }
       setSubmitting(true);
       setError(null);
 
@@ -205,6 +314,17 @@ export function DetailsCard({
         await onSubmit(payload);
         
         console.log('✅ [SUBMIT] onSubmit completed successfully');
+        
+        // Mark details as completed in sessionStorage
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('detailsCompleted', 'true');
+          window.sessionStorage.setItem('playerName', trimmedName);
+          window.sessionStorage.setItem('playerPhone', phone.trim());
+          window.sessionStorage.setItem('otpVerifiedForBowling', otpVerified ? 'true' : 'false');
+          console.log('📝 [SUBMIT] Details marked as completed in sessionStorage');
+          console.log('📝 [SUBMIT] OTP verification status:', otpVerified);
+        }
+        
         setName('');
         setPhone('');
         setConsent(false);
@@ -223,7 +343,7 @@ export function DetailsCard({
         console.log('🔵 [SUBMIT] Form submission completed');
       }
     },
-    [consent, name, onSubmit, otpValues, phone, resetOtp]
+    [consent, name, onSubmit, otpValues, otpVerified, phone, resetOtp]
   );
 
   const renderSubmitControl = useMemo(() => {
@@ -243,7 +363,7 @@ export function DetailsCard({
           }}
           disabled={isSubmitDisabled}
         >
-          {isSubmitDisabled ? 'Submitting…' : submitLabel}
+          {submitting ? 'Submitting…' : submitLabel}
         </button>
       );
     }
@@ -269,11 +389,11 @@ export function DetailsCard({
     }
 
     return null;
-  }, [isSubmitDisabled, onSubmit, submitHref, submitLabel]);
+  }, [isSubmitDisabled, submitting, onSubmit, submitHref, submitLabel]);
 
   const CardContent = (
     <>
-      <div className="mb-6 text-center">
+      <div className="mb-6 text-center" style={{ marginTop: '30px' }}>
         {/* ALMOST THERE headline image */}
         <div style={{ marginBottom: 6, display: "flex", justifyContent: "center" }}>
           <img
@@ -322,14 +442,16 @@ export function DetailsCard({
               fontSize: 'clamp(12px, 2.5vw, 14px)',
               color: 'black'
             }}
-            disabled={isSubmitDisabled && !!onSubmit}
+            disabled={isFormDisabled && !!onSubmit}
             required={!!onSubmit}
           />
         </div>
       </div>
 
+      {/* Phone Number and Get OTP/Verify OTP Button in Same Row */}
       <div className="mb-4 flex justify-center">
-        <div className="w-full max-w-xs md:max-w-sm flex gap-2">
+        <div className="flex gap-2 w-full max-w-xs md:max-w-sm">
+          {/* Phone Input Field */}
           <div
             className="relative flex-1"
             style={{
@@ -359,33 +481,34 @@ export function DetailsCard({
                 fontSize: 'clamp(12px, 2.5vw, 14px)',
                 color: 'black'
               }}
-              disabled={isSubmitDisabled && !!onSubmit}
+              disabled={isFormDisabled && !!onSubmit}
               required={!!onSubmit}
             />
           </div>
 
+          {/* Get OTP / Verify OTP Button */}
           <button
             type="button"
-            onClick={handleGetOtp}
-            disabled={otpSending || (showOtpBoxes && isTimerActive) || (isSubmitDisabled && !!onSubmit)}
-            className="text-black font-bold transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            onClick={showOtpBoxes ? handleVerifyOtp : handleGetOtpReal}
+            disabled={!phone || phone.length !== 10 || otpSending || (showOtpBoxes && otpValues.join('').length !== 6) || (isFormDisabled && !!onSubmit)}
+            className="inline-flex items-center justify-center text-black font-bold transition-all duration-300 disabled:opacity-60 flex-shrink-0"
             style={{
-              minWidth: '70px',
               height: '40px',
+              width: '95px',
               backgroundColor: '#FFC315',
               borderRadius: '20px',
               fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
               fontWeight: '700',
-              fontSize: 'clamp(10px, 2vw, 12px)',
-              color: 'black',
-              padding: '0 12px'
+              fontSize: '11px',
+              cursor: (!phone || phone.length !== 10 || otpSending || (showOtpBoxes && otpValues.join('').length !== 6)) ? 'not-allowed' : 'pointer'
             }}
           >
-            {otpSending ? 'Sending...' : (showOtpBoxes && isTimerActive ? 'OTP Sent' : 'Get OTP')}
+            {otpSending ? 'Sending...' : showOtpBoxes ? 'Verify OTP' : 'Get OTP'}
           </button>
         </div>
       </div>
 
+      {/* OTP Input Boxes */}
       {showOtpBoxes && (
         <div className="mb-4">
           <div className="flex gap-2 justify-center mb-3">
@@ -413,7 +536,8 @@ export function DetailsCard({
                   fontSize: 'clamp(14px, 3vw, 16px)',
                   color: 'black'
                 }}
-                disabled={isSubmitDisabled && !!onSubmit}
+                disabled={isFormDisabled && !!onSubmit}
+                title={OTP_DISABLED ? 'Testing mode: OTP not verified' : undefined}
               />
             ))}
           </div>
@@ -423,9 +547,10 @@ export function DetailsCard({
             <button
               type="button"
               onClick={handleResend}
-              disabled={isTimerActive || (isSubmitDisabled && !!onSubmit)}
+              disabled={isTimerActive || (isFormDisabled && !!onSubmit)}
               className="text-black underline disabled:opacity-50 disabled:cursor-not-allowed hover:text-gray-600"
               style={{ fontFamily: "'FrutigerLT Pro', Inter, sans-serif", fontWeight: '400', color: 'black' }}
+              title={OTP_DISABLED ? 'Testing mode: Resend suppressed' : undefined}
             >
               Didn't get the code? Resend
             </button>
@@ -435,13 +560,13 @@ export function DetailsCard({
 
       <div className="mb-6 flex justify-center">
         <div className="w-full max-w-xs md:max-w-sm">
-          <label className="flex items-center gap-3 cursor-pointer">
+          <label className="flex items-start gap-3 cursor-pointer">
             <input
               type="checkbox"
-              className="w-4 h-4 rounded border-gray-400 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+              className="w-4 h-4 mt-1 rounded border-gray-400 text-blue-600 focus:ring-blue-500 flex-shrink-0"
               checked={consent}
               onChange={(event) => setConsent(event.target.checked)}
-              disabled={isSubmitDisabled && !!onSubmit}
+              disabled={isFormDisabled && !!onSubmit}
             />
             <span
               className="text-black text-sm leading-relaxed"
@@ -449,30 +574,38 @@ export function DetailsCard({
                 fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                 fontWeight: '400',
                 fontSize: 'clamp(10px, 2.5vw, 12px)',
-                lineHeight: '1.5',
+                lineHeight: '1.4',
+                color: 'black'
+              }}
+            >
+              I hereby consent to L&T Finance, along with its affiliates, representatives, and authorized partners, to use, edit, adapt, reproduce, and publish my photographs, videos, audio recordings, contact details, social media handles, and any AI-generated or campaign-related content featuring me or submitted by me, in connection with "Bowl kar Bumrah Ki Speed Par" campaign. Such content may be used for marketing, promotional, publicity, and other commercial purposes across any media platforms, including but not limited to digital, print, outdoor, and broadcast, without any compensation, prior notice, further approval, or consequences. I understand that LTF will exercise this right responsibly and in good faith.
+            </span>
+          </label>
+          <div className="mt-2 flex items-start gap-3">
+            <div className="w-4 flex-shrink-0"></div>
+            <span
+              style={{
+                fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                fontWeight: '400',
+                fontSize: 'clamp(10px, 2.5vw, 12px)',
                 color: 'black'
               }}
             >
               By continuing, I accept the{' '}
-              <button
-                type="button"
-                onClick={() => setShowTermsModal(true)}
-                className="text-blue-600 underline hover:text-blue-800"
+              <Link
+                href="/terms-and-conditions"
+                className="underline hover:no-underline"
                 style={{
                   fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                   fontWeight: '400',
                   fontSize: 'clamp(10px, 2.5vw, 12px)',
-                  color: '#2563eb',
-                  background: 'none',
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer'
+                  color: '#0066cc'
                 }}
               >
-                Term & Condition
-              </button>
+                Terms & Conditions
+              </Link>
             </span>
-          </label>
+          </div>
         </div>
       </div>
 
@@ -487,7 +620,6 @@ export function DetailsCard({
       </div>
     </>
   );
-
   const termsModal = showTermsModal && isMounted && (
     <div
       className="fixed inset-0 flex items-center justify-center"
@@ -632,4 +764,8 @@ export function DetailsCard({
 }
 
 export type { DetailsCardSubmitPayload };
+
+
+
+
 

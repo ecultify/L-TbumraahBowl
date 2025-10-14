@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import {interpolate, staticFile, useCurrentFrame, useVideoConfig, Sequence, Video, delayRender, continueRender} from 'remotion';
+import {interpolate, staticFile, useCurrentFrame, useVideoConfig, Sequence, Video, delayRender, continueRender, Audio} from 'remotion';
 import {loadFont} from '@remotion/google-fonts/RobotoCondensed';
 import {getVideoMetadata} from '@remotion/media-utils';
 import {SpeedMeter} from './SpeedMeter';
@@ -44,6 +44,7 @@ interface FirstFrameProps {
 }
 
 const {fontFamily: condensedFontFamily} = loadFont();
+const FONT_FAMILY = '"Helvetica Condensed"'; // Use Helvetica Condensed throughout
 
 type VideoMetadata = Awaited<ReturnType<typeof getVideoMetadata>>;
 
@@ -53,6 +54,7 @@ const useVideoMetadataCompat = (src: string | null) => {
 
   React.useEffect(() => {
     let cancelled = false;
+    let timeoutId: NodeJS.Timeout | null = null;
 
     if (!src) {
       setMetadata(null);
@@ -62,18 +64,33 @@ const useVideoMetadataCompat = (src: string | null) => {
     const handle = delayRender(`metadata-${src}`);
     handleRef.current = handle;
 
+    // Set a timeout to ensure we don't hang the render
+    timeoutId = setTimeout(() => {
+      if (!cancelled && handleRef.current !== null) {
+        console.warn(`⚠️ [FirstFrame] Video metadata loading timed out after 30s: ${src.substring(0, 100)}`);
+        setMetadata(null); // Use null metadata on timeout
+        continueRender(handleRef.current);
+        handleRef.current = null;
+      }
+    }, 30000); // 30 second timeout
+
     getVideoMetadata(src)
       .then((meta) => {
         if (!cancelled) {
+          console.log(`✅ [FirstFrame] Video metadata loaded successfully: ${src.substring(0, 100)}`);
           setMetadata(meta);
         }
       })
-      .catch(() => {
+      .catch((error) => {
         if (!cancelled) {
+          console.error(`❌ [FirstFrame] Failed to load video metadata: ${error.message}`);
           setMetadata(null);
         }
       })
       .then(() => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
         if (handleRef.current !== null) {
           continueRender(handleRef.current);
           handleRef.current = null;
@@ -82,6 +99,9 @@ const useVideoMetadataCompat = (src: string | null) => {
 
     return () => {
       cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
       if (handleRef.current !== null) {
         continueRender(handleRef.current);
         handleRef.current = null;
@@ -166,8 +186,11 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
   const frame = useCurrentFrame();
   const {fps, height, width} = useVideoConfig();
 
+  // NOTE: This composition works at 12 FPS (288 total frames = 24 seconds)
+  // All timing calculations are FPS-independent using fps variable
+  
   // Slide in from the right and fade in over ~1s
-  const slide = interpolate(frame, [0, fps], [140, 0], {
+  const slide = interpolate(frame, [0, fps * 1], [140, 0], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
   });
@@ -236,8 +259,8 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
   });
 
   const portraitVideoGap = 0; // No gap between videos
-  const maxPortraitWidth = (width * 0.6) / 2; // Reduce total width to 60% of screen
-  const maxPortraitHeight = height * 0.85; // Increased height from 0.70 to 0.85
+  const maxPortraitWidth = (width * 0.85) / 2; // Increased from 0.75 to 0.85 for even bigger videos
+  const maxPortraitHeight = height * 0.95; // Increased from 0.90 to 0.95
   const portraitVideoWidth = Math.min(maxPortraitWidth, maxPortraitHeight * (9 / 16));
   const portraitVideoHeight = portraitVideoWidth * (16 / 9);
   const videoRowWidth = portraitVideoWidth * 2 + portraitVideoGap;
@@ -254,10 +277,14 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
   const userVideoSrc = userVideoUrl && (userVideoUrl.startsWith('http://') || userVideoUrl.startsWith('https://'))
     ? userVideoUrl
     : (userVideoSrcProp ? staticFile(userVideoSrcProp) : staticFile('VID-20250923-WA0000.mp4'));
-  const benchmarkVideoSrc = staticFile('benchmark-bowling-action.mp4');
+  // Use LOCAL files with staticFile() - Remotion's proper way to reference public/ assets
+  const benchmarkVideoSrc = 'https://hqzukyxnnjnstrecybzx.supabase.co/storage/v1/object/public/bowling-avatars/remotion-assets/benchmark-bowling-action.mp4';
+  const bgVideoSrc = staticFile('BG.mp4'); // Local file from public/BG.mp4
+  const sponsoredVideoSrc = staticFile('lnt-finance-6sec-clean-9x16.mp4'); // Local file from public/
+  
+  // Use staticFile() for images
   const cardTopSrc = staticFile('card-2.png');
   const cardBaseSrc = staticFile('cards.png');
-  const sponsoredVideoSrc = staticFile('lnt-finance-6sec-clean-9x16.mp4');
 
   const userVideoMetadata = useVideoMetadataCompat(userVideoSrc);
   const clipDurationSeconds = 2;
@@ -412,9 +439,50 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
         backgroundColor: '#000',
       }}
     >
+      {/* Load Helvetica Condensed fonts from public/fonts */}
+      <style>{`
+        @font-face {
+          font-family: 'Helvetica Condensed';
+          src: url('${staticFile('fonts/Helvetica Condensed/Helvetica Condensed Regular/Helvetica Condensed Regular.ttf')}') format('truetype');
+          font-weight: 400;
+          font-style: normal;
+        }
+        @font-face {
+          font-family: 'Helvetica Condensed';
+          src: url('${staticFile('fonts/Helvetica Condensed/Helvetica Condensed Bold/Helvetica Condensed Bold.otf')}') format('opentype');
+          font-weight: 700;
+          font-style: normal;
+        }
+        @font-face {
+          font-family: 'Helvetica Condensed';
+          src: url('${staticFile('fonts/Helvetica Condensed/Helvetica Condensed Italic/Helvetica Condensed Italic.ttf')}') format('truetype');
+          font-weight: 400;
+          font-style: italic;
+        }
+        @font-face {
+          font-family: 'Helvetica Condensed';
+          src: url('${staticFile('fonts/Helvetica Condensed/Helvetica Condensed Bold Oblique/Helvetica Condensed Bold Oblique.otf')}') format('opentype');
+          font-weight: 700;
+          font-style: italic;
+        }
+        @font-face {
+          font-family: 'Helvetica Condensed';
+          src: url('${staticFile('fonts/Helvetica Condensed/Helvetica Condensed Medium/Helvetica Condensed Medium.otf')}') format('opentype');
+          font-weight: 500;
+          font-style: normal;
+        }
+      `}</style>
+
+      {/* Background audio - stops when sponsored video starts */}
+      <Audio
+        src={staticFile('v.5 (0_19).wav')}
+        volume={0.5}
+        endAt={SIXTH_START}
+      />
+
       {/* Background video */}
       <Video
-        src={staticFile('BG.mp4')}
+        src={bgVideoSrc}
         style={{
           position: 'absolute',
           inset: 0,
@@ -425,12 +493,16 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
         }}
         muted
         loop
-        delayRenderTimeoutInMilliseconds={120000}
+        delayRenderTimeoutInMilliseconds={300000}
+        delayRenderRetries={5}
+        onError={(error) => {
+          console.error('[FirstFrame] Background video error:', error);
+        }}
       />
 
       {/* Top-left Zoom logo (bigger) */}
       <img
-        src={staticFile('images/newhomepage/Bowling Campaign Logo.png')}
+        src={staticFile('images/newhomepage/Bowling Campaign Logo.avif')}
         alt="Bowling Campaign Logo"
         style={{
           position: 'absolute',
@@ -445,13 +517,13 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
 
       {/* Phone image bottom-right, fades out to the right before scene 2 */}
       <img
-        src={staticFile('images/bumraahnewpic.png')}
+        src={staticFile('images/bumraahnewpic.avif')}
         alt="Phone"
         style={{
           position: 'absolute',
           right: 0,
           bottom: 30,
-          transform: `scale(${phoneScale * 0.85})`,
+          transform: `scale(${phoneScale * 1.15})`, // Increased from 0.85 to 1.15 for bigger small version
           transformOrigin: '100% 100%',
           width: Math.min(650, width * 0.6),
           height: 'auto',
@@ -460,12 +532,32 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
         }}
       />
 
+      {/* Slanted countdown number from 6 to 1 */}
+      <div
+        style={{
+          position: 'absolute',
+          right: 525, // Moved 85px more left (440 + 85)
+          bottom: 400, // Moved 300px up from 100
+          fontFamily: FONT_FAMILY,
+          fontSize: 80, // Reduced from 180
+          fontWeight: 700,
+          fontStyle: 'italic',
+          color: '#000000', // Changed to black
+          textShadow: '2px 2px 4px rgba(255,255,255,0.3)',
+          transform: 'rotate(-15deg)',
+          opacity: fade * fadeOut,
+          zIndex: 3,
+        }}
+      >
+        {Math.max(1, 6 - Math.floor((frame / (SECOND_START - 1)) * 6))}
+      </div>
+
       {/* Text elements positioned and sliding in from the left */}
       <div
         style={{
           position: 'absolute',
           left: 60,
-          bottom: height * 0.45 + 40, // Adjust for new height
+          bottom: height * 0.50 + 80, // Pushed higher up
           transform: `translateX(${-slide - slideOut}px)`,
           opacity: fade * fadeOut,
           zIndex: 2,
@@ -475,15 +567,15 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
         {/* Player name and "Bowling Analysis with" */}
         <div
           style={{
-            fontFamily: condensedFontFamily,
-            fontSize: 75,
+            fontFamily: FONT_FAMILY,
+            fontSize: 95, // Increased from 75
             fontWeight: 400,
             fontStyle: 'italic',
             color: 'white',
             textShadow: '3px 3px 6px #FFCB03',
             lineHeight: 0.92,
             marginBottom: 4,
-            width: 600,
+            width: 700, // Increased width to accommodate larger text
           }}
         >
           {data.playerName}'s Bowling
@@ -496,8 +588,8 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
           src={staticFile('images/justzoom.png')}
           alt="Just Zoom"
           style={{
-            width: 400,
-            height: 88,
+            width: 480, // Increased from 400
+            height: 105, // Increased from 88
             marginBottom: 4,
           }}
         />
@@ -533,7 +625,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
 
         {/* Zoom logo at left edge on top of bar */}
         <img
-          src={staticFile('images/newhomepage/Bowling Campaign Logo.png')}
+          src={staticFile('images/newhomepage/Bowling Campaign Logo.avif')}
           alt="Bowling Campaign Logo"
           style={{
             position: 'absolute',
@@ -581,7 +673,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
             zIndex: 6,
           }}
         >
-          {comparisonVideos.map((video) => (
+          {comparisonVideos.map((video, index) => (
             <div
               key={video.key}
               style={{
@@ -594,21 +686,105 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
                 boxShadow: '0 35px 90px rgba(0,0,0,0.55)',
               }}
             >
-              <Video
-                src={video.src}
-                muted
-                playsInline
-                loop
-                startFrom={video.startFrom}
-                endAt={video.endAt}
-                delayRenderTimeoutInMilliseconds={120000}
-                delayRenderRetries={2}
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
+              {/* Left side (user's clip): Show thumbnail instead of video */}
+              {index === 0 ? (
+                <img
+                  src={videoThumbnail || staticFile('bowling-frame-2025-10-07T00-19-33-547Z.jpg')}
+                  alt="User video thumbnail"
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                  }}
+                />
+              ) : (
+                // Right side (benchmark): Show video
+                <Video
+                  src={video.src}
+                  muted
+                  playsInline
+                  loop
+                  startFrom={video.startFrom}
+                  endAt={video.endAt}
+                  delayRenderTimeoutInMilliseconds={300000}
+                  delayRenderRetries={5}
+                  onError={(error) => {
+                    console.error('[FirstFrame] Benchmark video error:', error);
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                  }}
+                />
+              )}
+              
+              {/* Grid and scanning animation - only on left video (user's video) */}
+              {index === 0 && (
+                <>
+                  {/* Grid overlay */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      backgroundImage: `
+                        repeating-linear-gradient(0deg, transparent, transparent 19px, #B8860B 19px, #B8860B 20px),
+                        repeating-linear-gradient(90deg, transparent, transparent 19px, #B8860B 19px, #B8860B 20px)
+                      `,
+                      opacity: 0.3,
+                      zIndex: 9,
+                    }}
+                  />
+                  
+                  {/* Scanning animation */}
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      top: `${interpolate(
+                        (frame - SECOND_START) % 60,
+                        [0, 30, 60],
+                        [0, 100, 0],
+                        {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
+                      )}%`,
+                      height: '4px',
+                      background: 'linear-gradient(90deg, transparent 0%, #DAA520 50%, transparent 100%)',
+                      boxShadow: '0 0 20px #DAA520, 0 0 40px #DAA520',
+                      zIndex: 10,
+                    }}
+                  />
+                  
+                  {/* Yellow corner borders */}
+                  <svg
+                    style={{
+                      position: 'absolute',
+                      inset: 0,
+                      width: '100%',
+                      height: '100%',
+                      pointerEvents: 'none',
+                      zIndex: 11,
+                    }}
+                  >
+                    {/* Top-left corner */}
+                    <line x1="0" y1="0" x2="60" y2="0" stroke="#FFCB03" strokeWidth="1.5" />
+                    <line x1="0" y1="0" x2="0" y2="60" stroke="#FFCB03" strokeWidth="1.5" />
+                    
+                    {/* Top-right corner */}
+                    <line x1={portraitVideoWidth} y1="0" x2={portraitVideoWidth - 60} y2="0" stroke="#FFCB03" strokeWidth="1.5" />
+                    <line x1={portraitVideoWidth} y1="0" x2={portraitVideoWidth} y2="60" stroke="#FFCB03" strokeWidth="1.5" />
+                    
+                    {/* Bottom-left corner */}
+                    <line x1="0" y1={portraitVideoHeight} x2="60" y2={portraitVideoHeight} stroke="#FFCB03" strokeWidth="1.5" />
+                    <line x1="0" y1={portraitVideoHeight} x2="0" y2={portraitVideoHeight - 60} stroke="#FFCB03" strokeWidth="1.5" />
+                    
+                    {/* Bottom-right corner */}
+                    <line x1={portraitVideoWidth} y1={portraitVideoHeight} x2={portraitVideoWidth - 60} y2={portraitVideoHeight} stroke="#FFCB03" strokeWidth="1.5" />
+                    <line x1={portraitVideoWidth} y1={portraitVideoHeight} x2={portraitVideoWidth} y2={portraitVideoHeight - 60} stroke="#FFCB03" strokeWidth="1.5" />
+                  </svg>
+                </>
+              )}
+              
               <div
                 style={{
                   position: 'absolute',
@@ -621,14 +797,54 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 4,
-                  fontFamily: condensedFontFamily,
+                  fontFamily: FONT_FAMILY,
                 }}
               >
-                <span style={{fontWeight: 700, fontSize: 26, letterSpacing: 0.5}}>{video.title}</span>
-                <span style={{fontWeight: 400, fontSize: 16, opacity: 0.75}}>{video.caption}</span>
+                <span style={{fontWeight: 700, fontStyle: 'italic', fontSize: 26, letterSpacing: 0.5}}>{video.title}</span>
+                <span style={{fontWeight: 700, fontStyle: 'italic', fontSize: 16, opacity: 0.75}}>{video.caption}</span>
               </div>
             </div>
           ))}
+        </div>
+        
+        {/* TRACKING text with 3-dot animation in center */}
+        <div
+          style={{
+            position: 'absolute',
+            left: '50%',
+            top: '50%',
+            transform: 'translate(-50%, -50%)',
+            fontFamily: FONT_FAMILY,
+            fontSize: 36, // Reduced from 48
+            fontWeight: 700,
+            fontStyle: 'italic', // Made italic
+            color: '#FFFFFF', // Changed to white
+            textShadow: '2px 2px 8px rgba(0,0,0,0.8)',
+            opacity: secondAppear * secondFadeOut,
+            zIndex: 7,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6, // Reduced from 8
+          }}
+        >
+          TRACKING
+          <span style={{display: 'flex', gap: 3}}>
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                style={{
+                  opacity: interpolate(
+                    (frame - SECOND_START + i * 10) % 30,
+                    [0, 15, 30],
+                    [0.3, 1, 0.3],
+                    {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}
+                  ),
+                }}
+              >
+                .
+              </span>
+            ))}
+          </span>
         </div>
       </Sequence>
 
@@ -651,11 +867,11 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
             padding: '80px 60px',
           }}
         >
-          {/* User video thumbnail box at the top - slide in from right */}
+          {/* User video thumbnail box at the top - static, no animation */}
           <div
             style={{
-              width: '234px',
-              height: '234px',
+              width: '260px',
+              height: '462px', // Portrait 9:16 ratio (260 * 16/9)
               backgroundColor: videoThumbnail ? '#000' : 'transparent',
               border: videoThumbnail ? 'none' : '2px dashed rgba(255, 255, 255, 0.3)',
               display: 'flex',
@@ -663,21 +879,17 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               justifyContent: 'center',
               overflow: 'hidden',
               borderRadius: '8px',
-              transform: `translateX(${interpolate(intoThird, [0, Math.round(fps * 0.5)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`,
-              opacity: interpolate(intoThird, [0, Math.round(fps * 0.5)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'}),
             }}
           >
-            {videoThumbnail && (
-              <img
-                src={videoThumbnail}
-                alt="User video thumbnail"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-            )}
+            <img
+              src={videoThumbnail || staticFile('bowling-frame-2025-10-07T00-19-33-547Z.jpg')}
+              alt="User video thumbnail"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // Changed to contain to show full frame
+              }}
+            />
           </div>
 
           {/* First Card - Detailed Analysis - slide in from right */}
@@ -692,17 +904,17 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - THIRD_START) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
             </div>
             <div style={{position: 'absolute', inset: 0, padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 15}}>
-              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Detailed Analysis</div>
+              <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Detailed Analysis</div>
               <div style={{background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '15px 25px', textAlign: 'center'}}>
-                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 38, color: '#fff'}}>{similarityValue}%</div>
-                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 12, color: '#fff', marginTop: 3}}>Overall similarity to benchmark</div>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 38, color: '#fff'}}>{similarityValue}%</div>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 12, color: '#fff', marginTop: 3}}>Overall similarity to benchmark</div>
               </div>
-              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 600, fontSize: 16, color: '#fff', textAlign: 'center', marginTop: 5}}>Bowling Phases</div>
+              <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 16, color: '#fff', textAlign: 'center', marginTop: 5}}>Bowling Phases</div>
               <div style={{display: 'flex', gap: 8, width: '100%', justifyContent: 'space-around'}}>
                 {phases.map((phase) => (
                   <div key={phase.label} style={{background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '12px 15px', textAlign: 'center', flex: 1}}>
-                    <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 24, color: '#fff'}}>{phase.value}%</div>
-                    <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 11, color: '#fff', marginTop: 2}}>{phase.label}</div>
+                    <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 24, color: '#fff'}}>{phase.value}%</div>
+                    <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 11, color: '#fff', marginTop: 2}}>{phase.label}</div>
                   </div>
                 ))}
               </div>
@@ -721,7 +933,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - THIRD_START + 30) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
             </div>
             <div style={{position: 'absolute', inset: 0, padding: '35px 45px', display: 'flex', flexDirection: 'column', gap: 18}}>
-              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase', marginBottom: 5}}>Technical Breakdown</div>
+              <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase', marginBottom: 5}}>Technical Breakdown</div>
               <div style={{display: 'flex', flexDirection: 'column', gap: 14}}>
                 {technicalRows.map((row) => {
                   const barFill = Math.min(100, Math.max(0, row.value * thirdMetricProgress));
@@ -729,7 +941,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
                   const gradient = row.scheme === 'blue' ? 'linear-gradient(90deg, #0F62B0 0%, #1178D9 100%)' : 'linear-gradient(90deg, #F9B233 0%, #FFD180 100%)';
                   return (
                     <div key={row.label} style={{display: 'flex', flexDirection: 'column', gap: 6}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 500, fontSize: 16, color: '#fff'}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 16, color: '#fff'}}>
                         <span>{row.label}</span>
                         <span>{currentValue}%</span>
                       </div>
@@ -767,8 +979,8 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
           {/* User video thumbnail box at the top */}
           <div
             style={{
-              width: '234px',
-              height: '234px',
+              width: '260px',
+              height: '462px', // Portrait 9:16 ratio (260 * 16/9)
               backgroundColor: videoThumbnail ? '#000' : 'transparent',
               border: videoThumbnail ? 'none' : '2px dashed rgba(255, 255, 255, 0.3)',
               display: 'flex',
@@ -778,17 +990,15 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               borderRadius: '8px',
             }}
           >
-            {videoThumbnail && (
-              <img
-                src={videoThumbnail}
-                alt="User video thumbnail"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-            )}
+            <img
+              src={videoThumbnail || staticFile('bowling-frame-2025-10-07T00-19-33-547Z.jpg')}
+              alt="User video thumbnail"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // Changed to contain to show full frame
+              }}
+            />
           </div>
 
           {/* First Card - Speed Meter Analysis - slide in from right */}
@@ -802,16 +1012,17 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
             <div style={{position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none'}}>
               <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - FOURTH_START) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
             </div>
-            <div style={{position: 'absolute', inset: 0, padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center'}}>
-              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 30, color: '#fff', textAlign: 'center', textTransform: 'uppercase', marginBottom: 35}}>Speed Meter Analysis</div>
+            <div style={{position: 'absolute', inset: 0, padding: '25px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 25}}>
+              <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 30, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Speed Meter Analysis</div>
+              
+              {/* Accuracy box above speed meter */}
+              <div style={{background: 'rgba(255, 255, 255, 0.5)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '15px 35px', textAlign: 'center', display: 'flex', alignItems: 'baseline', gap: 8}}>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 20, color: '#fff'}}>Accuracy</div>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 42, color: '#fff'}}>{similarityValue}%</div>
+              </div>
               
               {/* Speed meter container - bigger and properly centered */}
               <div style={{position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center'}}>
-                {/* Accuracy percentage above last block */}
-                <div style={{position: 'absolute', top: -28, left: (75 * 4) + (4 * 4), width: 75, fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 22, color: '#fff', textAlign: 'center'}}>
-                  {similarityValue}%
-                </div>
-                
                 {/* Color blocks - bigger */}
                 <div style={{display: 'flex', gap: 4, position: 'relative', zIndex: 2}}>
                   {['#FCF0C4', '#F6E49E', '#FFCA04', '#118DC9', '#0F76A8'].map((color, i) => (
@@ -828,7 +1039,7 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
             </div>
           </div>
 
-          {/* Second Card - Predicted Speed - slide in from right */}
+          {/* Second Card - Motion Intensity Overtime - slide in from right */}
           <div style={{position: 'relative', width: '60%', maxWidth: '650px', transform: `translateX(${interpolate(intoFourth, [Math.round(fps * 0.2), Math.round(fps * 0.7)], [100, 0], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}px)`, opacity: interpolate(intoFourth, [Math.round(fps * 0.2), Math.round(fps * 0.7)], [0, 1], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}}>
             <img
               src={cardBaseSrc}
@@ -840,10 +1051,10 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - FOURTH_START + 30) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
             </div>
             <div style={{position: 'absolute', inset: 0, padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20}}>
-              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Predicted Speed</div>
+              <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Motion Intensity Overtime</div>
               <div style={{background: 'rgba(255, 255, 255, 0.5)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '25px 45px', textAlign: 'center', display: 'flex', alignItems: 'baseline', gap: 10}}>
-                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 56, color: '#fff'}}>{animatedTopSpeed}</div>
-                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 24, color: '#fff'}}>km/h</div>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 56, color: '#fff'}}>{animatedTopSpeed}</div>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 24, color: '#fff'}}>km/h</div>
               </div>
             </div>
           </div>
@@ -863,20 +1074,20 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
             pointerEvents: 'none',
           }}
         >
-          {/* User video thumbnail grows as square - stays centered horizontally, top fixed, grows downward */}
+          {/* User video thumbnail grows as portrait - stays centered horizontally, top fixed, grows downward */}
           <div
             style={{
               position: 'absolute',
-              left: (width - interpolate(intoFifth, [0, Math.round(fps * 0.8)], [234, 500], {
+              left: (width - interpolate(intoFifth, [0, Math.round(fps * 0.8)], [260, 350], {
                 extrapolateLeft: 'clamp',
                 extrapolateRight: 'clamp',
               })) / 2,
-              top: 320,
-              width: interpolate(intoFifth, [0, Math.round(fps * 0.8)], [234, 500], {
+              top: 240,
+              width: interpolate(intoFifth, [0, Math.round(fps * 0.8)], [260, 350], {
                 extrapolateLeft: 'clamp',
                 extrapolateRight: 'clamp',
               }),
-              height: interpolate(intoFifth, [0, Math.round(fps * 0.8)], [234, 500], {
+              height: interpolate(intoFifth, [0, Math.round(fps * 0.8)], [462, 622], {
                 extrapolateLeft: 'clamp',
                 extrapolateRight: 'clamp',
               }),
@@ -889,17 +1100,15 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               borderRadius: '8px',
             }}
           >
-            {videoThumbnail && (
-              <img
-                src={videoThumbnail}
-                alt="User video thumbnail"
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                }}
-              />
-            )}
+            <img
+              src={videoThumbnail || staticFile('bowling-frame-2025-10-07T00-19-33-547Z.jpg')}
+              alt="User video thumbnail"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain', // Changed to contain to show full frame
+              }}
+            />
           </div>
 
           {/* First Cards.png - slides away to the left */}
@@ -936,9 +1145,9 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
               <div style={{position: 'absolute', top: '-50%', bottom: '-50%', width: '40%', background: 'linear-gradient(120deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%)', transform: `translateX(${interpolate((frame - FIFTH_START) % Math.round(fps * 3), [0, Math.round(fps * 3)], [-100, 300], {extrapolateLeft: 'clamp', extrapolateRight: 'clamp'})}%) rotate(18deg)`, opacity: 0.6}} />
             </div>
             <div style={{position: 'absolute', inset: 0, padding: '30px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20}}>
-              <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Recommendations</div>
+              <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 28, color: '#fff', textAlign: 'center', textTransform: 'uppercase'}}>Recommendations</div>
               <div style={{background: 'rgba(255, 255, 255, 0.2)', backdropFilter: 'blur(10px)', borderRadius: 10, padding: '20px 30px', textAlign: 'center', width: '90%'}}>
-                <div style={{fontFamily: 'Helvetica Neue, Arial, sans-serif', fontWeight: 400, fontSize: 16, color: '#fff', lineHeight: 1.5}}>{recommendationsText}</div>
+                <div style={{fontFamily: FONT_FAMILY, fontWeight: 700, fontStyle: 'italic', fontSize: 20, color: '#fff', lineHeight: 1.5}}>{recommendationsText}</div>
               </div>
             </div>
           </div>
@@ -959,9 +1168,13 @@ export const FirstFrame: React.FC<FirstFrameProps> = ({ analysisData, userVideoS
         >
           <Video
             src={sponsoredVideoSrc}
-            muted
             playsInline
-            delayRenderTimeoutInMilliseconds={120000}
+            loop
+            delayRenderTimeoutInMilliseconds={300000}
+            delayRenderRetries={5}
+            onError={(error) => {
+              console.error('[FirstFrame] Sponsored video error:', error);
+            }}
             style={{
               width: '100%',
               height: '100%',

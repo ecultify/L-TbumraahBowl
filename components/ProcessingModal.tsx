@@ -55,7 +55,15 @@ export const ProcessingModal: React.FC<ProcessingModalProps> = ({
             lineHeight: 1.4,
           }}
         >
-          {message}
+          {message.includes('from your video') ? (
+            <>
+              {message.replace(' from your video.', '').replace(' from your video', '')}
+              <br />
+              from your video.
+            </>
+          ) : (
+            message
+          )}
         </p>
 
         {/* Optional sub-message */}

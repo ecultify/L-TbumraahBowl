@@ -1,54 +1,121 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies (ignore at any level)
+# Dependencies
 node_modules/
-**/node_modules/
-/.pnp
+.pnp
 .pnp.js
 
-# testing
-/coverage
+# Testing
+coverage/
+.nyc_output/
 
-# next.js (any package)
+# Next.js
 .next/
-**/.next/
 out/
-**/out/
-
-# production
 build/
-**/build/
 dist/
-**/dist/
 
-# misc
-.DS_Store
-*.pem
-
-# caches
-**/.cache/
-**/*.pack
-
-# remotion heavy binaries/cache
-**/.remotion/
-**/chrome-headless-shell*/
-
-# generated videos
-public/generated-videos/*.mp4
-temp-props-*.json
-
-# debug
+# Production
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
+# Environment variables (SENSITIVE)
 .env
 .env*.local
+AWS_ACCESS_creds.txt
+env-vps-template.txt
+kvm2setup.txt
 
-# vercel
-.vercel
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+temp_top.txt
+logresults2.txt
+*.tmp
+*.bak
+
+# Rendered videos & temp data
+public/renders/
+public/temp-videos/
+public/bowling-frame-*.jpg
+
+# Test files
+test-*.js
+test-*.html
+otp-test/
+otp-test-package.zip
+
+# PHP files (if not needed)
+public/*.php
+public/api/
+
+# Generated files
+tsconfig.tsbuildinfo
+.remotion/
+
+# Lambda proxy
+lambda-proxy/
+
+# Documentation (too many - keep only critical ones)
+*_COMPLETE.md
+*_FIX.md
+*_SUMMARY.md
+*_GUIDE.md
+*_IMPLEMENTATION.md
+*_SETUP.md
+QUICK_*.md
+DEPLOY_*.md
+FIX_*.md
+URGENT_*.md
+
+# Documentation with sensitive info
+ENV_PHP_UPDATED.md
+PRODUCTION_DEPLOYMENT_READY.md
+STANDALONE_PHP_SOLUTION.md
+VPS_S3_DEPLOYMENT.md
+HOSTINGER_VIDEO_SOLUTION.md
+LAMBDA_TIMEOUT_DEBUG.md
+
+# Keep these important docs
+!README.md
+!VIDEO_RENDERING_FIXES_DEPLOYMENT.md
+!CRITICAL_FIXES_SUMMARY.md
+!ROOT_CAUSE_MALFORMED_URLS.md
+!RENDER_QUEUE_AND_RESOURCE_MANAGEMENT.md
+
+# SQL cleanup scripts (temporary)
+*_CLEANUP.sql
+SIMPLE_SQL_CLEANUP.sql
+FIX_MALFORMED_URLS_COMPLETE.sql
+
+# Images (large files)
+public/images/*.png
+public/images/*.jpg
+public/frontend-images/**/*.png
+public/frontend-images/**/*.jpg
+
+# Keep small/essential images
+!public/images/og-share-image.avif
+
+# Audio/Video files
+*.mp4
+*.mp3
+*.avi
+*.mov
+
+# Remotion cache
+.remotion/
+
+# Server logs
+*.txt
+!package.json
+!tsconfig.json

@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useAnalysis } from '@/context/AnalysisContext';
 import { intensityToKmh, classifySpeed } from '@/lib/utils/normalize';
 import { NoBowlingActionModal } from '@/components/NoBowlingActionModal';
@@ -9,9 +10,22 @@ import { CompositeCard } from '@/components/CompositeCard';
 import { GlassBackButton } from '@/components/GlassBackButton';
 import { downloadCompositeCardManual } from '@/lib/utils/downloadCompositeCard';
 import { supabase } from '@/lib/supabase/client';
+import { uploadUserVideoToSupabase } from '@/lib/utils/videoUpload';
+import { uploadCompositeCardOnGeneration } from '@/lib/utils/uploadCompositeCardOnGeneration';
+import { calculateAccuracyScore } from '@/lib/utils/calculateAccuracyScore';
+import { normalizeVideoUrl } from '@/lib/utils/urlNormalization';
+import { shortenUrlForWhatsApp } from '@/lib/utils/urlShortener';
+import { usePageProtection } from '@/lib/hooks/usePageProtection';
+import { UnauthorizedAccess } from '@/components/UnauthorizedAccess';
+import { clearAnalysisSessionStorage, clearVideoSessionStorage } from '@/lib/utils/sessionCleanup';
 
 export default function SimplifiedAnalyzePage() {
+  // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
+  // Protect this page - require OTP verification and proper flow
+  const isAuthorized = usePageProtection('analyze');
   const { state } = useAnalysis();
+  const router = useRouter();
+  
   const [sessionAnalysisData, setSessionAnalysisData] = React.useState<any>(null);
   const [benchmarkDetailedData, setBenchmarkDetailedData] = React.useState<any>(null);
   const [detailedAnalysisData, setDetailedAnalysisData] = React.useState<any>(null);
@@ -22,9 +36,17 @@ export default function SimplifiedAnalyzePage() {
   const [renderProgress, setRenderProgress] = React.useState(0);
   const [leaderboardEntryId, setLeaderboardEntryId] = React.useState<string | null>(null);
   const [hasSubmittedToLeaderboard, setHasSubmittedToLeaderboard] = React.useState(false);
-
-  // Player name state
+  const [hasUploadedCompositeCard, setHasUploadedCompositeCard] = React.useState(false);
   const [playerName, setPlayerName] = React.useState<string>('');
+  const [isReturningUser, setIsReturningUser] = React.useState(false);
+  const [existingCompositeCardUrl, setExistingCompositeCardUrl] = React.useState<string | null>(null);
+  const [existingVideoUrl, setExistingVideoUrl] = React.useState<string | null>(null);
+  const [existingRecordId, setExistingRecordId] = React.useState<string | null>(null);
+  const [existingSimilarityPercent, setExistingSimilarityPercent] = React.useState<number | null>(null);
+
+  // ===================================================================
+  // ALL CALLBACKS AND EFFECTS MUST BE DECLARED HERE (BEFORE CONDITIONAL RETURNS)
+  // ===================================================================
 
   // Function to submit results to Supabase leaderboard
   const submitToLeaderboard = React.useCallback(async () => {
@@ -54,6 +76,8 @@ export default function SimplifiedAnalyzePage() {
         ? Math.round(benchmarkDetailedData.overallSimilarity * 100)
         : sessionAnalysisData?.similarity
         ? Math.round(sessionAnalysisData.similarity)
+        : existingSimilarityPercent // ✅ Use cached score for returning users
+        ? existingSimilarityPercent
         : Math.max(0, Math.round(finalIntensityValue));
       const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
 
@@ -80,13 +104,50 @@ export default function SimplifiedAnalyzePage() {
         ? Math.round(benchmarkDetailedData.releasePoint * 100)
         : (sessionAnalysisData?.technicalMetrics?.releasePoint || 89);
 
+      // Calculate overall accuracy score from phase and technical metrics
+      const overallAccuracyScore = calculateAccuracyScore(
+        {
+          runUp: runUpScore,
+          delivery: deliveryScore,
+          followThrough: followThroughScore
+        },
+        {
+          rhythm: rhythmScore,
+          armSwing: armSwingScore,
+          bodyMovement: bodyMovementScore,
+          releasePoint: releasePointScore
+        }
+      );
+
+      // Get phone number and composite card URL from session storage
+      const playerPhone = typeof window !== 'undefined' 
+        ? window.sessionStorage.getItem('playerPhone') || null
+        : null;
+      const compositeCardUrl = typeof window !== 'undefined'
+        ? window.sessionStorage.getItem('compositeCardUrl') || null
+        : null;
+
+      console.log('📞 Phone number for database:', playerPhone);
+      console.log('🎴 Composite card URL:', compositeCardUrl);
+      console.log('📊 Calculated accuracy score:', overallAccuracyScore);
+
+      // Get OTP verification status from sessionStorage
+      const otpVerifiedStatus = typeof window !== 'undefined' 
+        ? window.sessionStorage.getItem('otpVerifiedForBowling') === 'true'
+        : false;
+
       // Prepare payload for Supabase
       const payload = {
         display_name: sessionAnalysisData?.playerName || playerName || 'Anonymous',
+        phone_number: playerPhone, // NEW: Store phone number
+        otp_verified: otpVerifiedStatus, // NEW: Track OTP verification
+        otp_phone: otpVerifiedStatus ? playerPhone : null, // Store phone used for OTP
         predicted_kmh: Number(kmhValue.toFixed(2)),
         similarity_percent: Number(accuracyDisplay.toFixed(2)),
         intensity_percent: Number(finalIntensityValue.toFixed(2)),
         speed_class: speedLabel,
+        accuracy_score: Number(overallAccuracyScore.toFixed(2)), // NEW: Store calculated accuracy
+        // composite_card_url will be added later via UPDATE after composite card is generated
         avatar_url: geminiAvatarUrl, // Store Gemini-generated avatar
         meta: {
           analyzer_mode: 'benchmark',
@@ -107,8 +168,54 @@ export default function SimplifiedAnalyzePage() {
         }
       };
 
-      console.log('📊 Leaderboard payload:', payload);
+      console.log('📊 Leaderboard payload (with phone tracking):', payload);
 
+      // Check if this is a returning user (retry)
+      if (isReturningUser && existingRecordId) {
+        console.log('🔄 Returning user - UPDATING existing record:', existingRecordId);
+        
+        // Prepare update payload
+        const updatePayload: any = {
+          ...payload,
+          updated_at: new Date().toISOString()
+        };
+        
+        // ALWAYS delete video_url on retry (force re-render with new analysis data)
+        updatePayload.video_url = null;
+        console.log('🎬 Clearing video_url - will re-render with new analysis data');
+        
+        // UPDATE existing record
+        const { error: updateError } = await supabase
+          .from('bowling_attempts')
+          .update(updatePayload)
+          .eq('id', existingRecordId);
+        
+        // Increment retry_count separately using RPC
+        try {
+          const { error: rpcError } = await supabase.rpc('increment_retry_count', { record_id: existingRecordId });
+          if (rpcError) {
+            console.log('⚠️ RPC failed:', rpcError);
+          }
+        } catch (rpcErr) {
+          console.log('⚠️ RPC call failed, continuing anyway');
+        }
+        
+        if (updateError) {
+          console.error('❌ Supabase update error:', updateError);
+          throw updateError;
+        }
+        
+        console.log('✅ Successfully updated existing record (retry)');
+        setLeaderboardEntryId(existingRecordId);
+        setHasSubmittedToLeaderboard(true);
+        
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.setItem('leaderboardEntryId', existingRecordId);
+        }
+      } else {
+        console.log('🆕 New user - INSERTING new record');
+        
+        // Insert new record for new users
       const { data, error } = await supabase
         .from('bowling_attempts')
         .insert(payload)
@@ -128,6 +235,7 @@ export default function SimplifiedAnalyzePage() {
         // Store the entry ID for potential future reference
         if (typeof window !== 'undefined') {
           window.sessionStorage.setItem('leaderboardEntryId', data.id);
+          }
         }
       }
     } catch (error) {
@@ -139,6 +247,8 @@ export default function SimplifiedAnalyzePage() {
     sessionAnalysisData,
     playerName,
     state.finalIntensity,
+    isReturningUser,
+    existingRecordId,
     state.speedClass,
     benchmarkDetailedData
   ]);
@@ -223,6 +333,17 @@ export default function SimplifiedAnalyzePage() {
 
   // Auto-submit to leaderboard when analysis data is loaded
   React.useEffect(() => {
+    // 🚫 DISABLED: Restored session check - Allow users to generate unlimited content
+    // const isRestoredSession = typeof window !== 'undefined' && window.sessionStorage.getItem('restoredSession') === 'true';
+    
+    // if (isRestoredSession) {
+    //   console.log('⏭️ Restored session detected - skipping leaderboard submission');
+    //   console.log('✅ Using existing leaderboard entry from database');
+    //   // Mark as submitted to prevent duplicate entries
+    //   setHasSubmittedToLeaderboard(true);
+    //   return;
+    // }
+    
     const shouldSubmit = 
       !hasSubmittedToLeaderboard &&
       sessionAnalysisData &&
@@ -239,6 +360,245 @@ export default function SimplifiedAnalyzePage() {
     }
   }, [sessionAnalysisData, hasSubmittedToLeaderboard, submitToLeaderboard]);
 
+  // Check for returning user on mount - PRIORITIZE FRESH ANALYSIS DATA
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // FIRST: Check if there's fresh analysis data from a recent retry/new analysis
+      const freshAnalysisData = window.sessionStorage.getItem('analysisVideoData');
+      const freshBenchmarkData = window.sessionStorage.getItem('benchmarkDetailedData');
+      
+      let hasFreshAnalysis = false;
+      if (freshAnalysisData) {
+        try {
+          const parsed = JSON.parse(freshAnalysisData);
+          // Consider it "fresh" if it has valid intensity > 0
+          hasFreshAnalysis = parsed && parsed.intensity > 0;
+        } catch (e) {
+          hasFreshAnalysis = false;
+        }
+      }
+      
+      // ALWAYS check for returning user status (needed for database UPDATE)
+      const returningUser = window.sessionStorage.getItem('isReturningUser') === 'true';
+      const recordId = window.sessionStorage.getItem('existingRecordId');
+      const hasCompositeCard = window.sessionStorage.getItem('hasCompositeCard') === 'true';
+      const hasVideo = window.sessionStorage.getItem('hasVideo') === 'true';
+      const similarityPercent = window.sessionStorage.getItem('existingSimilarityPercent');
+      
+      // If returning user, ALWAYS set the record ID (even if fresh analysis)
+      // This ensures database UPDATE happens instead of INSERT
+      if (returningUser && recordId) {
+        console.log('[Analyze] 🔄 Returning user detected! Record ID:', recordId);
+        setIsReturningUser(true);
+        setExistingRecordId(recordId);
+        setLeaderboardEntryId(recordId); // Set this for composite card updates
+      }
+      
+      if (hasFreshAnalysis) {
+        // Fresh analysis available - use it! Don't load cached data
+        console.log('[Analyze] ✨ Fresh analysis detected - using NEW data (ignoring cached data)');
+        console.log('[Analyze] Fresh data will be loaded by main data loading effect');
+        // Let the normal data loading flow handle fresh data
+        // Don't set isLoading to false, let it complete naturally
+        return;
+      }
+      
+      // SECOND: Only if NO fresh analysis, load cached display data
+      if (returningUser && recordId) {
+        console.log('[Analyze] 📦 No fresh analysis - loading CACHED data for returning user');
+        
+        if (similarityPercent) {
+          setExistingSimilarityPercent(parseFloat(similarityPercent));
+          console.log('[Analyze] Loaded cached similarity score:', similarityPercent);
+        }
+        
+        if (hasCompositeCard) {
+          const compositeUrl = window.sessionStorage.getItem('existingCompositeCardUrl');
+          if (compositeUrl) {
+            setExistingCompositeCardUrl(compositeUrl);
+            console.log('[Analyze] Loaded cached composite card:', compositeUrl);
+          }
+        }
+        
+        if (hasVideo) {
+          const videoUrl = window.sessionStorage.getItem('existingVideoUrl');
+          if (videoUrl) {
+            setExistingVideoUrl(videoUrl);
+            console.log('[Analyze] Loaded cached video:', videoUrl);
+          }
+        }
+        
+        // Skip live processing for returning users - show stored content
+        setIsLoading(false);
+        console.log('[Analyze] Skipping live processing - showing cached content');
+      }
+    }
+  }, []);
+
+  // Auto-upload composite card to Supabase when analysis data is loaded
+  React.useEffect(() => {
+    // 🚫 DISABLED: Restored session check - Allow users to generate unlimited content
+    // const isRestoredSession = typeof window !== 'undefined' && window.sessionStorage.getItem('restoredSession') === 'true';
+    
+    // if (isRestoredSession) {
+    //   console.log('⏭️ Restored session detected - skipping composite card generation');
+    //   console.log('✅ Using existing composite card from database');
+    //   return;
+    // }
+    
+    const shouldUpload = 
+      !hasUploadedCompositeCard &&
+      sessionAnalysisData &&
+      benchmarkDetailedData &&
+      sessionAnalysisData.intensity > 0 &&
+      sessionAnalysisData.speedClass !== 'No Action' &&
+      leaderboardEntryId; // 🔥 WAIT FOR LEADERBOARD ENTRY TO BE CREATED FIRST!
+
+    if (shouldUpload) {
+      // Upload composite card automatically when data is ready
+      const uploadCompositeCard = async () => {
+        try {
+          console.log('🎨 Auto-uploading composite card to Supabase...');
+          console.log('🆔 Leaderboard Entry ID:', leaderboardEntryId);
+          
+          // Calculate all scores (same logic as used in UI rendering)
+          const finalIntensityValue = sessionAnalysisData?.intensity || state.finalIntensity || 0;
+          const kmhValue = Math.round(sessionAnalysisData?.kmh || intensityToKmh(finalIntensityValue));
+          
+          const accuracyScore = benchmarkDetailedData?.overall
+            ? Math.round(benchmarkDetailedData.overall * 100)
+            : benchmarkDetailedData?.overallSimilarity
+            ? Math.round(benchmarkDetailedData.overallSimilarity * 100)
+            : sessionAnalysisData?.similarity
+            ? Math.round(sessionAnalysisData.similarity)
+            : existingSimilarityPercent // ✅ Use cached score for returning users
+            ? existingSimilarityPercent
+            : Math.max(0, Math.round(finalIntensityValue));
+          const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
+
+          const runUpScore = benchmarkDetailedData?.runUp
+            ? Math.round(benchmarkDetailedData.runUp * 100)
+            : (sessionAnalysisData?.phases?.runUp || 87);
+          const deliveryScore = benchmarkDetailedData?.delivery
+            ? Math.round(benchmarkDetailedData.delivery * 100)
+            : (sessionAnalysisData?.phases?.delivery || 79);
+          const followThroughScore = benchmarkDetailedData?.followThrough
+            ? Math.round(benchmarkDetailedData.followThrough * 100)
+            : (sessionAnalysisData?.phases?.followThrough || 81);
+
+          const armSwingScore = benchmarkDetailedData?.armSwing
+            ? Math.round(benchmarkDetailedData.armSwing * 100)
+            : (sessionAnalysisData?.technicalMetrics?.armSwing || 83);
+          const bodyMovementScore = benchmarkDetailedData?.bodyMovement
+            ? Math.round(benchmarkDetailedData.bodyMovement * 100)
+            : (sessionAnalysisData?.technicalMetrics?.bodyMovement || 88);
+          const rhythmScore = benchmarkDetailedData?.rhythm
+            ? Math.round(benchmarkDetailedData.rhythm * 100)
+            : (sessionAnalysisData?.technicalMetrics?.rhythm || 85);
+          const releasePointScore = benchmarkDetailedData?.releasePoint
+            ? Math.round(benchmarkDetailedData.releasePoint * 100)
+            : (sessionAnalysisData?.technicalMetrics?.releasePoint || 89);
+
+          const recommendations = (benchmarkDetailedData?.recommendations?.length || sessionAnalysisData?.recommendations?.length) > 0
+            ? (benchmarkDetailedData?.recommendations || sessionAnalysisData?.recommendations || []).join(' ')
+            : "Great technique! Keep practicing to maintain consistency.";
+
+          const finalPlayerName = sessionAnalysisData?.playerName || playerName || 'PLAYER NAME';
+
+          // Call upload function
+          const result = await uploadCompositeCardOnGeneration({
+            accuracyDisplay,
+            runUpScore,
+            deliveryScore,
+            followThroughScore,
+            playerName: finalPlayerName,
+            kmhValue,
+            armSwingScore,
+            bodyMovementScore,
+            rhythmScore,
+            releasePointScore,
+            recommendations,
+            sessionAnalysisData
+          });
+
+          if (result) {
+            console.log('✅ Composite card uploaded successfully on generation!');
+            console.log('🎴 Composite card URL:', result.compositeCardUrl);
+            setHasUploadedCompositeCard(true);
+            
+            // Save composite card URL to sessionStorage for phone tracking
+            if (typeof window !== 'undefined' && result.compositeCardUrl) {
+              window.sessionStorage.setItem('compositeCardUrl', result.compositeCardUrl);
+              console.log('💾 Composite card URL saved to sessionStorage');
+              
+              // 🆕 UPDATE DATABASE WITH COMPOSITE CARD URL
+              console.log('═══════════════════════════════════════');
+              console.log('📊 UPDATING BOWLING_ATTEMPTS TABLE');
+              console.log('═══════════════════════════════════════');
+              console.log('📊 Leaderboard ID:', leaderboardEntryId);
+              console.log('📊 Composite Card URL:', result.compositeCardUrl);
+              
+              if (!leaderboardEntryId) {
+                console.error('❌ ERROR: leaderboardEntryId is NULL! Cannot update database.');
+                console.log('⚠️ Trying to get ID from sessionStorage...');
+                const sessionId = window.sessionStorage.getItem('leaderboardEntryId');
+                console.log('📦 Session ID:', sessionId);
+                
+                if (sessionId) {
+                  console.log('✅ Found ID in session, using it for UPDATE');
+                  const { error: updateError, data: updateData } = await supabase
+                    .from('bowling_attempts')
+                    .update({ composite_card_url: result.compositeCardUrl })
+                    .eq('id', sessionId)
+                    .select();
+                  
+                  if (updateError) {
+                    console.error('❌ Failed to update composite_card_url:', updateError);
+                  } else {
+                    console.log('✅ Composite card URL saved to database!');
+                    console.log('📋 Updated record:', updateData);
+                  }
+                } else {
+                  console.error('❌ No leaderboard ID found anywhere! Skipping database update.');
+                }
+              } else {
+                const { error: updateError, data: updateData } = await supabase
+                  .from('bowling_attempts')
+                  .update({ composite_card_url: result.compositeCardUrl })
+                  .eq('id', leaderboardEntryId)
+                  .select();
+                
+                if (updateError) {
+                  console.error('❌ Failed to update composite_card_url:', updateError);
+                  console.error('❌ Error details:', JSON.stringify(updateError));
+                } else {
+                  console.log('✅ Composite card URL saved to database!');
+                  console.log('📋 Updated record:', updateData);
+                }
+              }
+              console.log('═══════════════════════════════════════');
+            }
+          } else {
+            console.warn('⚠️ Composite card upload failed');
+          }
+        } catch (error) {
+          console.error('❌ Error uploading composite card:', error);
+        }
+      };
+
+      // Delay to ensure composite card is rendered and all images are loaded
+      const timer = setTimeout(() => {
+        uploadCompositeCard();
+      }, 2000); // 2 second delay to ensure Gemini avatar and all assets are loaded
+
+      return () => clearTimeout(timer);
+    }
+  }, [sessionAnalysisData, benchmarkDetailedData, hasUploadedCompositeCard, playerName, state.finalIntensity, leaderboardEntryId]);
+
+  // ❌ Removed automatic background rendering - now triggered by "View Video" button click only
+  
+  // (old auto-render code removed - video rendering now manual via View Video button)
+
   // Handle no bowling action modal - all hooks must come before any conditional returns
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -254,69 +614,11 @@ export default function SimplifiedAnalyzePage() {
     }
   }, [state.speedClass, state.finalIntensity, sessionAnalysisData, showNoBowlingModal]);
 
-  // Show loading while checking for data
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-          <p className="mt-4">Loading analysis results...</p>
-        </div>
-      </div>
-    );
-  }
+  // ===================================================================
+  // ALL HOOKS MUST BE ABOVE THIS LINE - NO CONDITIONAL RETURNS BEFORE HERE
+  // ===================================================================
 
-  // Determine availability - use sessionStorage data if AnalysisContext is empty
-  const hasSessionResults = sessionAnalysisData?.intensity > 0 || benchmarkDetailedData?.overall > 0;
-  const hasValidResults = (state.finalIntensity > 0 && state.speedClass && state.speedClass !== 'No Action') || hasSessionResults;
-  
-  // Check for no bowling action detection
-  const noBowlingDetected = typeof window !== 'undefined' && (
-    window.sessionStorage.getItem('noBowlingActionDetected') === 'true' ||
-    state.speedClass === 'No Action' ||
-    sessionAnalysisData?.speedClass === 'No Action' ||
-    (state.finalIntensity === 0 && sessionAnalysisData?.intensity === 0)
-  );
-  
-  if (noBowlingDetected) {
-    return (
-      <div
-        className="min-h-screen flex flex-col relative"
-        style={{
-          backgroundImage: "url(/images/instructions/Instructions%20bg.jpg)",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
-        <NoBowlingActionModal
-          open={showNoBowlingModal}
-          onOpenChange={setShowNoBowlingModal}
-        />
-      </div>
-    );
-  }
-  
-  // TEMPORARILY COMMENTED OUT FOR UI/UX TESTING
-  // Fallback for when there are no results at all (not even no bowling action)
-  // if (!hasValidResults && !noBowlingDetected) {
-  //   return (
-  //     <div className="min-h-screen flex items-center justify-center">
-  //       <div className="text-center">
-  //         <div className="text-gray-600 mb-4">
-  //           <p>No analysis results found.</p>
-  //           <p className="mt-2">
-  //             <Link href="/record-upload" className="text-blue-600 hover:underline">
-  //               Go back to upload a video
-  //             </Link>
-  //           </p>
-  //         </div>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
-  // Speed values - prioritize sessionStorage data and round to whole numbers
+  // Calculate all display values AFTER all hooks
   const finalIntensityValue = sessionAnalysisData?.intensity || state.finalIntensity || 0;
   const kmhValue = Math.round(sessionAnalysisData?.kmh || intensityToKmh(finalIntensityValue));
   const mphRaw = kmhValue * 0.621371;
@@ -327,13 +629,14 @@ export default function SimplifiedAnalyzePage() {
   const classificationResult = classifySpeed(finalIntensityValue);
   const speedLabel = sessionAnalysisData?.speedClass || state.speedClass || classificationResult.speedClass;
 
-  // Accuracy - prioritize benchmarkDetailedData.overall, then sessionAnalysisData
   const accuracyScore = benchmarkDetailedData?.overall
     ? Math.round(benchmarkDetailedData.overall * 100)
     : benchmarkDetailedData?.overallSimilarity
     ? Math.round(benchmarkDetailedData.overallSimilarity * 100)
     : sessionAnalysisData?.similarity
     ? Math.round(sessionAnalysisData.similarity)
+    : existingSimilarityPercent // ✅ Use cached score for returning users
+    ? existingSimilarityPercent
     : Math.max(0, Math.round(finalIntensityValue));
   const accuracyDisplay = Math.min(Math.max(accuracyScore, 0), 100);
   
@@ -341,12 +644,12 @@ export default function SimplifiedAnalyzePage() {
     benchmarkOverall: benchmarkDetailedData?.overall,
     benchmarkOverallSimilarity: benchmarkDetailedData?.overallSimilarity,
     sessionSimilarity: sessionAnalysisData?.similarity,
+    existingSimilarityPercent, // ✅ Show cached score
     finalIntensityValue,
     calculatedAccuracyScore: accuracyScore,
     accuracyDisplay
   });
 
-  // Phase metrics
   const runUpScore = benchmarkDetailedData?.runUp
     ? Math.round(benchmarkDetailedData.runUp * 100)
     : (sessionAnalysisData?.phases?.runUp || 87);
@@ -363,7 +666,6 @@ export default function SimplifiedAnalyzePage() {
     followThrough: { benchmark: benchmarkDetailedData?.followThrough, session: sessionAnalysisData?.phases?.followThrough, final: followThroughScore }
   });
 
-  // Technical metrics
   const armSwingScore = benchmarkDetailedData?.armSwing
     ? Math.round(benchmarkDetailedData.armSwing * 100)
     : (sessionAnalysisData?.technicalMetrics?.armSwing || 83);
@@ -384,16 +686,161 @@ export default function SimplifiedAnalyzePage() {
     releasePoint: { benchmark: benchmarkDetailedData?.releasePoint, session: sessionAnalysisData?.technicalMetrics?.releasePoint, final: releasePointScore }
   });
 
-  // Handle View Video button click - Trigger video rendering
+  // Determine availability - use sessionStorage data if AnalysisContext is empty
+  const hasSessionResults = sessionAnalysisData?.intensity > 0 || benchmarkDetailedData?.overall > 0;
+  const hasValidResults = (state.finalIntensity > 0 && state.speedClass && state.speedClass !== 'No Action') || hasSessionResults;
+
+  // Check for no bowling action detection
+  const noBowlingDetected = typeof window !== 'undefined' && (
+    window.sessionStorage.getItem('noBowlingActionDetected') === 'true' ||
+    state.speedClass === 'No Action' ||
+    sessionAnalysisData?.speedClass === 'No Action' ||
+    (state.finalIntensity === 0 && sessionAnalysisData?.intensity === 0)
+  );
+
+  // Handle Retry button click - Clear analysis data and go to record-upload
+  const handleRetry = React.useCallback(() => {
+    console.log('[Retry] User clicked retry - clearing analysis data');
+    
+    if (typeof window !== 'undefined') {
+      // Clear analysis and video data only - preserve user auth/flow data
+      window.sessionStorage.removeItem('analysisResults');
+      window.sessionStorage.removeItem('compositeCardUrl');
+      window.sessionStorage.removeItem('generatedVideoUrl');
+      window.sessionStorage.removeItem('existingCompositeCardUrl');
+      window.sessionStorage.removeItem('existingVideoUrl');
+      window.sessionStorage.removeItem('existingSimilarityPercent');
+      window.sessionStorage.removeItem('geminiAvatarUrl');
+      window.sessionStorage.removeItem('videoRenderId');
+      window.sessionStorage.removeItem('videoRenderStatus');
+      window.sessionStorage.removeItem('videoRenderStartTime');
+      window.sessionStorage.removeItem('analysisVideoData');
+      window.sessionStorage.removeItem('benchmarkDetailedData');
+      window.sessionStorage.removeItem('leaderboardEntryId');
+      
+      // Keep these items for page protection and user flow:
+      // - playerPhone, playerName
+      // - otpVerified, otpVerifiedForBowling
+      // - detailsCompleted
+      // - isReturningUser, existingRecordId
+      // - userFlow
+      
+      console.log('[Retry] Redirecting to record-upload page...');
+      console.log('[Retry] Preserved session data:', {
+        phone: window.sessionStorage.getItem('playerPhone'),
+        name: window.sessionStorage.getItem('playerName'),
+        otpVerified: window.sessionStorage.getItem('otpVerified'),
+        detailsCompleted: window.sessionStorage.getItem('detailsCompleted'),
+        isReturningUser: window.sessionStorage.getItem('isReturningUser')
+      });
+    }
+    
+    // Navigate to record-upload page using Next.js router (client-side navigation)
+    router.push('/record-upload');
+  }, [router]);
+
+  // ===================================================================
+  // CONDITIONAL RENDERS BELOW - THESE ARE SAFE NOW
+  // ===================================================================
+
+  // Authorization checks FIRST
+  if (isAuthorized === null) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: '#000'
+      }}>
+        <div style={{ color: '#fff', fontSize: '18px' }}>Loading...</div>
+      </div>
+    );
+  }
+
+  if (isAuthorized === false) {
+    return <UnauthorizedAccess />;
+  }
+
+  // Show loading while checking for data
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+          <p className="mt-4">Loading analysis results...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check for no bowling action detection
+  if (noBowlingDetected) {
+    return (
+      <div
+        className="min-h-screen flex flex-col relative"
+        style={{
+          backgroundImage: "url(/images/instructions/Instructions%20bg.jpg)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
+      >
+        <NoBowlingActionModal
+          open={showNoBowlingModal}
+          onOpenChange={setShowNoBowlingModal}
+        />
+      </div>
+    );
+  }
+
+  // Handle View Video button click - Trigger video rendering OR load existing video
   const handleViewVideo = async () => {
     try {
+      // VERSION CHECK - to verify new code is running
+      console.log('═══════════════════════════════════════');
+      console.log('🔥 VIDEO RENDERING VERSION: 2025-01-07-v6 🔥');
+      console.log('[handleViewVideo] 🎬 VIEW VIDEO BUTTON CLICKED');
+      console.log('[handleViewVideo] START:', new Date().toISOString());
+      
       if (typeof accuracyDisplay === 'number' && accuracyDisplay <= 85) {
         alert('View Video is available only for scores above 85%.');
         return;
       }
-      console.log('🎥 Starting video rendering process...');
+
+      // ✅ CHECK: Returning user with existing video - Skip rendering!
+      if (typeof window !== 'undefined') {
+        const isReturningUser = window.sessionStorage.getItem('isReturningUser') === 'true';
+        const hasVideo = window.sessionStorage.getItem('hasVideo') === 'true';
+        const existingVideoUrl = window.sessionStorage.getItem('existingVideoUrl');
+        
+        if (isReturningUser && hasVideo && existingVideoUrl) {
+          console.log('[handleViewVideo] 🔄 Returning user with existing video detected!');
+          console.log('[handleViewVideo] 🎥 Existing video URL:', existingVideoUrl.substring(0, 100) + '...');
+          console.log('[handleViewVideo] ⏭️ SKIPPING video rendering - navigating directly to download page');
+          
+          // Set the video URL for download page to use
+          window.sessionStorage.setItem('videoRenderStatus', 'completed');
+          window.sessionStorage.setItem('generatedVideoUrl', existingVideoUrl);
+          
+          // Navigate directly to download page with existing video
+          window.location.href = '/download-video';
+          return;
+        }
+      }
+
+      // 🧹 CLEAR old video data before starting new render (for new users or retry)
+      if (typeof window !== 'undefined') {
+        console.log('[handleViewVideo] 🧹 Clearing old video data...');
+        window.sessionStorage.removeItem('generatedVideoUrl');
+        window.sessionStorage.removeItem('videoRenderId');
+        window.sessionStorage.removeItem('videoRenderStatus');
+        window.sessionStorage.removeItem('videoRenderStartTime');
+      }
+
+      console.log('[handleViewVideo] 🚀 Starting NEW video rendering process...');
       setIsRenderingVideo(true);
-      setRenderProgress(10);
+      setRenderProgress(5);
 
       // Prepare analysis data for video rendering
       // Get frameIntensities from sessionStorage if available
@@ -435,12 +882,28 @@ export default function SimplifiedAnalyzePage() {
       setRenderProgress(20);
 
       // Prepare assets: thumbnail + uploaded video path
-      let bestFrameDataUrl: string | null = null;
+      let thumbnailPublicUrl: string | null = null;
+      
+      // 📤 Upload thumbnail to Supabase to avoid huge base64 in Lambda payload
       try {
         if (typeof window !== 'undefined') {
-          bestFrameDataUrl = window.sessionStorage.getItem('detectedFrameDataUrl') || window.sessionStorage.getItem('videoThumbnail');
+          const bestFrameDataUrl = window.sessionStorage.getItem('detectedFrameDataUrl') || window.sessionStorage.getItem('videoThumbnail');
+          
+          if (bestFrameDataUrl && bestFrameDataUrl.startsWith('data:')) {
+            console.log('[handleViewVideo] 📤 Uploading thumbnail to Supabase...');
+            const { uploadThumbnailToSupabase } = await import('@/lib/utils/videoUpload');
+            thumbnailPublicUrl = await uploadThumbnailToSupabase(bestFrameDataUrl);
+            
+            if (thumbnailPublicUrl) {
+              console.log('[handleViewVideo] ✅ Thumbnail uploaded:', thumbnailPublicUrl.substring(0, 80));
+            } else {
+              console.warn('[handleViewVideo] ⚠️ Thumbnail upload failed, will use fallback image');
+            }
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[handleViewVideo] Error uploading thumbnail:', e);
+      }
 
       // Ensure user's uploaded video is persisted in public/uploads and get its public path
       let userVideoPublicPath: string | null = null;
@@ -461,17 +924,12 @@ export default function SimplifiedAnalyzePage() {
               }
             }
             if (uploadFile) {
-              const form = new FormData();
-              form.append('file', uploadFile, uploadFile.name);
-              const uploadResp = await fetch('/api/upload-user-video', { method: 'POST', body: form });
-              if (uploadResp.ok) {
-                const up = await uploadResp.json();
-                if (up?.publicPath) {
-                  userVideoPublicPath = up.publicPath as string;
-                  window.sessionStorage.setItem('uploadedVideoPublicPath', userVideoPublicPath);
-                }
+              const publicUrl = await uploadUserVideoToSupabase(uploadFile);
+              if (publicUrl) {
+                userVideoPublicPath = publicUrl as string;
+                window.sessionStorage.setItem('uploadedVideoPublicPath', userVideoPublicPath);
               } else {
-                console.warn('Upload user video failed with status', uploadResp.status);
+                console.warn('Upload user video failed');
               }
             } else {
               console.warn('No uploadable user video available in this session');
@@ -480,36 +938,369 @@ export default function SimplifiedAnalyzePage() {
         }
       } catch (e) { console.warn('Error ensuring uploaded video path:', e); }
 
-      // Call API to generate video
-      const response = await fetch('/api/generate-video', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
+      // 🚀 Start rendering (local on localhost OR when env variable is set, Lambda otherwise)
+      const useLocalRender = process.env.NEXT_PUBLIC_USE_LOCAL_RENDER === 'true';
+      const isLocalhost = typeof window !== 'undefined' && (
+        window.location.hostname === 'localhost' || 
+        window.location.hostname === '127.0.0.1' ||
+        useLocalRender
+      );
+      
+      console.log('[handleViewVideo] 🌍 Environment:', isLocalhost ? 'LOCAL RENDER' : 'LAMBDA');
+      console.log('[handleViewVideo] 🔧 USE_LOCAL_RENDER env:', useLocalRender);
+      console.log('[handleViewVideo] Analysis data being sent:', videoAnalysisData);
+      setRenderProgress(5);
+      
+      let renderResult: any;
+      
+      if (isLocalhost) {
+        // LOCAL DEVELOPMENT: Use Node.js rendering server
+        console.log('[handleViewVideo] 🏠 Using LOCAL Node.js rendering server...');
+        
+        const { startLocalRender, checkLocalRenderServer } = await import('@/lib/utils/localRender');
+        
+        // Check if render server is running
+        const serverRunning = await checkLocalRenderServer();
+        if (!serverRunning) {
+          throw new Error('Local render server not running! Please start it with: node server/render-video.js');
+        }
+        
+        console.log('[handleViewVideo] ✅ Local render server is running');
+        console.log('[handleViewVideo] 📊 Assets prepared:', {
+          hasVideo: !!userVideoPublicPath,
+          hasThumbnail: !!thumbnailPublicUrl,
+          thumbnailSource: thumbnailPublicUrl ? 'Supabase URL' : 'Fallback image'
+        });
+        
+        renderResult = await startLocalRender({
+            analysisData: videoAnalysisData,
+          userVideoUrl: userVideoPublicPath || undefined,
+          thumbnailDataUrl: thumbnailPublicUrl || undefined,
+        });
+        
+      } else {
+        // PRODUCTION: Use Lambda/PHP proxy
+        console.log('[handleViewVideo] ☁️ Using PRODUCTION Lambda rendering...');
+        
+        const { startRemotionRender } = await import('@/lib/utils/browserLambda');
+        
+        console.log('[handleViewVideo] 📊 Assets prepared:', {
+          hasVideo: !!userVideoPublicPath,
+          hasThumbnail: !!thumbnailPublicUrl,
+          thumbnailSource: thumbnailPublicUrl ? 'Supabase URL' : 'Fallback image'
+        });
+        
+        renderResult = await startRemotionRender({
           analysisData: videoAnalysisData,
-          thumbnailDataUrl: bestFrameDataUrl || undefined,
-          userVideoPublicPath: userVideoPublicPath || undefined,
-        }),
-      });
-
-      setRenderProgress(90);
-
-      if (!response.ok) {
-        throw new Error('Video generation failed');
+          userVideoUrl: userVideoPublicPath || undefined,
+          thumbnailDataUrl: thumbnailPublicUrl || undefined,
+        });
       }
-
-      const result = await response.json();
-      console.log('✅ Video rendered successfully:', result);
-      setRenderProgress(100);
-
-      // Store video URL in sessionStorage
-      if (typeof window !== 'undefined' && result.videoUrl) {
-        window.sessionStorage.setItem('generatedVideoUrl', result.videoUrl);
-        // Navigate to download video page
+      
+      console.log('[handleViewVideo] 📋 Render result:', renderResult);
+      
+      if (!renderResult.success) {
+        console.error('[handleViewVideo] ❌ Render FAILED:', renderResult.error);
+        throw new Error(renderResult.error || 'Failed to start render');
+      }
+      
+      // LOCAL RENDERING: Also needs polling (like Lambda)
+      // The render happens in background on the server
+      
+      // PRODUCTION LAMBDA: Use polling for render status
+      if (!renderResult.renderId) {
+        console.error('[handleViewVideo] ❌ No renderId returned!');
+        throw new Error('No renderId returned from render');
+      }
+      
+      const renderId = renderResult.renderId;
+      console.log('[handleViewVideo] ✅ Render started successfully!');
+      console.log('[handleViewVideo] 🆔 Render ID:', renderId);
+      console.log('[handleViewVideo] 📊 Analysis data sent:', {
+        playerName: videoAnalysisData.playerName,
+        similarity: videoAnalysisData.similarity,
+        speedClass: videoAnalysisData.speedClass,
+        hasVideo: !!userVideoPublicPath,
+        hasThumbnail: !!thumbnailPublicUrl,
+        thumbnailUrl: thumbnailPublicUrl?.substring(0, 80) + '...'
+      });
+      
+      setRenderProgress(10);
+      
+      // ⏱️ Record start time
+      const renderStartTime = Date.now();
+      
+      // Store render info in sessionStorage
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('videoRenderId', renderId);
+        window.sessionStorage.setItem('videoRenderStatus', 'rendering');
+        window.sessionStorage.setItem('videoRenderStartTime', Date.now().toString());
+      }
+      
+      // 🎬 PROGRESS TRACKING - Poll for render status
+      console.log('[handleViewVideo] 🎬 Starting progress polling...');
+      console.log('[handleViewVideo] Render ID:', renderId);
+      console.log('[handleViewVideo] Environment:', isLocalhost ? 'LOCAL' : 'PRODUCTION');
+      
+      let finalVideoUrl: string | null = null;
+      const maxPollingAttempts = 150; // 150 attempts × 4 seconds = 10 minutes max
+      let pollCount = 0;
+      
+      for (let attempt = 0; attempt < maxPollingAttempts; attempt++) {
+        pollCount++;
+        const elapsed = Math.round((Date.now() - renderStartTime) / 1000);
+        
+        console.log(`[handleViewVideo] 📊 Poll #${pollCount}/${maxPollingAttempts} (${elapsed}s elapsed)...`);
+        
+        // Check render status (different for local vs production)
+        let status: any;
+        
+        if (isLocalhost) {
+          // LOCAL: Check status from local render server
+          const { checkLocalRenderStatus } = await import('@/lib/utils/localRender');
+          status = await checkLocalRenderStatus(renderId);
+          
+          console.log('[handleViewVideo] 📋 Local render status:', {
+            done: status.done,
+            percentage: status.percentage,
+            hasUrl: !!status.url,
+            error: status.error,
+          });
+          
+          // Update progress bar (local uses percentage)
+          if (status.percentage !== undefined) {
+            const progressValue = Math.min(95, Math.round(status.percentage));
+            console.log(`[handleViewVideo] 📊 Setting progress to ${progressValue}%`);
+            setRenderProgress(progressValue);
+          }
+          
+        } else {
+          // PRODUCTION: Check status from Lambda
+          const { checkRenderStatus } = await import('@/lib/utils/browserLambda');
+          status = await checkRenderStatus(renderId);
+          
+          console.log('[handleViewVideo] 📋 Lambda render status:', {
+            done: status.done,
+            progress: status.overallProgress,
+            step: status.currentStep,
+            hasUrl: !!status.url,
+            error: status.error,
+          });
+          
+          // Update progress bar (Lambda uses overallProgress)
+          if (status.overallProgress !== undefined) {
+            const progressValue = Math.min(95, Math.round(status.overallProgress));
+            console.log(`[handleViewVideo] 📊 Setting progress to ${progressValue}%`);
+            setRenderProgress(progressValue);
+          }
+        }
+        
+        // Check if render is complete
+        if (status.done && (status.url || status.videoUrl)) {
+          finalVideoUrl = status.url || status.videoUrl;
+          console.log('[handleViewVideo] ✅✅✅ RENDER COMPLETE! ✅✅✅');
+          console.log('[handleViewVideo] 🎥 Video URL:', finalVideoUrl);
+          setRenderProgress(100);
+              break;
+            }
+        
+        // Check for errors
+        if (status.error) {
+          console.error('[handleViewVideo] ❌ Status check error:', status.error);
+          throw new Error(`Render status check failed: ${status.error}`);
+        }
+        
+        // Still rendering - wait 4 seconds before next poll
+        console.log('[handleViewVideo] ⏳ Video not ready yet, waiting 4 seconds...');
+        await new Promise(resolve => setTimeout(resolve, 4000));
+      }
+      
+      // Check if we got a video URL
+      if (!finalVideoUrl) {
+        console.error('[handleViewVideo] ❌ Timeout! No video found after 10 minutes');
+        throw new Error('Render timed out after 10 minutes. The video may still be processing.');
+      }
+      
+      console.log('[handleViewVideo] 💾 Storing video URL in sessionStorage...');
+      console.log('[handleViewVideo] Final URL:', finalVideoUrl);
+      
+      // Store video URL and navigate to download page
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.setItem('generatedVideoUrl', finalVideoUrl);
+        window.sessionStorage.setItem('videoRenderStatus', 'completed');
+        console.log('[handleViewVideo] ✅ Video URL stored successfully!');
+        
+        // 📤 UPLOAD RENDERED VIDEO TO SUPABASE STORAGE
+        let supabaseVideoUrl = finalVideoUrl; // Fallback to original URL
+        try {
+          console.log('[handleViewVideo] 📤 Uploading rendered video to Supabase Storage...');
+          
+          const { uploadRenderedVideoToSupabase } = await import('@/lib/utils/uploadRenderedVideoToSupabase');
+          
+          const playerNameForUpload = sessionAnalysisData?.playerName || playerName || 'Anonymous';
+          const uploadResult = await uploadRenderedVideoToSupabase(
+            finalVideoUrl,
+            playerNameForUpload,
+            Date.now().toString()
+          );
+          
+          if (uploadResult.success && uploadResult.publicUrl) {
+            console.log('[handleViewVideo] ✅ Video uploaded to Supabase!');
+            console.log('[handleViewVideo] 🔗 Raw Supabase URL:', uploadResult.publicUrl);
+            
+            // 🆕 NORMALIZE URL BEFORE USING (fixes https// -> https://)
+            const normalizedUrl = normalizeVideoUrl(uploadResult.publicUrl);
+            
+            if (!normalizedUrl) {
+              console.error('[handleViewVideo] ❌ URL normalization failed! Using fallback.');
+              supabaseVideoUrl = finalVideoUrl; // Fallback to original
+            } else {
+              supabaseVideoUrl = normalizedUrl;
+              console.log('[handleViewVideo] ✅ Normalized URL:', supabaseVideoUrl.substring(0, 80) + '...');
+            }
+            
+            // Update sessionStorage with normalized Supabase URL
+            window.sessionStorage.setItem('generatedVideoUrl', supabaseVideoUrl);
+          } else {
+            console.warn('[handleViewVideo] ⚠️ Supabase upload failed, using original URL:', uploadResult.error);
+          }
+        } catch (uploadError) {
+          console.error('[handleViewVideo] ❌ Error uploading to Supabase:', uploadError);
+          // Continue with original URL
+        }
+        
+        // 📊 UPDATE LEADERBOARD ENTRY WITH SUPABASE VIDEO URL
+        try {
+          console.log('[handleViewVideo] ═══════════════════════════════════════');
+          console.log('[handleViewVideo] 📊 UPDATING BOWLING_ATTEMPTS WITH VIDEO URL');
+          console.log('[handleViewVideo] ═══════════════════════════════════════');
+          
+          const leaderboardId = window.sessionStorage.getItem('leaderboardEntryId');
+          console.log('[handleViewVideo] 📦 Leaderboard ID from session:', leaderboardId);
+          console.log('[handleViewVideo] 🎥 Video URL:', supabaseVideoUrl);
+          console.log('[handleViewVideo] 🔍 URL starts with https://:', supabaseVideoUrl?.startsWith('https://'));
+          
+            if (leaderboardId && supabaseVideoUrl) {
+            // ⚠️ CRITICAL: Validate and normalize URL before saving to database
+            console.log('[handleViewVideo] 🔍 ========== CLIENT-SIDE URL VALIDATION ==========');
+            console.log('[handleViewVideo] 🔍 Original URL:', supabaseVideoUrl);
+            console.log('[handleViewVideo] 🔍 URL length:', supabaseVideoUrl?.length);
+            console.log('[handleViewVideo] 🔍 Contains bowllikebumrah.com:', supabaseVideoUrl?.includes('bowllikebumrah.com'));
+            
+            // CRITICAL: Reject if URL contains domain corruption
+            if (supabaseVideoUrl && supabaseVideoUrl.includes('bowllikebumrah.com')) {
+              console.error('[handleViewVideo] ❌❌❌ BLOCKED: Attempted to save corrupted URL!');
+              console.error('[handleViewVideo] ❌ Corrupted URL:', supabaseVideoUrl);
+              console.error('[handleViewVideo] ❌ This URL will NOT be saved to database');
+            } else {
+              const finalVideoUrl = normalizeVideoUrl(supabaseVideoUrl);
+              
+              if (!finalVideoUrl || !finalVideoUrl.startsWith('https://hqzukyxnnjnstrecybzx.supabase.co/storage/')) {
+                console.error('[handleViewVideo] ❌ Invalid URL format! URL must be valid Supabase URL');
+                console.error('[handleViewVideo] 🔍 Original URL:', supabaseVideoUrl);
+                console.error('[handleViewVideo] 🔍 Normalized URL:', finalVideoUrl);
+                console.error('[handleViewVideo] ❌ URL will NOT be saved to database');
+              } else {
+                console.log('[handleViewVideo] ✅ URL validated and normalized, proceeding with UPDATE...');
+                console.log('[handleViewVideo] 🔗 Clean URL:', finalVideoUrl.substring(0, 80) + '...');
+                
+                const { error: updateError, data: updateData } = await supabase
+                  .from('bowling_attempts')
+                  .update({ video_url: finalVideoUrl })  // Use normalized URL
+                  .eq('id', leaderboardId)
+                  .select();
+                
+                if (updateError) {
+                  console.error('[handleViewVideo] ❌ Failed to update video URL:', updateError);
+                  console.error('[handleViewVideo] ❌ Error details:', JSON.stringify(updateError));
+                } else {
+                  console.log('[handleViewVideo] ✅ Video URL saved to database!');
+                  console.log('[handleViewVideo] 📋 Updated record:', updateData);
+                }
+              }
+            }
+            console.log('[handleViewVideo] 🔍 ===================================================');
+          } else {
+            console.warn('[handleViewVideo] ⚠️ Missing required data:');
+            console.warn('[handleViewVideo]   - Leaderboard ID:', leaderboardId ? '✅' : '❌ MISSING');
+            console.warn('[handleViewVideo]   - Video URL:', supabaseVideoUrl ? '✅' : '❌ MISSING');
+          }
+          console.log('[handleViewVideo] ═══════════════════════════════════════');
+        } catch (error) {
+          console.error('[handleViewVideo] ❌ Error updating video URL:', error);
+          // Don't block navigation on error
+        }
+        
+        // 📱 SEND WHATSAPP MESSAGE WITH VIDEO LINK
+        try {
+          const playerPhone = window.sessionStorage.getItem('playerPhone');
+          const playerDisplayName = sessionAnalysisData?.playerName || playerName || window.sessionStorage.getItem('playerName') || 'Player';
+          const leaderboardId = window.sessionStorage.getItem('leaderboardEntryId');
+          
+          if (playerPhone && supabaseVideoUrl && leaderboardId) {
+            console.log('[handleViewVideo] 📱 Sending WhatsApp message...');
+            console.log('[handleViewVideo] Phone:', playerPhone);
+            console.log('[handleViewVideo] Name:', playerDisplayName);
+            console.log('[handleViewVideo] Video URL:', supabaseVideoUrl.substring(0, 100) + '...');
+            
+            // 🔗 SHORTEN SUPABASE URL using URL shortening service
+            console.log('[handleViewVideo] 🔗 Shortening URL...');
+            const shortenedUrl = await shortenUrlForWhatsApp(supabaseVideoUrl);
+            
+            console.log('[handleViewVideo] 🔗 Original URL:', supabaseVideoUrl.substring(0, 80) + '...');
+            console.log('[handleViewVideo] 🔗 Shortened URL:', shortenedUrl);
+            
+            // Send WhatsApp message via API endpoint with shortened URL
+            const whatsappResponse = await fetch('/api/send-whatsapp', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                phoneNumber: '91' + playerPhone, // Add country code
+                userName: playerDisplayName,
+                videoLink: shortenedUrl // Use shortened URL
+              })
+            });
+            
+            const whatsappResult = await whatsappResponse.json();
+            
+            if (whatsappResult.success) {
+              console.log('[handleViewVideo] ✅ WhatsApp message sent successfully!');
+              console.log('[handleViewVideo] Response ID:', whatsappResult.data?.responseId);
+              
+              // Update database to mark whatsapp_sent as true
+              if (leaderboardId) {
+                console.log('[handleViewVideo] 📊 Updating whatsapp_sent flag...');
+                const { error: whatsappUpdateError } = await supabase
+                  .from('bowling_attempts')
+                  .update({ whatsapp_sent: true })
+                  .eq('id', leaderboardId);
+                
+                if (whatsappUpdateError) {
+                  console.error('[handleViewVideo] ❌ Failed to update whatsapp_sent flag:', whatsappUpdateError);
+                } else {
+                  console.log('[handleViewVideo] ✅ whatsapp_sent flag updated to true!');
+                }
+              }
+            } else {
+              console.error('[handleViewVideo] ❌ Failed to send WhatsApp:', whatsappResult.error);
+            }
+          } else {
+            console.warn('[handleViewVideo] ⚠️ Skipping WhatsApp - missing phone or video URL');
+            console.warn('[handleViewVideo] Phone:', playerPhone ? 'available' : 'missing');
+            console.warn('[handleViewVideo] Video URL:', supabaseVideoUrl ? 'available' : 'missing');
+          }
+        } catch (whatsappError) {
+          console.error('[handleViewVideo] ❌ Error sending WhatsApp message:', whatsappError);
+          // Don't block navigation on WhatsApp error
+        }
+        
+        console.log('[handleViewVideo] 🚀 Navigating to download page in 1 second...');
+        
+        // Short delay to show 100% completion
         setTimeout(() => {
-          window.location.href = '/download-video';
-        }, 500);
+          console.log('[handleViewVideo] 🚀 NAVIGATING NOW!');
+          window.location.href = '/download-video'; 
+        }, 1000);
       }
 
     } catch (error) {
@@ -520,9 +1311,55 @@ export default function SimplifiedAnalyzePage() {
     }
   };
 
-  // Download composite card functionality - Using manual canvas rendering
+  // Download composite card functionality - Downloads the card shown on UI
   const downloadCompositeCard = async () => {
     try {
+      // Determine which card URL to use
+      let cardUrlToDownload: string | null = null;
+      
+      // PRIORITY 1: Returning user with existing card
+      if (isReturningUser && existingCompositeCardUrl) {
+        console.log('📥 Downloading EXISTING composite card for returning user...');
+        console.log('🔗 Existing URL:', existingCompositeCardUrl);
+        cardUrlToDownload = existingCompositeCardUrl;
+      }
+      // PRIORITY 2: First-time user - use the card that was just uploaded to Supabase
+      else if (typeof window !== 'undefined') {
+        const freshCardUrl = window.sessionStorage.getItem('compositeCardUrl');
+        if (freshCardUrl) {
+          console.log('📥 Downloading FRESH composite card for first-time user...');
+          console.log('🔗 Fresh URL:', freshCardUrl);
+          cardUrlToDownload = freshCardUrl;
+        }
+      }
+      
+      // If we have a URL, download from it
+      if (cardUrlToDownload) {
+        console.log('📥 Downloading composite card from URL...');
+        
+        // Download the composite card from URL
+        const response = await fetch(cardUrlToDownload);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch card: ${response.status}`);
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bowling-report-${sessionAnalysisData?.playerName || playerName || 'player'}-${Date.now()}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        console.log('✅ Composite card downloaded successfully from URL');
+        return;
+      }
+      
+      // FALLBACK: If no URL available, generate fresh (shouldn't happen normally)
+      console.warn('⚠️ No composite card URL found, generating fresh card...');
+      console.log('🎨 Generating new composite card for download...');
       await downloadCompositeCardManual({
         accuracyDisplay,
         runUpScore,
@@ -540,7 +1377,7 @@ export default function SimplifiedAnalyzePage() {
         sessionAnalysisData
       });
     } catch (error) {
-      console.error('Download failed:', error);
+      console.error('❌ Download failed:', error);
       alert('Failed to download the report. Please try again.');
     }
   };
@@ -700,7 +1537,7 @@ export default function SimplifiedAnalyzePage() {
               <GlassBackButton />
               
               {/* Headline */}
-              <div className="mb-3 text-center">
+              <div className="mb-3 text-center" style={{ marginTop: '30px' }}>
                 <div
                   style={{
                     fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
@@ -716,13 +1553,33 @@ export default function SimplifiedAnalyzePage() {
                 </div>
               </div>
 
-              {/* Composite Card - Always shown when there are results */}
+              {/* Composite Card - Show existing or generate new */}
               <div style={{ 
                 width: '100%',
                 maxWidth: 346,
                 margin: '0 auto',
                 position: 'relative'
               }}>
+                {isReturningUser && existingCompositeCardUrl ? (
+                  // Show existing composite card for returning users
+                  <div style={{
+                    width: '100%',
+                    maxWidth: 346,
+                    margin: '0 auto'
+                  }}>
+                    <img 
+                      src={existingCompositeCardUrl} 
+                      alt="Your Analysis Card" 
+                      style={{
+                        width: '100%',
+                        height: 'auto',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                  </div>
+                ) : (
+                  // Generate new composite card for new users or users without existing card
                 <CompositeCard
                   accuracyDisplay={accuracyDisplay}
                   runUpScore={runUpScore}
@@ -740,11 +1597,20 @@ export default function SimplifiedAnalyzePage() {
                       : "Great technique! Keep practicing to maintain consistency."
                   }
                 />
+                )}
               </div>
               
               {/* Action Buttons - Inside glass box */}
               <div className="mb-3" style={{ width: '100%', marginTop: '20px' }}>
-                {accuracyDisplay > 85 ? (
+                {(() => {
+                  // Determine which score to use
+                  const effectiveScore = isReturningUser && existingSimilarityPercent !== null 
+                    ? existingSimilarityPercent 
+                    : accuracyDisplay;
+                  
+                  const shouldShowViewVideo = effectiveScore > 85;
+                  
+                  return shouldShowViewVideo ? (
                   // 3 buttons when score > 85%
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -794,6 +1660,8 @@ export default function SimplifiedAnalyzePage() {
                         Download Report
                       </button>
                     </div>
+                      {/* View Video & Retry Buttons */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                     <button
                       className="transition-all duration-300 hover:brightness-110 hover:scale-105"
                       style={{
@@ -819,6 +1687,33 @@ export default function SimplifiedAnalyzePage() {
                       </svg>
                       View Video
                     </button>
+                        
+                        {/* Retry Button */}
+                        <button
+                          className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                          style={{
+                            width: "100%",
+                            backgroundColor: '#FFC315',
+                            borderRadius: '25.62px',
+                            fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                            fontWeight: '700',
+                            fontSize: '14px',
+                            color: 'black',
+                            padding: '10px 16px',
+                            border: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 8
+                          }}
+                          onClick={handleRetry}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                          </svg>
+                          Retry Analysis
+                    </button>
+                      </div>
                   </div>
                 ) : (
                   // 2 buttons when score <= 85%
@@ -869,12 +1764,18 @@ export default function SimplifiedAnalyzePage() {
                       Download Report
                     </button>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
 
             {/* Text and Retry Button - Below Glass Box */}
-            {accuracyDisplay < 85 && (
+            {(() => {
+              const effectiveScore = isReturningUser && existingSimilarityPercent !== null 
+                ? existingSimilarityPercent 
+                : accuracyDisplay;
+              return effectiveScore <= 85;
+            })() && (
               <div style={{ marginTop: '20px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                 {/* Feedback Text */}
                 <div style={{ marginBottom: '16px', textAlign: 'center' }}>
@@ -920,9 +1821,12 @@ export default function SimplifiedAnalyzePage() {
                   }}
                 onClick={() => {
                   console.log('🔄 Retry button clicked');
-                  // Clear session data and redirect to record-upload
                   if (typeof window !== 'undefined') {
-                    sessionStorage.clear();
+                    // Clear only analysis and video data, preserve auth state
+                    clearAnalysisSessionStorage();
+                    clearVideoSessionStorage();
+                    
+                    // Navigate to record-upload
                     window.location.href = '/record-upload';
                   }
                 }}
@@ -957,7 +1861,7 @@ export default function SimplifiedAnalyzePage() {
                 lineHeight: '1.4'
               }}
             >
-              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+              © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -987,11 +1891,9 @@ export default function SimplifiedAnalyzePage() {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>
                   </a>
                 </div>
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <a href="https://x.com/LnTFinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                  </a>
-                </div>
+                <a href="https://www.youtube.com/user/ltfinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                </a>
               </div>
           </div>
         </div>
@@ -1063,8 +1965,16 @@ export default function SimplifiedAnalyzePage() {
 
             {/* Action Buttons */}
             <div style={{ width: '250px' }}>
-              {accuracyDisplay > 85 ? (
-                // 3 buttons when score > 85%
+              {(() => {
+                // Determine which score to use
+                const effectiveScore = isReturningUser && existingSimilarityPercent !== null 
+                  ? existingSimilarityPercent 
+                  : accuracyDisplay;
+                
+                const shouldShowViewVideo = effectiveScore > 85;
+                
+                return shouldShowViewVideo ? (
+                  // 4 buttons when score > 85%
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   <Link href="/leaderboard">
                     <button
@@ -1116,7 +2026,7 @@ export default function SimplifiedAnalyzePage() {
                     className="transition-all duration-300 hover:brightness-110 hover:scale-105"
                     style={{
                       width: "100%",
-                      backgroundColor: '#0095d7',
+                      backgroundColor: '#0D4D80',
                       borderRadius: '25.62px',
                       fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
                       fontWeight: '700',
@@ -1136,6 +2046,32 @@ export default function SimplifiedAnalyzePage() {
                       <path d="M8 5v14l11-7z"/>
                     </svg>
                     View Video
+                  </button>
+
+                    {/* Retry Button - Desktop */}
+                    <button
+                      className="transition-all duration-300 hover:brightness-110 hover:scale-105"
+                      style={{
+                        width: "100%",
+                        backgroundColor: '#FFC315',
+                        borderRadius: '25.62px',
+                        fontFamily: "'FrutigerLT Pro', Inter, sans-serif",
+                        fontWeight: '700',
+                        fontSize: '16px',
+                        color: 'black',
+                        padding: '12px 20px',
+                        border: 'none',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8
+                      }}
+                      onClick={handleRetry}
+                    >
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/>
+                      </svg>
+                      Retry Analysis
                   </button>
                 </div>
               ) : (
@@ -1187,11 +2123,17 @@ export default function SimplifiedAnalyzePage() {
                     Download Report
                   </button>
                 </div>
-              )}
+                );
+              })()}
             </div>
 
-            {/* Missed Benchmark Text and Retry Button - Only show when score < 85% */}
-            {accuracyDisplay < 85 && (
+            {/* Missed Benchmark Text and Retry Button - Only show when score <= 85% */}
+            {(() => {
+              const effectiveScore = isReturningUser && existingSimilarityPercent !== null 
+                ? existingSimilarityPercent 
+                : accuracyDisplay;
+              return effectiveScore <= 85;
+            })() && (
               <div className="mt-8 text-center">
                 {/* Missed Benchmark Text */}
                 <div className="mb-4">
@@ -1231,7 +2173,11 @@ export default function SimplifiedAnalyzePage() {
                   onClick={() => {
                     console.log('🔄 Retry button clicked');
                     if (typeof window !== 'undefined') {
-                      sessionStorage.clear();
+                      // Clear only analysis and video data, preserve auth state
+                      clearAnalysisSessionStorage();
+                      clearVideoSessionStorage();
+                      
+                      // Navigate to record-upload
                       window.location.href = '/record-upload';
                     }
                   }}
@@ -1276,6 +2222,26 @@ export default function SimplifiedAnalyzePage() {
                   margin: '0 auto',
                   position: 'relative'
                 }}>
+                  {isReturningUser && existingCompositeCardUrl ? (
+                    // Show existing composite card for returning users
+                    <div style={{
+                      width: '100%',
+                      maxWidth: 346,
+                      margin: '0 auto'
+                    }}>
+                      <img 
+                        src={existingCompositeCardUrl} 
+                        alt="Your Analysis Card" 
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          borderRadius: '12px',
+                          boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    // Generate new composite card for new users or users without existing card
                   <CompositeCard
                     accuracyDisplay={accuracyDisplay}
                     runUpScore={runUpScore}
@@ -1293,6 +2259,7 @@ export default function SimplifiedAnalyzePage() {
                         : "Great technique! Keep practicing to maintain consistency."
                     }
                   />
+                  )}
                 </div>
               </div>
             </div>
@@ -1312,7 +2279,7 @@ export default function SimplifiedAnalyzePage() {
                 lineHeight: '1.4'
               }}
             >
-                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <a href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</a>
+                © L&T Finance Limited (formerly known as L&T Finance Holdings Limited) | CIN: L67120MH2008PLC181833 | <Link href="/terms-and-conditions" className="text-blue-300 hover:text-blue-200 underline">Terms and Conditions</Link>
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -1342,11 +2309,9 @@ export default function SimplifiedAnalyzePage() {
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z"/></svg>
                   </a>
                 </div>
-                <div className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
-                  <a href="https://x.com/LnTFinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
-                  </a>
-                </div>
+                <a href="https://www.youtube.com/user/ltfinance" target="_blank" rel="noopener noreferrer" aria-label="YouTube" className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors cursor-pointer">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                </a>
               </div>
             </div>
           </div>
@@ -1361,5 +2326,6 @@ export default function SimplifiedAnalyzePage() {
     </>
   );
 }
+
 
 

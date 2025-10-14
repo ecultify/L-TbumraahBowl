@@ -8,8 +8,8 @@ export const RemotionRoot: React.FC = () => {
       <Composition
         id="first-frame"
         component={FirstFrame}
-        durationInFrames={720}
-        fps={30}
+        durationInFrames={276}
+        fps={12}
         width={1080}
         height={1440}
         defaultProps={{
@@ -18,6 +18,7 @@ export const RemotionRoot: React.FC = () => {
             speedClass: 'Zooooom' as const,
             kmh: 86,
             similarity: 86,
+            frameIntensities: [],
             phases: {
               runUp: 50,
               delivery: 60,
@@ -30,10 +31,11 @@ export const RemotionRoot: React.FC = () => {
               releasePoint: 69
             },
             recommendations: ['Focus on arm swing technique and timing'],
-            playerName: 'Saharsh'
+            playerName: 'Player'
           }
         }}
       />
     </>
   );
 };
+
