@@ -268,20 +268,16 @@ export class GeminiTorsoService {
         }
       }
       
-      console.log('[BG REMOVAL] 🚀 Calling Segmind Bria Background Removal API...');
+      console.log('[BG REMOVAL] 🚀 Calling background removal via backend API...');
       
-      // Call Segmind Bria API
-      const response = await fetch('https://api.segmind.com/v1/bria-remove-background', {
+      // Call backend API (avoids CORS issues)
+      const response = await fetch('/api/remove-bg-huggingface', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-api-key': 'SG_c7a0d229dc5d25b4'
         },
         body: JSON.stringify({
-          image: base64Image,
-          preserve_alpha: true,
-          visual_input_content_moderation: false,
-          visual_output_content_moderation: false
+          image: base64Image
         })
       });
       
