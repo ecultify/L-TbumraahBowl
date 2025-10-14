@@ -584,7 +584,7 @@ function queueRender(renderId, executeFunction) {
 app.post('/render', async (req, res) => {
   try {
     console.log('🎬 [Render Server] Received render request');
-    console.log('📊 [Render Server] Analysis data:', req.body.analysisData);
+    console.log('📊 [Render Server] Full analysis data:', JSON.stringify(req.body.analysisData, null, 2));
 
     const {analysisData, userVideoUrl, thumbnailDataUrl, leaderboardId, phoneNumber} = req.body;
 
