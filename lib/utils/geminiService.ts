@@ -182,6 +182,21 @@ export class GeminiTorsoService {
       }
       console.log('Backend or direct API response received');
 
+      // 🔧 CRITICAL VALIDATION: Check if Gemini returned valid image
+      if (!responseData || !responseData.success || !responseData.imageUrl) {
+        console.error('[GEMINI] ❌ Invalid response from Gemini API:', responseData);
+        throw new Error('Gemini API returned empty or invalid image');
+      }
+
+      // 🔧 VALIDATE: Ensure imageUrl is a proper data URL
+      if (!responseData.imageUrl.startsWith('data:image/')) {
+        console.error('[GEMINI] ❌ Invalid image URL format:', responseData.imageUrl.substring(0, 100));
+        throw new Error('Gemini API returned invalid image URL format');
+      }
+
+      console.log('✅ Gemini image validation passed');
+      console.log('📊 Gemini image size:', Math.round(responseData.imageUrl.length / 1024), 'KB');
+      
       if (responseData.success && responseData.imageUrl) {
         console.log('Gemini 2.5 Flash Image Preview torso generation completed successfully via backend');
 
@@ -268,14 +283,10 @@ export class GeminiTorsoService {
         }
       }
       
-      console.log('[BG REMOVAL] 🎨 Compressing image before sending...');
-      
-      // Compress image to reduce payload size (fix 413 error)
-      const compressedImage = await this.compressImage(imageUrl, 800, 0.9);
-      const compressedBase64 = compressedImage.split(',')[1]; // Remove data:image prefix
-      
+      // 🔧 NO COMPRESSION: Send full-quality image to background removal
+      // (User requested to preserve Gemini image quality)
       console.log('[BG REMOVAL] 🚀 Calling background removal via backend API...');
-      console.log('[BG REMOVAL] Original size:', base64Image.length, 'Compressed:', compressedBase64.length);
+      console.log('[BG REMOVAL] Image size:', base64Image.length, 'bytes (full quality)');
       
       // Call backend API (avoids CORS issues)
       const response = await fetch('/api/remove-bg-huggingface', {
@@ -284,7 +295,7 @@ export class GeminiTorsoService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: compressedBase64
+          image: base64Image // Send full-quality image (no compression)
         })
       });
       
