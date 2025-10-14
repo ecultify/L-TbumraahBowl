@@ -34,21 +34,32 @@ export async function uploadGeminiAvatar(
     }
 
     console.log('✅ Image blob created, size:', imageBlob.size, 'bytes');
+    console.log('📋 Original blob type:', imageBlob.type);
 
-    // Generate unique filename
+    // 🔧 FIX: Force correct content type for avatars (always PNG)
+    // Sometimes blob.type is incorrect (e.g., 'application/json'), causing upload failures
+    const correctContentType = 'image/png';
+    
+    // Create a new blob with the correct content type if needed
+    if (imageBlob.type !== correctContentType) {
+      console.warn(`⚠️ Blob had incorrect type '${imageBlob.type}', fixing to '${correctContentType}'`);
+      imageBlob = new Blob([imageBlob], { type: correctContentType });
+    }
+
+    // Generate unique filename (always .png for avatars)
     const timestamp = new Date().getTime();
     const sanitizedName = playerName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-    const fileExtension = imageBlob.type.split('/')[1] || 'png';
-    const fileName = `${sanitizedName}-${timestamp}.${fileExtension}`;
+    const fileName = `${sanitizedName}-${timestamp}.png`;
     const filePath = `avatars/${fileName}`;
 
     console.log('📁 Uploading to path:', filePath);
+    console.log('📋 Content type:', correctContentType);
 
     // Upload to Supabase storage
     const { data, error } = await supabase.storage
       .from('bowling-avatars')
       .upload(filePath, imageBlob, {
-        contentType: imageBlob.type,
+        contentType: correctContentType, // Always use image/png
         cacheControl: '3600', // Cache for 1 hour
         upsert: false // Don't overwrite existing files
       });
