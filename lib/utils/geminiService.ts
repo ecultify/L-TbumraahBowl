@@ -268,7 +268,14 @@ export class GeminiTorsoService {
         }
       }
       
+      console.log('[BG REMOVAL] 🎨 Compressing image before sending...');
+      
+      // Compress image to reduce payload size (fix 413 error)
+      const compressedImage = await this.compressImage(imageDataUrl, 800, 0.9);
+      const compressedBase64 = compressedImage.split(',')[1]; // Remove data:image prefix
+      
       console.log('[BG REMOVAL] 🚀 Calling background removal via backend API...');
+      console.log('[BG REMOVAL] Original size:', base64Image.length, 'Compressed:', compressedBase64.length);
       
       // Call backend API (avoids CORS issues)
       const response = await fetch('/api/remove-bg-huggingface', {
@@ -277,7 +284,7 @@ export class GeminiTorsoService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: base64Image
+          image: compressedBase64
         })
       });
       
@@ -310,6 +317,40 @@ export class GeminiTorsoService {
     }
   }
 
+
+  // Helper: Compress image to reduce payload size
+  private async compressImage(dataUrl: string, maxWidth: number = 800, quality: number = 0.9): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Canvas not available'));
+          return;
+        }
+
+        // Calculate new dimensions
+        let width = img.width;
+        let height = img.height;
+        
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress as JPEG with quality setting
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  }
 
   // Fallback: Use local composite approach
   async generateTorsoFallback(request: TorsoGenerationRequest): Promise<TorsoGenerationResult> {
