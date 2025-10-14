@@ -283,10 +283,17 @@ export class GeminiTorsoService {
         }
       }
       
-      // 🔧 NO COMPRESSION: Send full-quality image to background removal
-      // (User requested to preserve Gemini image quality)
+      // 🔧 COMPRESS ONLY FOR BACKGROUND REMOVAL (Gemini image stays full quality)
+      // The background removal API has size limits, so we compress before sending
+      console.log('[BG REMOVAL] 📊 Original Gemini image size:', Math.round(base64Image.length / 1024), 'KB');
+      console.log('[BG REMOVAL] 🎨 Compressing for background removal API...');
+      
+      // Compress to avoid 413 error
+      const compressedImage = await this.compressImage(imageUrl, 1024, 0.85); // Slightly larger than before
+      const compressedBase64 = compressedImage.split(',')[1]; // Remove data:image prefix
+      
+      console.log('[BG REMOVAL] 📊 Compressed size:', Math.round(compressedBase64.length / 1024), 'KB');
       console.log('[BG REMOVAL] 🚀 Calling background removal via backend API...');
-      console.log('[BG REMOVAL] Image size:', base64Image.length, 'bytes (full quality)');
       
       // Call backend API (avoids CORS issues)
       const response = await fetch('/api/remove-bg-huggingface', {
@@ -295,7 +302,7 @@ export class GeminiTorsoService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: base64Image // Send full-quality image (no compression)
+          image: compressedBase64 // Send compressed image to stay under size limit
         })
       });
       
