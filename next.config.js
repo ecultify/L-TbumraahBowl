@@ -9,6 +9,12 @@ const nextConfig = {
     
   } : {}),
   transpilePackages: ["@remotion/player", "remotion"],
+  // Increase body size limit for server actions and API routes (Next.js 13+)
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '20mb',
+    },
+  },
   // Generate unique build IDs to bust browser cache
   generateBuildId: async () => {
     return `build-${Date.now()}`;
@@ -17,12 +23,6 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
-  // Increase body size limit for API routes (for image uploads)
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
   async headers() {
     return [
       {

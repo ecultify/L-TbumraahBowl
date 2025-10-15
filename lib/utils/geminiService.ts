@@ -283,22 +283,50 @@ export class GeminiTorsoService {
         }
       }
       
-      // Check size and compress if needed to avoid 413 errors
+      // ALWAYS compress to avoid 413 errors - Gemini images are often too large
       const originalSizeKB = Math.round(base64Image.length / 1024);
       console.log('[BG REMOVAL] 📊 Original Gemini image size:', originalSizeKB, 'KB');
       
-      let finalImageToSend = imageUrl;
+      // Aggressive compression to ensure we stay under server limits
+      // Target: Keep final size under 2MB to avoid 413 errors
+      let compressionQuality = 0.85;
+      let maxWidth = 1200;
       
-      // Compress if larger than 3MB to avoid 413 Content Too Large errors
-      if (originalSizeKB > 3072) {
-        console.log('[BG REMOVAL] ⚠️ Image too large, compressing to prevent 413 error...');
-        finalImageToSend = await this.compressImage(imageUrl, 1200, 0.85);
-        const compressedBase64 = finalImageToSend.split(',')[1] || finalImageToSend;
-        const compressedSizeKB = Math.round(compressedBase64.length / 1024);
-        console.log('[BG REMOVAL] ✅ Compressed from', originalSizeKB, 'KB to', compressedSizeKB, 'KB');
-        base64Image = compressedBase64;
+      if (originalSizeKB > 5000) {
+        // Very large image - compress more aggressively
+        compressionQuality = 0.7;
+        maxWidth = 800;
+        console.log('[BG REMOVAL] 🔥 Very large image detected, using aggressive compression');
+      } else if (originalSizeKB > 3000) {
+        // Large image - standard compression
+        compressionQuality = 0.75;
+        maxWidth = 1000;
+        console.log('[BG REMOVAL] ⚠️ Large image detected, using standard compression');
+      } else if (originalSizeKB > 1500) {
+        // Medium image - light compression
+        compressionQuality = 0.8;
+        maxWidth = 1100;
+        console.log('[BG REMOVAL] 📦 Medium image detected, using light compression');
       } else {
-        console.log('[BG REMOVAL] ✅ Image size acceptable, sending without compression');
+        console.log('[BG REMOVAL] ✅ Small image, using minimal compression');
+      }
+      
+      console.log('[BG REMOVAL] 🔧 Compressing with quality:', compressionQuality, 'maxWidth:', maxWidth);
+      const finalImageToSend = await this.compressImage(imageUrl, maxWidth, compressionQuality);
+      const compressedBase64 = finalImageToSend.split(',')[1] || finalImageToSend;
+      const compressedSizeKB = Math.round(compressedBase64.length / 1024);
+      console.log('[BG REMOVAL] ✅ Compressed from', originalSizeKB, 'KB to', compressedSizeKB, 'KB');
+      
+      // If still too large after compression, compress even more
+      if (compressedSizeKB > 2500) {
+        console.log('[BG REMOVAL] ⚠️ Still too large, applying secondary compression...');
+        const secondPass = await this.compressImage(finalImageToSend, 600, 0.6);
+        const secondPassBase64 = secondPass.split(',')[1] || secondPass;
+        const secondPassSizeKB = Math.round(secondPassBase64.length / 1024);
+        console.log('[BG REMOVAL] ✅ Secondary compression: from', compressedSizeKB, 'KB to', secondPassSizeKB, 'KB');
+        base64Image = secondPassBase64;
+      } else {
+        base64Image = compressedBase64;
       }
       
       console.log('[BG REMOVAL] 🚀 Calling BG Removal V2 via backend API...');

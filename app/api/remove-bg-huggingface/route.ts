@@ -7,6 +7,16 @@ const SEGMIND_API_URL = 'https://api.segmind.com/v1/bg-removal-v2';
 // Configure route segment to allow larger payloads
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Allow up to 60 seconds for processing
+
+// Configure body size limit for this route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '20mb',
+    },
+  },
+};
 
 export async function POST(req: NextRequest) {
   try {
