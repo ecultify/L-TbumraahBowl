@@ -9,15 +9,6 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for processing
 
-// Configure body size limit for this route
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '20mb',
-    },
-  },
-};
-
 export async function POST(req: NextRequest) {
   try {
     const { image } = await req.json();
