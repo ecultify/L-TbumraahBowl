@@ -17,6 +17,12 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   images: { unoptimized: true },
+  // Increase body size limit for API routes (for image uploads)
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
   async headers() {
     return [
       {

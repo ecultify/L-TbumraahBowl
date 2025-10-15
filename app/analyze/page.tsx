@@ -18,6 +18,7 @@ import { shortenUrlForWhatsApp } from '@/lib/utils/urlShortener';
 import { usePageProtection } from '@/lib/hooks/usePageProtection';
 import { UnauthorizedAccess } from '@/components/UnauthorizedAccess';
 import { clearAnalysisSessionStorage, clearVideoSessionStorage } from '@/lib/utils/sessionCleanup';
+import { applySimilarityReduction } from '@/lib/utils/similarityAdjustment';
 
 export default function SimplifiedAnalyzePage() {
   // ALL HOOKS MUST BE CALLED BEFORE ANY CONDITIONAL RETURNS
@@ -270,8 +271,35 @@ export default function SimplifiedAnalyzePage() {
       if (storedData) {
         try {
           const parsedData = JSON.parse(storedData);
-          console.log('📊 analysisVideoData loaded:', parsedData);
-          setSessionAnalysisData(parsedData);
+          console.log('📊 analysisVideoData loaded (original):', parsedData);
+          const adjustedData = applySimilarityReduction(parsedData);
+          console.log('📊 analysisVideoData adjusted (18% reduction):', adjustedData);
+          console.log('🔍 Reduction verification:', {
+            similarity: { 
+              original: parsedData.similarity || 0, 
+              adjusted: adjustedData.similarity || 0, 
+              diff: (parsedData.similarity || 0) - (adjustedData.similarity || 0) 
+            },
+            intensity: { 
+              original: parsedData.intensity || 0, 
+              adjusted: adjustedData.intensity || 0, 
+              diff: (parsedData.intensity || 0) - (adjustedData.intensity || 0) 
+            },
+            phases: {
+              runUp: { original: parsedData.phases?.runUp, adjusted: adjustedData.phases?.runUp },
+              delivery: { original: parsedData.phases?.delivery, adjusted: adjustedData.phases?.delivery },
+              followThrough: { original: parsedData.phases?.followThrough, adjusted: adjustedData.phases?.followThrough }
+            },
+            frameIntensitiesCount: {
+              original: parsedData.frameIntensities?.length || 0,
+              adjusted: adjustedData.frameIntensities?.length || 0,
+              firstFrame: {
+                original: parsedData.frameIntensities?.[0]?.intensity,
+                adjusted: adjustedData.frameIntensities?.[0]?.intensity
+              }
+            }
+          });
+          setSessionAnalysisData(adjustedData);
         } catch (error) {
           console.error('Error parsing session storage data:', error);
         }

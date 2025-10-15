@@ -268,9 +268,9 @@ export class GeminiTorsoService {
     });
   }
 
-  // Background removal with Segmind Bria model
+  // Background removal with Segmind V2 model
   private async removeBackground(imageUrl: string): Promise<string> {
-    console.log('[BG REMOVAL] 🎨 Starting background removal with Segmind Bria API...');
+    console.log('[BG REMOVAL] 🎨 Starting background removal with Segmind BG Removal V2 API...');
     console.log('[BG REMOVAL] Image URL length:', imageUrl.substring(0, 100));
     
     try {
@@ -283,17 +283,25 @@ export class GeminiTorsoService {
         }
       }
       
-      // 🔧 COMPRESS ONLY FOR BACKGROUND REMOVAL (Gemini image stays full quality)
-      // The background removal API has size limits, so we compress before sending
-      console.log('[BG REMOVAL] 📊 Original Gemini image size:', Math.round(base64Image.length / 1024), 'KB');
-      console.log('[BG REMOVAL] 🎨 Compressing for background removal API...');
+      // Check size and compress if needed to avoid 413 errors
+      const originalSizeKB = Math.round(base64Image.length / 1024);
+      console.log('[BG REMOVAL] 📊 Original Gemini image size:', originalSizeKB, 'KB');
       
-      // Compress to avoid 413 error
-      const compressedImage = await this.compressImage(imageUrl, 1024, 0.85); // Slightly larger than before
-      const compressedBase64 = compressedImage.split(',')[1]; // Remove data:image prefix
+      let finalImageToSend = imageUrl;
       
-      console.log('[BG REMOVAL] 📊 Compressed size:', Math.round(compressedBase64.length / 1024), 'KB');
-      console.log('[BG REMOVAL] 🚀 Calling background removal via backend API...');
+      // Compress if larger than 3MB to avoid 413 Content Too Large errors
+      if (originalSizeKB > 3072) {
+        console.log('[BG REMOVAL] ⚠️ Image too large, compressing to prevent 413 error...');
+        finalImageToSend = await this.compressImage(imageUrl, 1200, 0.85);
+        const compressedBase64 = finalImageToSend.split(',')[1] || finalImageToSend;
+        const compressedSizeKB = Math.round(compressedBase64.length / 1024);
+        console.log('[BG REMOVAL] ✅ Compressed from', originalSizeKB, 'KB to', compressedSizeKB, 'KB');
+        base64Image = compressedBase64;
+      } else {
+        console.log('[BG REMOVAL] ✅ Image size acceptable, sending without compression');
+      }
+      
+      console.log('[BG REMOVAL] 🚀 Calling BG Removal V2 via backend API...');
       
       // Call backend API (avoids CORS issues)
       const response = await fetch('/api/remove-bg-huggingface', {
@@ -302,17 +310,17 @@ export class GeminiTorsoService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          image: compressedBase64 // Send compressed image to stay under size limit
+          image: base64Image
         })
       });
       
       if (!response.ok) {
-        throw new Error(`Segmind Bria API error: ${response.status} ${response.statusText}`);
+        throw new Error(`Segmind BG Removal V2 API error: ${response.status} ${response.statusText}`);
       }
       
       // The response is the generated image as a blob
       const blob = await response.blob();
-      console.log('[BG REMOVAL] 📥 Received response from Segmind Bria (size:', blob.size, 'bytes)');
+      console.log('[BG REMOVAL] 📥 Received response from Segmind BG Removal V2 (size:', blob.size, 'bytes)');
       
       // Convert blob to data URL
       const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -322,11 +330,11 @@ export class GeminiTorsoService {
         reader.readAsDataURL(blob);
       });
       
-      console.log('[BG REMOVAL] 🎉 Success! Background removed via Segmind Bria API');
+      console.log('[BG REMOVAL] 🎉 Success! Background removed via Segmind BG Removal V2 API');
       return dataUrl;
       
     } catch (error: any) {
-      console.error('[BG REMOVAL] ❌ Segmind API failed:', error);
+      console.error('[BG REMOVAL] ❌ Segmind BG Removal V2 API failed:', error);
       console.error('[BG REMOVAL] Error type:', typeof error);
       console.error('[BG REMOVAL] Error message:', error.message || error);
       console.error('[BG REMOVAL] Error stack:', error.stack || 'No stack trace');
