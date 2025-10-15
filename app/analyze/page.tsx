@@ -388,6 +388,57 @@ export default function SimplifiedAnalyzePage() {
     }
   }, [sessionAnalysisData, hasSubmittedToLeaderboard, submitToLeaderboard]);
 
+  // Capture thumbnail from uploaded video for later use
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const uploadedVideoUrl = window.sessionStorage.getItem('uploadedVideoUrl');
+      const existingThumbnail = window.sessionStorage.getItem('detectedFrameDataUrl') || window.sessionStorage.getItem('videoThumbnail');
+      
+      // Only capture if we don't already have a thumbnail
+      if (uploadedVideoUrl && !existingThumbnail) {
+        console.log('[Analyze] 📸 Capturing thumbnail from video...');
+        
+        const video = document.createElement('video');
+        video.crossOrigin = 'anonymous';
+        video.src = uploadedVideoUrl;
+        
+        video.onloadeddata = () => {
+          try {
+            // Seek to 1 second (or 10% into video) to get a better frame
+            const seekTime = Math.min(1, video.duration * 0.1);
+            video.currentTime = seekTime;
+          } catch (e) {
+            console.warn('[Analyze] Could not seek video, using first frame');
+          }
+        };
+        
+        video.onseeked = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              const thumbnailDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+              
+              // Store thumbnail for later use
+              window.sessionStorage.setItem('videoThumbnail', thumbnailDataUrl);
+              console.log('[Analyze] ✅ Thumbnail captured and stored');
+            }
+          } catch (e) {
+            console.error('[Analyze] ❌ Error capturing thumbnail:', e);
+          }
+        };
+        
+        video.onerror = (e) => {
+          console.error('[Analyze] ❌ Error loading video for thumbnail:', e);
+        };
+      }
+    }
+  }, []);
+
   // Check for returning user on mount - PRIORITIZE FRESH ANALYSIS DATA
   React.useEffect(() => {
     if (typeof window !== 'undefined') {
