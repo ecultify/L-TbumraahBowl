@@ -268,7 +268,7 @@ export class GeminiTorsoService {
     });
   }
 
-  // Background removal with Segmind V2 model
+  // Background removal with Segmind V2 model - CLIENT-SIDE DIRECT CALL
   private async removeBackground(imageUrl: string): Promise<string> {
     console.log('[BG REMOVAL] 🎨 Starting background removal with Segmind BG Removal V2 API...');
     console.log('[BG REMOVAL] Image URL length:', imageUrl.substring(0, 100));
@@ -283,27 +283,23 @@ export class GeminiTorsoService {
         }
       }
       
-      // ALWAYS compress to avoid 413 errors - Gemini images are often too large
+      // ALWAYS compress to avoid payload size issues
       const originalSizeKB = Math.round(base64Image.length / 1024);
       console.log('[BG REMOVAL] 📊 Original Gemini image size:', originalSizeKB, 'KB');
       
-      // Aggressive compression to ensure we stay under server limits
-      // Target: Keep final size under 2MB to avoid 413 errors
+      // Aggressive compression to ensure reasonable payload size
       let compressionQuality = 0.85;
       let maxWidth = 1200;
       
       if (originalSizeKB > 5000) {
-        // Very large image - compress more aggressively
         compressionQuality = 0.7;
         maxWidth = 800;
         console.log('[BG REMOVAL] 🔥 Very large image detected, using aggressive compression');
       } else if (originalSizeKB > 3000) {
-        // Large image - standard compression
         compressionQuality = 0.75;
         maxWidth = 1000;
         console.log('[BG REMOVAL] ⚠️ Large image detected, using standard compression');
       } else if (originalSizeKB > 1500) {
-        // Medium image - light compression
         compressionQuality = 0.8;
         maxWidth = 1100;
         console.log('[BG REMOVAL] 📦 Medium image detected, using light compression');
@@ -317,7 +313,7 @@ export class GeminiTorsoService {
       const compressedSizeKB = Math.round(compressedBase64.length / 1024);
       console.log('[BG REMOVAL] ✅ Compressed from', originalSizeKB, 'KB to', compressedSizeKB, 'KB');
       
-      // If still too large after compression, compress even more
+      // If still too large, compress even more
       if (compressedSizeKB > 2500) {
         console.log('[BG REMOVAL] ⚠️ Still too large, applying secondary compression...');
         const secondPass = await this.compressImage(finalImageToSend, 600, 0.6);
@@ -329,36 +325,40 @@ export class GeminiTorsoService {
         base64Image = compressedBase64;
       }
       
-      console.log('[BG REMOVAL] 🚀 Calling BG Removal V2 via backend API...');
+      console.log('[BG REMOVAL] 🚀 Calling Segmind API DIRECTLY from client (bypassing Next.js server)...');
+      console.log('[BG REMOVAL] 📦 Final payload size:', Math.round(base64Image.length / 1024), 'KB');
       
-      // Call backend API (avoids CORS issues)
-      const response = await fetch('/api/remove-bg-huggingface', {
+      // Call Segmind API directly from client
+      const SEGMIND_API_KEY = 'SG_c7a0d229dc5d25b4';
+      const SEGMIND_API_URL = 'https://api.segmind.com/v1/bg-removal-v2';
+      
+      const response = await fetch(SEGMIND_API_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'x-api-key': SEGMIND_API_KEY
         },
         body: JSON.stringify({
-          image: base64Image
+          image: base64Image,
+          type: 'transparent'
         })
       });
       
       if (!response.ok) {
-        throw new Error(`Segmind BG Removal V2 API error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        console.error('[BG REMOVAL] ❌ Segmind API error:', response.status, errorText);
+        throw new Error(`Segmind API error: ${response.status}`);
       }
       
-      // The response is the generated image as a blob
-      const blob = await response.blob();
-      console.log('[BG REMOVAL] 📥 Received response from Segmind BG Removal V2 (size:', blob.size, 'bytes)');
+      // Segmind returns image binary directly
+      const imageBuffer = await response.arrayBuffer();
+      const base64Result = btoa(
+        new Uint8Array(imageBuffer).reduce((data, byte) => data + String.fromCharCode(byte), '')
+      );
+      const dataUrl = `data:image/png;base64,${base64Result}`;
       
-      // Convert blob to data URL
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      
-      console.log('[BG REMOVAL] 🎉 Success! Background removed via Segmind BG Removal V2 API');
+      console.log('[BG REMOVAL] 🎉 Success! Background removed via Segmind API (client-side)');
+      console.log('[BG REMOVAL] 📊 Result size:', Math.round(base64Result.length / 1024), 'KB');
       return dataUrl;
       
     } catch (error: any) {
